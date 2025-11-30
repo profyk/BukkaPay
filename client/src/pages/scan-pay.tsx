@@ -12,8 +12,9 @@ export default function SendMoney() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const queryParams = new URLSearchParams(location.split('?')[1] || '');
-  const initialMode = queryParams.get('mode') === 'qr' ? 'scan' : 'method';
-  const initialPaymentMethod = queryParams.get('mode') === 'qr' ? 'qr' : null;
+  const isFloatingButtonMode = queryParams.get('mode') === 'qr';
+  const initialMode = isFloatingButtonMode ? 'scan' : 'method';
+  const initialPaymentMethod = isFloatingButtonMode ? 'qr' : null;
   const [stage, setStage] = useState<"method" | "scan" | "wallet-id" | "amount" | "confirm" | "success">(initialMode as any);
   const [paymentMethod, setPaymentMethod] = useState<"qr" | "bukka" | "mobile" | "bank" | null>(initialPaymentMethod as any);
   const [walletId, setWalletId] = useState("");
@@ -272,7 +273,9 @@ export default function SendMoney() {
       <header className="px-6 pt-8 pb-6 flex items-center gap-4">
         <button
           onClick={() => {
-            if (stage === "method") {
+            if (isFloatingButtonMode) {
+              navigate?.("/");
+            } else if (stage === "method") {
               navigate?.("/");
             } else {
               setStage("method");
