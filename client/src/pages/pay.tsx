@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute } from "wouter";
 import { ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -59,7 +60,6 @@ export default function Pay() {
   }
 
   const handleDownloadApp = () => {
-    // In production, this would open the app store
     toast.info("Download BukkaPay from your app store");
   };
 
@@ -70,7 +70,6 @@ export default function Pay() {
     }
 
     try {
-      // Update payment request status to paid
       const response = await fetch(`/api/payment-requests/${requestId}/status`, {
         method: "PATCH",
         headers: {
@@ -83,7 +82,6 @@ export default function Pay() {
       if (!response.ok) throw new Error("Failed to confirm payment");
 
       toast.success("Payment confirmed!");
-      // Redirect to home after brief delay
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
@@ -104,7 +102,6 @@ export default function Pay() {
       </header>
 
       <div className="flex-1 flex flex-col px-6 pt-8 pb-8">
-        {/* Requester Info */}
         <div className="bg-secondary rounded-2xl p-6 mb-8 text-center">
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
             {requester?.name?.charAt(0).toUpperCase()}
@@ -114,14 +111,12 @@ export default function Pay() {
           <p className="text-muted-foreground text-sm">@{requester?.username}</p>
         </div>
 
-        {/* Amount */}
         <div className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl p-8 mb-8 text-white text-center">
           <p className="text-violet-100 text-sm mb-2">Amount Requested</p>
           <p className="text-6xl font-bold font-heading">${request.amount}</p>
           <p className="text-violet-100 text-sm mt-2">{request.currency}</p>
         </div>
 
-        {/* Request Details */}
         <div className="bg-secondary rounded-2xl p-4 mb-8">
           <div className="space-y-3">
             <div>
@@ -139,7 +134,6 @@ export default function Pay() {
 
         <div className="flex-1" />
 
-        {/* Action Buttons */}
         {user ? (
           <div className="space-y-3">
             <Button
