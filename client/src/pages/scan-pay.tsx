@@ -38,10 +38,19 @@ export default function ScanPay() {
   const startCamera = async () => {
     try {
       const constraints: any = {
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          focusMode: "continuous",
+          zoom: 1,
+        },
+        audio: false,
       };
+      
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
@@ -49,10 +58,12 @@ export default function ScanPay() {
           startQRScanning();
         };
       }
-    } catch (err) {
+    } catch (err: any) {
       toast({
         title: "Camera Error",
-        description: "Could not access camera. Try manual entry.",
+        description: err.name === "NotAllowedError" 
+          ? "Camera permission denied. Please allow camera access in settings."
+          : "Could not access camera. Try manual entry.",
         variant: "destructive",
       });
     }
