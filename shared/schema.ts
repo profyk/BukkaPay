@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -8,6 +8,12 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
+  phone: text("phone"),
+  countryCode: text("country_code").default("+1"),
+  password: text("password"),
+  biometricEnabled: boolean("biometric_enabled").default(false),
+  verified: boolean("verified").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const walletCards = pgTable("wallet_cards", {
@@ -42,12 +48,25 @@ export const contacts = pgTable("contacts", {
   color: text("color").notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true }).extend({
+  email: z.string().email("Invalid email"),
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  phone: z.string().optional(),
+  countryCode: z.string().optional(),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string(),
+});
+
 export const insertWalletCardSchema = createInsertSchema(walletCards).omit({ id: true, createdAt: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertContactSchema = createInsertSchema(contacts).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertWalletCard = z.infer<typeof insertWalletCardSchema>;
 export type WalletCard = typeof walletCards.$inferSelect;
