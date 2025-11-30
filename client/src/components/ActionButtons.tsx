@@ -1,15 +1,16 @@
-import { Send, ArrowDownLeft, Plus } from "lucide-react";
+import { Send, ArrowDownLeft, Plus, Smartphone } from "lucide-react";
 import { Link } from "wouter";
 
 export default function ActionButtons() {
   const actions = [
     { icon: Send, label: "Send", href: "/scan-pay", color: "bg-blue-500" },
     { icon: ArrowDownLeft, label: "Request", href: "/request", color: "bg-violet-500" },
+    { icon: Smartphone, label: "Tap Pay", href: "/tap-pay", color: "bg-indigo-500" },
     { icon: Plus, label: "Top Up", href: "/topup", color: "bg-emerald-500" },
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-4 gap-4">
       {actions.map((action) => (
         <Link key={action.label} href={action.href}>
           <div className="flex flex-col items-center space-y-2 cursor-pointer group">
