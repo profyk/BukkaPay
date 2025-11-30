@@ -1,5 +1,7 @@
+import { getAuthHeader } from "./auth";
+
 export async function fetchCards() {
-  const res = await fetch("/api/cards");
+  const res = await fetch("/api/cards", { headers: getAuthHeader() });
   if (!res.ok) throw new Error("Failed to fetch cards");
   return res.json();
 }
@@ -7,7 +9,7 @@ export async function fetchCards() {
 export async function createCard(card: any) {
   const res = await fetch("/api/cards", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(card),
   });
   if (!res.ok) throw new Error("Failed to create card");
@@ -17,7 +19,7 @@ export async function createCard(card: any) {
 export async function updateCardBalance(id: string, balance: string) {
   const res = await fetch(`/api/cards/${id}/balance`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify({ balance }),
   });
   if (!res.ok) throw new Error("Failed to update balance");
@@ -26,7 +28,7 @@ export async function updateCardBalance(id: string, balance: string) {
 
 export async function fetchTransactions(limit?: number) {
   const url = limit ? `/api/transactions?limit=${limit}` : "/api/transactions";
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: getAuthHeader() });
   if (!res.ok) throw new Error("Failed to fetch transactions");
   return res.json();
 }
@@ -34,7 +36,7 @@ export async function fetchTransactions(limit?: number) {
 export async function createTransaction(transaction: any) {
   const res = await fetch("/api/transactions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(transaction),
   });
   if (!res.ok) throw new Error("Failed to create transaction");
@@ -42,7 +44,7 @@ export async function createTransaction(transaction: any) {
 }
 
 export async function fetchContacts() {
-  const res = await fetch("/api/contacts");
+  const res = await fetch("/api/contacts", { headers: getAuthHeader() });
   if (!res.ok) throw new Error("Failed to fetch contacts");
   return res.json();
 }
@@ -50,7 +52,7 @@ export async function fetchContacts() {
 export async function createContact(contact: any) {
   const res = await fetch("/api/contacts", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(contact),
   });
   if (!res.ok) throw new Error("Failed to create contact");
@@ -60,7 +62,7 @@ export async function createContact(contact: any) {
 export async function transfer(fromCardId: string, toCardId: string, amount: string) {
   const res = await fetch("/api/transfer", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify({ fromCardId, toCardId, amount }),
   });
   if (!res.ok) {

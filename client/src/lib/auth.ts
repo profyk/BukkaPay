@@ -61,6 +61,22 @@ export async function login(email: string, password: string) {
   return data;
 }
 
-export function logout() {
+export async function logout() {
+  const token = getAuthToken();
+  if (token) {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+    } catch (e) {
+      console.error("Logout error:", e);
+    }
+  }
   clearAuthToken();
+}
+
+export function getAuthHeader() {
+  const token = getAuthToken();
+  return token ? { "Authorization": `Bearer ${token}` } : {};
 }

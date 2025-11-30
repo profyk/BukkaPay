@@ -1,18 +1,105 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema } from "@shared/schema";
+import { signup, login, generateSessionToken } from "./auth";
+import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, insertUserSchema, loginSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
+
+// Session store (in production, use Redis or database)
+const sessions = new Map<string, { userId: string; expiresAt: number }>();
+
+// Middleware to get userId from session token
+function getUserIdFromRequest(req: Request): string | null {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return null;
+  
+  const session = sessions.get(token);
+  if (!session || session.expiresAt < Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+  
+  return session.userId;
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
+  // Auth Routes
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const validation = insertUserSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const user = await signup(validation.data);
+      const token = generateSessionToken();
+      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 }); // 30 days
+
+      res.status(201).json({
+        token,
+        user: { id: user.id, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const validation = loginSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const user = await login(validation.data);
+      const token = generateSessionToken();
+      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+
+      res.json({
+        token,
+        user: { id: user.id, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
+      });
+    } catch (error: any) {
+      res.status(401).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (token) sessions.delete(token);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/auth/me", (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      storage.getUser(userId).then(user => {
+        if (!user) return res.status(404).json({ error: "User not found" });
+        res.json({ id: user.id, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode });
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Wallet Cards
   app.get("/api/cards", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const cards = await storage.getWalletCards(userId);
       res.json(cards);
     } catch (error: any) {
@@ -22,7 +109,9 @@ export async function registerRoutes(
 
   app.post("/api/cards", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const validation = insertWalletCardSchema.safeParse({ ...req.body, userId });
       
       if (!validation.success) {
@@ -38,7 +127,9 @@ export async function registerRoutes(
 
   app.patch("/api/cards/:id/balance", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const { id } = req.params;
       const { balance } = req.body;
 
@@ -60,7 +151,9 @@ export async function registerRoutes(
   // Transactions
   app.get("/api/transactions", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const transactions = await storage.getTransactions(userId, limit);
       res.json(transactions);
@@ -71,7 +164,9 @@ export async function registerRoutes(
 
   app.post("/api/transactions", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const validation = insertTransactionSchema.safeParse({ ...req.body, userId });
       
       if (!validation.success) {
@@ -97,7 +192,9 @@ export async function registerRoutes(
   // Contacts
   app.get("/api/contacts", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const contacts = await storage.getContacts(userId);
       res.json(contacts);
     } catch (error: any) {
@@ -107,7 +204,9 @@ export async function registerRoutes(
 
   app.post("/api/contacts", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const validation = insertContactSchema.safeParse({ ...req.body, userId });
       
       if (!validation.success) {
@@ -215,7 +314,9 @@ export async function registerRoutes(
   // Transfer endpoint
   app.post("/api/transfer", async (req, res) => {
     try {
-      const userId = "demo-user";
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
       const { fromCardId, toCardId, amount } = req.body;
 
       if (!fromCardId || !toCardId || !amount || parseFloat(amount) <= 0) {
