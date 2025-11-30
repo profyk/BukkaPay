@@ -16,10 +16,11 @@ export default function ScanPay() {
   const [selectedCard, setSelectedCard] = useState("");
   const [loading, setLoading] = useState(false);
   const [flashlightOn, setFlashlightOn] = useState(false);
-  const [scanningActive, setScanningActive] = useState(true);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentUser = getCurrentUser();
 
@@ -36,106 +37,111 @@ export default function ScanPay() {
     }
   }, [cards, selectedCard]);
 
+  // Start camera when entering scan stage
   useEffect(() => {
     if (stage === "scan") {
       startCamera();
     }
     return () => {
-      if (videoRef.current?.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-        tracks.forEach(track => track.stop());
-      }
+      stopCamera();
     };
   }, [stage]);
 
+  // Real-time QR scanning
   useEffect(() => {
-    if (stage === "scan" && scanningActive && videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
+    if (!cameraActive || !videoRef.current || !canvasRef.current) return;
 
-      const scanInterval = setInterval(() => {
-        if (video.readyState === video.HAVE_ENOUGH_DATA && videoRef.current) {
+    scanIntervalRef.current = setInterval(() => {
+      try {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+
+        if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return;
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qrCode = jsQR(imageData.data, canvas.width, canvas.height);
+
+        if (qrCode?.data) {
           try {
-            canvas.width = video.videoWidth || 640;
-            canvas.height = video.videoHeight || 480;
-            const ctx = canvas.getContext("2d", { willReadFrequently: true });
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const qrCode = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
-              
-              if (qrCode && qrCode.data) {
-                try {
-                  const data = JSON.parse(qrCode.data);
-                  if (data.userId && data.username && data.walletId) {
-                    clearInterval(scanInterval);
-                    setScanningActive(false);
-                    setScannedData(data);
-                    setStage("confirm");
-                    toast({
-                      title: "QR Code Scanned!",
-                      description: `Found ${data.username}`,
-                      variant: "default",
-                    });
-                  }
-                } catch (e) {
-                  // Continue scanning
-                }
-              }
+            const data = JSON.parse(qrCode.data);
+            if (data.userId && data.username && data.walletId) {
+              stopCamera();
+              setScannedData(data);
+              setStage("confirm");
+              toast({
+                title: "QR Code Scanned!",
+                description: `Ready to send to ${data.username}`,
+                variant: "default",
+              });
             }
-          } catch (err) {
-            console.error("Scan error:", err);
+          } catch (e) {
+            // Invalid JSON, continue scanning
           }
         }
-      }, 200);
+      } catch (err) {
+        console.error("Scan error:", err);
+      }
+    }, 200);
 
-      return () => clearInterval(scanInterval);
-    }
-  }, [stage, scanningActive, toast]);
+    return () => {
+      if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    };
+  }, [cameraActive, toast]);
 
   const startCamera = async () => {
     try {
-      const constraints: any = {
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "environment",
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
         audio: false,
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      });
+
       streamRef.current = stream;
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        
-        // Ensure video plays
-        videoRef.current.onloadedmetadata = async () => {
-          try {
-            await videoRef.current?.play();
-            setScanningActive(true);
-          } catch (err) {
-            console.error("Play error:", err);
-          }
-        };
-        
-        // Fallback: force play after a short delay
-        setTimeout(() => {
-          if (videoRef.current && videoRef.current.paused) {
-            videoRef.current.play().catch(err => console.error("Play error:", err));
-          }
-        }, 500);
+        videoRef.current.play().then(() => {
+          setCameraActive(true);
+        }).catch(err => {
+          console.error("Play error:", err);
+          toast({
+            title: "Camera Error",
+            description: "Could not start video playback",
+            variant: "destructive",
+          });
+        });
       }
     } catch (err: any) {
       console.error("Camera error:", err);
       toast({
         title: "Camera Error",
-        description: err.name === "NotAllowedError" 
-          ? "Camera permission denied. Please allow camera access in settings."
-          : "Could not access camera. Try manual entry.",
+        description: err.name === "NotAllowedError"
+          ? "Camera permission denied. Please allow camera access."
+          : "Could not access camera",
         variant: "destructive",
       });
+    }
+  };
+
+  const stopCamera = () => {
+    setCameraActive(false);
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   };
 
@@ -144,74 +150,23 @@ export default function ScanPay() {
       if (streamRef.current) {
         const videoTrack = streamRef.current.getVideoTracks()[0];
         if (videoTrack) {
-          const settings = videoTrack.getSettings();
           const capabilities = videoTrack.getCapabilities() as any;
-          
           if (capabilities.torch) {
             await videoTrack.applyConstraints({
               advanced: [{ torch: !flashlightOn }] as any,
             });
             setFlashlightOn(!flashlightOn);
+          } else {
+            toast({
+              title: "Not Supported",
+              description: "Flashlight not available on this device",
+              variant: "destructive",
+            });
           }
         }
       }
     } catch (err) {
-      toast({
-        title: "Flashlight Error",
-        description: "Flashlight not supported on this device",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const startQRScanning = () => {
-    // Scanning is now handled by the useEffect hook above
-  };
-
-  const captureQRCode = async () => {
-    if (canvasRef.current && videoRef.current) {
-      const ctx = canvasRef.current.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-        
-        try {
-          const imageData = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
-          const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-          
-          if (qrCode) {
-            try {
-              const data = JSON.parse(qrCode.data);
-              setScannedData(data);
-              setStage("confirm");
-              setScanningActive(false);
-              
-              toast({
-                title: "QR Code Scanned",
-                description: `Ready to send to ${data.username}`,
-                variant: "default",
-              });
-            } catch (e) {
-              toast({
-                title: "Invalid QR Code",
-                description: "QR code format not recognized",
-                variant: "destructive",
-              });
-            }
-          } else {
-            toast({
-              title: "No QR Code Found",
-              description: "Could not detect QR code. Try again.",
-              variant: "destructive",
-            });
-          }
-        } catch (err) {
-          toast({
-            title: "Scan Failed",
-            description: "Could not read QR code",
-            variant: "destructive",
-          });
-        }
-      }
+      console.error("Flashlight error:", err);
     }
   };
 
@@ -238,7 +193,7 @@ export default function ScanPay() {
     try {
       await transfer(selectedCard, scannedData.userId, amount);
       setStage("success");
-      
+
       toast({
         title: "Payment Sent",
         description: `${amount} sent to ${scannedData.username}`,
@@ -346,18 +301,17 @@ export default function ScanPay() {
 
         {stage === "scan" && (
           <div className="space-y-4 py-8">
-            <div className="bg-black rounded-2xl overflow-hidden aspect-square relative group">
+            <div className="bg-black rounded-2xl overflow-hidden aspect-square relative">
               <video
                 ref={videoRef}
-                autoPlay
                 playsInline
                 muted
                 className="w-full h-full object-cover"
               />
-              <canvas ref={canvasRef} className="absolute inset-0 hidden" />
-              
-              {/* Scanning Frame */}
-              <div className="absolute inset-0">
+              <canvas ref={canvasRef} className="hidden" />
+
+              {/* Scanning Frame Overlay */}
+              <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl" />
                 <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl" />
                 <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl" />
@@ -365,9 +319,14 @@ export default function ScanPay() {
               </div>
 
               {/* Scanning Line Animation */}
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse" 
-                     style={{ top: "40%", animation: "scan-line 2s infinite" }} />
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <div
+                  className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent"
+                  style={{
+                    top: "50%",
+                    animation: "scan-line 2s infinite",
+                  }}
+                />
               </div>
 
               {/* Flashlight Button */}
@@ -382,20 +341,33 @@ export default function ScanPay() {
                   <FlashlightOff size={20} className="text-white" />
                 )}
               </button>
+
+              {!cameraActive && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <div className="text-center">
+                    <div className="animate-spin mb-4">
+                      <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full" />
+                    </div>
+                    <p className="text-white text-sm">Starting camera...</p>
+                  </div>
+                </div>
+              )}
+
+              <style>{`
+                @keyframes scan-line {
+                  0% { transform: translateY(-100%); }
+                  50% { transform: translateY(100%); }
+                  100% { transform: translateY(-100%); }
+                }
+              `}</style>
             </div>
 
             <div className="space-y-2 text-center">
-              <p className="text-sm font-medium">Amount to send: <span className="text-primary font-bold text-lg">${amount}</span></p>
-              <p className="text-xs text-muted-foreground">Point your camera at the recipient's QR code</p>
+              <p className="text-sm font-medium">Amount: <span className="text-primary font-bold text-lg">${amount}</span></p>
+              <p className="text-xs text-muted-foreground">
+                {cameraActive ? "Point camera at QR code" : "Waiting for camera..."}
+              </p>
             </div>
-
-            <button
-              onClick={captureQRCode}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
-              data-testid="button-capture-qr"
-            >
-              Capture QR Code
-            </button>
 
             <button
               onClick={() => {
@@ -405,29 +377,25 @@ export default function ScanPay() {
                   walletId: "BKP-XYZ789PQR",
                 };
                 setScannedData(demoData);
+                stopCamera();
                 setStage("confirm");
               }}
               className="w-full py-3 rounded-xl bg-secondary text-foreground font-semibold hover:bg-secondary/80 transition-colors"
               data-testid="button-demo-scan"
             >
-              Demo Scan
+              Try Demo Scan
             </button>
 
             <button
-              onClick={() => setStage("enter-amount")}
+              onClick={() => {
+                stopCamera();
+                setStage("enter-amount");
+              }}
               className="w-full py-3 rounded-xl border border-border hover:bg-secondary transition-colors font-semibold"
               data-testid="button-back-to-amount"
             >
               Back
             </button>
-
-            <style>{`
-              @keyframes scan-line {
-                0% { top: 10%; }
-                50% { top: 90%; }
-                100% { top: 10%; }
-              }
-            `}</style>
           </div>
         )}
 
@@ -466,7 +434,7 @@ export default function ScanPay() {
               <button
                 onClick={() => setStage("scan")}
                 className="flex-1 py-3 rounded-xl border border-border hover:bg-secondary transition-colors font-semibold"
-                data-testid="button-cancel"
+                data-testid="button-scan-again"
               >
                 Scan Again
               </button>
@@ -493,7 +461,7 @@ export default function ScanPay() {
               ${amount} has been sent to {scannedData.username}
             </p>
             <p className="text-xs text-muted-foreground text-center">
-              Redirecting in 2 seconds...
+              Redirecting to home...
             </p>
           </div>
         )}
