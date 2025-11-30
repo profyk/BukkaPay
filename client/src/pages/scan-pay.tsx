@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Send, AlertCircle, Flashlight, FlashlightOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { transfer } from "@/lib/api";
+import { transfer, fetchCards } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import jsQR from "jsqr";
 
@@ -12,9 +13,8 @@ export default function ScanPay() {
   const [stage, setStage] = useState<"enter-amount" | "scan" | "confirm" | "success">("enter-amount");
   const [scannedData, setScannedData] = useState<any>(null);
   const [amount, setAmount] = useState("");
-  const [selectedCard, setSelectedCard] = useState("card-1");
+  const [selectedCard, setSelectedCard] = useState("");
   const [loading, setLoading] = useState(false);
-  const [cards, setCards] = useState<any[]>([]);
   const [flashlightOn, setFlashlightOn] = useState(false);
   const [scanningActive, setScanningActive] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,6 +22,19 @@ export default function ScanPay() {
   const streamRef = useRef<MediaStream | null>(null);
 
   const currentUser = getCurrentUser();
+
+  // Fetch user's cards
+  const { data: cards = [], isLoading: cardsLoading } = useQuery({
+    queryKey: ["cards"],
+    queryFn: fetchCards,
+  });
+
+  // Set default card when cards load
+  useEffect(() => {
+    if (cards.length > 0 && !selectedCard) {
+      setSelectedCard(cards[0].id);
+    }
+  }, [cards, selectedCard]);
 
   useEffect(() => {
     if (stage === "scan") {
@@ -279,13 +292,18 @@ export default function ScanPay() {
               <select
                 value={selectedCard}
                 onChange={(e) => setSelectedCard(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-secondary"
+                disabled={cardsLoading}
+                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-secondary disabled:opacity-50"
                 data-testid="select-card"
               >
-                <option value="card-1">💳 Main Card - $5,000.00</option>
-                <option value="card-2">🛒 Groceries - $450.00</option>
-                <option value="card-3">🚗 Transport - $200.00</option>
-                <option value="card-4">🎉 Leisure - $300.00</option>
+                <option value="">
+                  {cardsLoading ? "Loading cards..." : "Choose a card..."}
+                </option>
+                {cards.map((card) => (
+                  <option key={card.id} value={card.id}>
+                    {card.title} - ${parseFloat(card.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -424,7 +442,7 @@ export default function ScanPay() {
               </div>
               <div className="bg-secondary rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">From Card</p>
-                <p className="text-sm font-semibold">💳 Main Card</p>
+                <p className="text-sm font-semibold">{cards.find(c => c.id === selectedCard)?.title || "Loading..."}</p>
               </div>
             </div>
 
