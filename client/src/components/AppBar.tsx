@@ -1,6 +1,6 @@
 import { Bell, Search } from "lucide-react";
 import { motion } from "framer-motion";
-import appIcon from "@assets/bukkapay-icon.png";
+import appIcon from "../assets/bukkapay-icon.png";
 
 export default function AppBar() {
   return (

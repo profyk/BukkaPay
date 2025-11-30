@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Send, AlertCircle } from "lucide-react";
+import { ArrowLeft, Send, AlertCircle, Flashlight, FlashlightOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { transfer } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
+import jsQR from "jsqr";
 
 export default function ScanPay() {
   const [, navigate] = useLocation();
@@ -14,8 +15,11 @@ export default function ScanPay() {
   const [selectedCard, setSelectedCard] = useState("");
   const [loading, setLoading] = useState(false);
   const [cards, setCards] = useState<any[]>([]);
+  const [flashlightOn, setFlashlightOn] = useState(false);
+  const [scanningActive, setScanningActive] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const currentUser = getCurrentUser();
 
@@ -33,11 +37,17 @@ export default function ScanPay() {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const constraints: any = {
         video: { facingMode: "environment" },
-      });
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          setScanningActive(true);
+          startQRScanning();
+        };
       }
     } catch (err) {
       toast({
@@ -48,6 +58,70 @@ export default function ScanPay() {
     }
   };
 
+  const toggleFlashlight = async () => {
+    try {
+      if (streamRef.current) {
+        const videoTrack = streamRef.current.getVideoTracks()[0];
+        if (videoTrack) {
+          const settings = videoTrack.getSettings();
+          const capabilities = videoTrack.getCapabilities() as any;
+          
+          if (capabilities.torch) {
+            await videoTrack.applyConstraints({
+              advanced: [{ torch: !flashlightOn }] as any,
+            });
+            setFlashlightOn(!flashlightOn);
+          }
+        }
+      }
+    } catch (err) {
+      toast({
+        title: "Flashlight Error",
+        description: "Flashlight not supported on this device",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startQRScanning = () => {
+    const scanInterval = setInterval(() => {
+      if (canvasRef.current && videoRef.current && scanningActive && stage === "scan") {
+        const ctx = canvasRef.current.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+          const imageData = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
+          
+          try {
+            const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+            if (qrCode) {
+              try {
+                const data = JSON.parse(qrCode.data);
+                if (data.userId && data.username && data.walletId) {
+                  setScanningActive(false);
+                  setScannedData(data);
+                  setStage("confirm");
+                  clearInterval(scanInterval);
+                  
+                  toast({
+                    title: "QR Code Scanned",
+                    description: `Ready to send to ${data.username}`,
+                    variant: "default",
+                  });
+                }
+              } catch (e) {
+                // Not JSON format, try string parsing
+              }
+            }
+          } catch (err) {
+            // Continue scanning
+          }
+        }
+      }
+    }, 300);
+
+    return () => clearInterval(scanInterval);
+  };
+
   const captureQRCode = async () => {
     if (canvasRef.current && videoRef.current) {
       const ctx = canvasRef.current.getContext("2d");
@@ -55,22 +129,35 @@ export default function ScanPay() {
         ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
         
         try {
-          // Simulate QR code detection - in production use jsQR or similar library
           const imageData = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
-          // For now, just show a demo of parsed data
-          const demoData = {
-            userId: "user-123",
-            username: "john_doe",
-            walletId: "BKP-ABC123DEF",
-          };
-          setScannedData(demoData);
-          setStage("confirm");
+          const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
           
-          toast({
-            title: "QR Code Scanned",
-            description: `Ready to send to ${demoData.username}`,
-            variant: "default",
-          });
+          if (qrCode) {
+            try {
+              const data = JSON.parse(qrCode.data);
+              setScannedData(data);
+              setStage("confirm");
+              setScanningActive(false);
+              
+              toast({
+                title: "QR Code Scanned",
+                description: `Ready to send to ${data.username}`,
+                variant: "default",
+              });
+            } catch (e) {
+              toast({
+                title: "Invalid QR Code",
+                description: "QR code format not recognized",
+                variant: "destructive",
+              });
+            }
+          } else {
+            toast({
+              title: "No QR Code Found",
+              description: "Could not detect QR code. Try again.",
+              variant: "destructive",
+            });
+          }
         } catch (err) {
           toast({
             title: "Scan Failed",
@@ -142,7 +229,7 @@ export default function ScanPay() {
       <div className="px-6">
         {stage === "scan" && (
           <div className="space-y-4">
-            <div className="bg-black rounded-2xl overflow-hidden aspect-square relative">
+            <div className="bg-black rounded-2xl overflow-hidden aspect-square relative group">
               <video
                 ref={videoRef}
                 autoPlay
@@ -150,7 +237,33 @@ export default function ScanPay() {
                 className="w-full h-full object-cover"
               />
               <canvas ref={canvasRef} className="hidden" width={400} height={400} />
-              <div className="absolute inset-0 border-4 border-primary/50 rounded-2xl" />
+              
+              {/* Scanning Frame */}
+              <div className="absolute inset-0">
+                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl" />
+                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl" />
+                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl" />
+                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl" />
+              </div>
+
+              {/* Scanning Line Animation */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse" 
+                     style={{ top: "40%", animation: "scan-line 2s infinite" }} />
+              </div>
+
+              {/* Flashlight Button */}
+              <button
+                onClick={toggleFlashlight}
+                className="absolute top-4 right-4 p-3 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-white/20 transition-all"
+                data-testid="button-flashlight"
+              >
+                {flashlightOn ? (
+                  <Flashlight size={20} className="text-yellow-300" />
+                ) : (
+                  <FlashlightOff size={20} className="text-white" />
+                )}
+              </button>
             </div>
 
             <button
@@ -176,6 +289,14 @@ export default function ScanPay() {
             >
               Demo Scan
             </button>
+
+            <style>{`
+              @keyframes scan-line {
+                0% { top: 10%; }
+                50% { top: 90%; }
+                100% { top: 10%; }
+              }
+            `}</style>
           </div>
         )}
 
