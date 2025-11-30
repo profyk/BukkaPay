@@ -35,6 +35,54 @@ export default function ScanPay() {
     };
   }, [stage]);
 
+  useEffect(() => {
+    if (stage === "scan" && scanningActive && videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      const scanQR = () => {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          try {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+              
+              if (qrCode) {
+                try {
+                  const data = JSON.parse(qrCode.data);
+                  if (data.userId && data.username && data.walletId) {
+                    setScanningActive(false);
+                    setScannedData(data);
+                    setStage("confirm");
+                    toast({
+                      title: "QR Code Scanned",
+                      description: `Ready to send to ${data.username}`,
+                      variant: "default",
+                    });
+                  }
+                } catch (e) {
+                  // Continue scanning
+                }
+              }
+            }
+          } catch (err) {
+            // Continue scanning
+          }
+        }
+        if (scanningActive && stage === "scan") {
+          requestAnimationFrame(scanQR);
+        }
+      };
+
+      const animationId = requestAnimationFrame(scanQR);
+      return () => cancelAnimationFrame(animationId);
+    }
+  }, [stage, scanningActive, toast]);
+
   const startCamera = async () => {
     try {
       const constraints: any = {
@@ -95,42 +143,7 @@ export default function ScanPay() {
   };
 
   const startQRScanning = () => {
-    const scanInterval = setInterval(() => {
-      if (canvasRef.current && videoRef.current && scanningActive && stage === "scan") {
-        const ctx = canvasRef.current.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-          const imageData = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
-          
-          try {
-            const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-            if (qrCode) {
-              try {
-                const data = JSON.parse(qrCode.data);
-                if (data.userId && data.username && data.walletId) {
-                  setScanningActive(false);
-                  setScannedData(data);
-                  setStage("confirm");
-                  clearInterval(scanInterval);
-                  
-                  toast({
-                    title: "QR Code Scanned",
-                    description: `Ready to send to ${data.username}`,
-                    variant: "default",
-                  });
-                }
-              } catch (e) {
-                // Not JSON format, try string parsing
-              }
-            }
-          } catch (err) {
-            // Continue scanning
-          }
-        }
-      }
-    }, 300);
-
-    return () => clearInterval(scanInterval);
+    // Scanning is now handled by the useEffect hook above
   };
 
   const captureQRCode = async () => {
@@ -245,9 +258,10 @@ export default function ScanPay() {
                 ref={videoRef}
                 autoPlay
                 playsInline
+                muted
                 className="w-full h-full object-cover"
               />
-              <canvas ref={canvasRef} className="hidden" width={400} height={400} />
+              <canvas ref={canvasRef} className="absolute inset-0 hidden" />
               
               {/* Scanning Frame */}
               <div className="absolute inset-0">
