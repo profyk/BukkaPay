@@ -3,7 +3,7 @@ import { Link } from "wouter";
 
 export default function ActionButtons() {
   const actions = [
-    { icon: Send, label: "Send", href: "/transfer", color: "bg-blue-500" },
+    { icon: Send, label: "Send", href: "/scan-pay", color: "bg-blue-500" },
     { icon: ArrowDownLeft, label: "Request", href: "/request", color: "bg-violet-500" },
     { icon: Plus, label: "Top Up", href: "/topup", color: "bg-emerald-500" },
     { icon: QrCode, label: "Scan", href: "/scan", color: "bg-orange-500" },
