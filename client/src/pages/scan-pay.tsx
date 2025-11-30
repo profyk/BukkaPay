@@ -100,8 +100,6 @@ export default function ScanPay() {
           facingMode: "environment",
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          focusMode: "continuous",
-          zoom: 1,
         },
         audio: false,
       };
@@ -111,12 +109,26 @@ export default function ScanPay() {
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          setScanningActive(true);
-          startQRScanning();
+        
+        // Ensure video plays
+        videoRef.current.onloadedmetadata = async () => {
+          try {
+            await videoRef.current?.play();
+            setScanningActive(true);
+          } catch (err) {
+            console.error("Play error:", err);
+          }
         };
+        
+        // Fallback: force play after a short delay
+        setTimeout(() => {
+          if (videoRef.current && videoRef.current.paused) {
+            videoRef.current.play().catch(err => console.error("Play error:", err));
+          }
+        }, 500);
       }
     } catch (err: any) {
+      console.error("Camera error:", err);
       toast({
         title: "Camera Error",
         description: err.name === "NotAllowedError" 
