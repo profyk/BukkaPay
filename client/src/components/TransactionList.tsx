@@ -1,8 +1,6 @@
-import { TRANSACTIONS } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 
-export default function TransactionList({ limit }: { limit?: number }) {
-  const transactions = limit ? TRANSACTIONS.slice(0, limit) : TRANSACTIONS;
+export default function TransactionList({ transactions }: { transactions: any[] }) {
 
   return (
     <div className="space-y-4">

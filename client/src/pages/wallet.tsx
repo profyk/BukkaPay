@@ -1,10 +1,19 @@
+import { useQuery } from "@tanstack/react-query";
 import BottomNav from "@/components/BottomNav";
 import WalletCard from "@/components/WalletCard";
-import { CARDS } from "@/lib/mockData";
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
+import { fetchCards } from "@/lib/api";
+import { mapCardFromAPI } from "@/lib/mappers";
 
 export default function Wallet() {
+  const { data: cards, isLoading } = useQuery({
+    queryKey: ["cards"],
+    queryFn: fetchCards,
+  });
+
+  const mappedCards = cards?.map(mapCardFromAPI) || [];
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="px-6 pt-12 pb-4 sticky top-0 bg-background/80 backdrop-blur-md z-10">
@@ -13,7 +22,11 @@ export default function Wallet() {
       </header>
 
       <div className="px-6 space-y-6 mt-4">
-        {CARDS.map((card, index) => (
+        {isLoading && [1, 2, 3].map(i => (
+          <div key={i} className="h-48 rounded-2xl bg-secondary animate-pulse" />
+        ))}
+
+        {mappedCards.map((card: any, index: number) => (
           <motion.div
             key={card.id}
             initial={{ opacity: 0, y: 20 }}
@@ -27,17 +40,20 @@ export default function Wallet() {
                 Spent <span className="text-foreground font-semibold">$340.00</span> / $1000
               </div>
             </div>
-            {/* Simple Progress Bar */}
             <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
               <div 
                 className="h-full bg-primary rounded-full" 
-                style={{ width: `${(index + 1) * 20}%`, backgroundColor: index % 2 === 0 ? 'var(--color-primary)' : 'var(--color-chart-2)' }}
+                style={{ width: `${(index + 1) * 20}%` }}
               />
             </div>
           </motion.div>
         ))}
 
-        <button className="w-full py-4 rounded-2xl border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary hover:bg-primary/5 transition-all gap-2 font-medium">
+        {!isLoading && mappedCards.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">No cards yet. Add your first card!</div>
+        )}
+
+        <button className="w-full py-4 rounded-2xl border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary hover:bg-primary/5 transition-all gap-2 font-medium" data-testid="button-add-card">
           <Plus size={20} />
           Add New Card
         </button>
