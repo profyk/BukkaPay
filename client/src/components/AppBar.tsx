@@ -1,6 +1,6 @@
 import { Bell, Search } from "lucide-react";
 import { motion } from "framer-motion";
-import logoUrl from "@assets/file_000000000540722fb204f238188c2387_1764495081777.png";
+import appIcon from "@assets/bukkapay-icon.png";
 
 export default function AppBar() {
   return (
@@ -20,15 +20,14 @@ export default function AppBar() {
           className="flex items-center space-x-3 cursor-pointer"
         >
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl opacity-20 blur-lg" />
             <img 
-              src={logoUrl} 
-              alt="BukkaPay Logo" 
-              className="w-12 h-12 rounded-2xl object-contain relative z-10 shadow-lg"
+              src={appIcon} 
+              alt="BukkaPay" 
+              className="w-12 h-12 rounded-lg object-contain relative z-10 shadow-lg"
             />
           </div>
           <div className="flex flex-col">
-            <h2 className="font-heading font-bold text-xl bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
+            <h2 className="font-heading font-bold text-xl text-foreground">
               BukkaPay
             </h2>
             <p className="text-xs text-muted-foreground font-medium">Smart Wallet</p>
