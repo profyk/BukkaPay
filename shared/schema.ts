@@ -55,7 +55,7 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
   password: z.string().min(6, "Password must be at least 6 characters"),
   phone: z.string().optional(),
   countryCode: z.string().optional(),
-  walletId: z.string(),
+  walletId: z.string().optional(),
 });
 
 export const loginSchema = z.object({
