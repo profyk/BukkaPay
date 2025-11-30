@@ -53,27 +53,28 @@ export default function ScanPay() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      const scanQR = () => {
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      const scanInterval = setInterval(() => {
+        if (video.readyState === video.HAVE_ENOUGH_DATA && videoRef.current) {
           try {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext("2d");
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
             if (ctx) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
               const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+              const qrCode = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
               
-              if (qrCode) {
+              if (qrCode && qrCode.data) {
                 try {
                   const data = JSON.parse(qrCode.data);
                   if (data.userId && data.username && data.walletId) {
+                    clearInterval(scanInterval);
                     setScanningActive(false);
                     setScannedData(data);
                     setStage("confirm");
                     toast({
-                      title: "QR Code Scanned",
-                      description: `Ready to send to ${data.username}`,
+                      title: "QR Code Scanned!",
+                      description: `Found ${data.username}`,
                       variant: "default",
                     });
                   }
@@ -83,16 +84,12 @@ export default function ScanPay() {
               }
             }
           } catch (err) {
-            // Continue scanning
+            console.error("Scan error:", err);
           }
         }
-        if (scanningActive && stage === "scan") {
-          requestAnimationFrame(scanQR);
-        }
-      };
+      }, 200);
 
-      const animationId = requestAnimationFrame(scanQR);
-      return () => cancelAnimationFrame(animationId);
+      return () => clearInterval(scanInterval);
     }
   }, [stage, scanningActive, toast]);
 
