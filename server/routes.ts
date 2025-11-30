@@ -36,6 +36,22 @@ export async function registerRoutes(
       }
 
       const user = await signup(validation.data);
+      
+      // Create default wallet cards for new user
+      const defaultCards = [
+        { title: "💳 Main Card", balance: "5000.00", currency: "$", icon: "credit-card", color: "from-violet-600 to-indigo-600", cardNumber: "4532 **** **** 1234" },
+        { title: "🛒 Groceries", balance: "800.00", currency: "$", icon: "shopping-cart", color: "from-emerald-600 to-teal-600", cardNumber: "5412 **** **** 5678" },
+        { title: "🚗 Transport", balance: "500.00", currency: "$", icon: "car", color: "from-blue-600 to-cyan-600", cardNumber: "3782 **** **** 9012" },
+        { title: "🎉 Leisure", balance: "300.00", currency: "$", icon: "sparkles", color: "from-pink-600 to-rose-600", cardNumber: "6011 **** **** 3456" }
+      ];
+
+      for (const card of defaultCards) {
+        await storage.createWalletCard({
+          userId: user.id,
+          ...card,
+        });
+      }
+
       const token = generateSessionToken();
       sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 }); // 30 days
 
