@@ -9,10 +9,10 @@ import jsQR from "jsqr";
 export default function ScanPay() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const [stage, setStage] = useState<"scan" | "confirm" | "success">("scan");
+  const [stage, setStage] = useState<"enter-amount" | "scan" | "confirm" | "success">("enter-amount");
   const [scannedData, setScannedData] = useState<any>(null);
   const [amount, setAmount] = useState("");
-  const [selectedCard, setSelectedCard] = useState("");
+  const [selectedCard, setSelectedCard] = useState("card-1");
   const [loading, setLoading] = useState(false);
   const [cards, setCards] = useState<any[]>([]);
   const [flashlightOn, setFlashlightOn] = useState(false);
@@ -250,9 +250,75 @@ export default function ScanPay() {
         <h1 className="text-2xl font-heading font-bold">Send Money</h1>
       </header>
 
-      <div className="px-6">
+      <div className="px-6 pb-8">
+        {stage === "enter-amount" && (
+          <div className="space-y-6 py-8">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-heading font-bold">How much to send?</h2>
+              <p className="text-muted-foreground">Enter the amount and we'll scan the recipient's code</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Amount</label>
+              <div className="relative">
+                <span className="absolute left-4 top-3 text-3xl font-bold text-primary">$</span>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-border focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-3xl font-bold"
+                  data-testid="input-amount"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Send from</label>
+              <select
+                value={selectedCard}
+                onChange={(e) => setSelectedCard(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-secondary"
+                data-testid="select-card"
+              >
+                <option value="card-1">💳 Main Card - $5,000.00</option>
+                <option value="card-2">🛒 Groceries - $450.00</option>
+                <option value="card-3">🚗 Transport - $200.00</option>
+                <option value="card-4">🎉 Leisure - $300.00</option>
+              </select>
+            </div>
+
+            <button
+              onClick={() => {
+                if (!amount || parseFloat(amount) <= 0) {
+                  toast({
+                    title: "Invalid Amount",
+                    description: "Please enter a valid amount",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setStage("scan");
+              }}
+              className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors text-lg"
+              data-testid="button-continue-to-scan"
+            >
+              Continue to Scan
+            </button>
+
+            <button
+              onClick={() => navigate?.("/")}
+              className="w-full py-3 rounded-xl border border-border hover:bg-secondary transition-colors font-semibold"
+              data-testid="button-cancel-pay"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {stage === "scan" && (
-          <div className="space-y-4">
+          <div className="space-y-4 py-8">
             <div className="bg-black rounded-2xl overflow-hidden aspect-square relative group">
               <video
                 ref={videoRef}
@@ -291,6 +357,11 @@ export default function ScanPay() {
               </button>
             </div>
 
+            <div className="space-y-2 text-center">
+              <p className="text-sm font-medium">Amount to send: <span className="text-primary font-bold text-lg">${amount}</span></p>
+              <p className="text-xs text-muted-foreground">Point your camera at the recipient's QR code</p>
+            </div>
+
             <button
               onClick={captureQRCode}
               className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
@@ -315,6 +386,14 @@ export default function ScanPay() {
               Demo Scan
             </button>
 
+            <button
+              onClick={() => setStage("enter-amount")}
+              className="w-full py-3 rounded-xl border border-border hover:bg-secondary transition-colors font-semibold"
+              data-testid="button-back-to-amount"
+            >
+              Back
+            </button>
+
             <style>{`
               @keyframes scan-line {
                 0% { top: 10%; }
@@ -326,41 +405,27 @@ export default function ScanPay() {
         )}
 
         {stage === "confirm" && scannedData && (
-          <div className="space-y-6">
-            <div className="bg-secondary rounded-2xl p-6">
+          <div className="space-y-6 py-8">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-heading font-bold">Confirm Payment</h2>
+              <p className="text-muted-foreground">Review the details before sending</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-6 border border-primary/20">
               <p className="text-sm text-muted-foreground mb-2">Sending to</p>
-              <h2 className="text-2xl font-heading font-bold">{scannedData.username}</h2>
-              <p className="text-xs text-muted-foreground mt-2">ID: {scannedData.walletId}</p>
+              <h2 className="text-3xl font-heading font-bold text-primary mb-1">{scannedData.username}</h2>
+              <p className="text-xs text-muted-foreground">ID: {scannedData.walletId}</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Amount</label>
-              <div className="relative">
-                <span className="absolute left-4 top-3 text-2xl font-bold">$</span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 text-2xl font-bold"
-                  data-testid="input-amount"
-                />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-secondary rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Amount</p>
+                <p className="text-2xl font-bold text-primary">${amount}</p>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Send from</label>
-              <select
-                value={selectedCard}
-                onChange={(e) => setSelectedCard(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-secondary"
-                data-testid="select-card"
-              >
-                <option value="">Choose a card...</option>
-                <option value="card-1">💳 Main Card - $5,000.00</option>
-                <option value="card-2">🛒 Groceries - $450.00</option>
-                <option value="card-3">🚗 Transport - $200.00</option>
-              </select>
+              <div className="bg-secondary rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">From Card</p>
+                <p className="text-sm font-semibold">💳 Main Card</p>
+              </div>
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex gap-3">
@@ -376,16 +441,16 @@ export default function ScanPay() {
                 className="flex-1 py-3 rounded-xl border border-border hover:bg-secondary transition-colors font-semibold"
                 data-testid="button-cancel"
               >
-                Cancel
+                Scan Again
               </button>
               <button
                 onClick={handleSend}
-                disabled={loading || !amount || !selectedCard}
+                disabled={loading}
                 className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                 data-testid="button-send-payment"
               >
                 <Send size={18} />
-                Send ${amount}
+                {loading ? "Sending..." : `Pay $${amount}`}
               </button>
             </div>
           </div>
