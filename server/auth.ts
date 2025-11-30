@@ -10,6 +10,10 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return (await hashPassword(password)) === hash;
 }
 
+export function generateWalletId(): string {
+  return `BKP-${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
+}
+
 export async function signup(data: InsertUser) {
   const existingUser = await storage.getUserByEmail(data.email);
   if (existingUser) {
@@ -26,9 +30,12 @@ export async function signup(data: InsertUser) {
   }
 
   const hashedPassword = await hashPassword(data.password);
+  const walletId = generateWalletId();
+  
   const user = await storage.createUser({
     ...data,
     password: hashedPassword,
+    walletId,
   });
 
   return user;

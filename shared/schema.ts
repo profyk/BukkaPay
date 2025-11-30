@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletId: varchar("wallet_id").notNull().unique(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
@@ -48,7 +49,7 @@ export const contacts = pgTable("contacts", {
   color: text("color").notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true }).extend({
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, walletId: true, createdAt: true }).extend({
   email: z.string().email("Invalid email"),
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),

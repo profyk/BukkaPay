@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { User, Shield, Bell, HelpCircle, LogOut, ChevronRight } from "lucide-react";
+import { User, Shield, Bell, HelpCircle, LogOut, ChevronRight, QrCode } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { logout } from "@/lib/auth";
 
@@ -11,7 +11,12 @@ export default function Profile() {
     navigate?.("/login");
   };
 
+  const handleMyID = () => {
+    navigate?.("/my-id");
+  };
+
   const menuItems = [
+    { icon: QrCode, label: "My ID Code", onClick: handleMyID },
     { icon: User, label: "Personal Information" },
     { icon: Shield, label: "Security & Privacy" },
     { icon: Bell, label: "Notifications" },
@@ -34,7 +39,12 @@ export default function Profile() {
 
       <div className="px-6 space-y-2">
         {menuItems.map((item) => (
-          <button key={item.label} className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-secondary transition-colors group">
+          <button 
+            key={item.label} 
+            onClick={(item as any).onClick}
+            className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-secondary transition-colors group"
+            data-testid={`button-${item.label.toLowerCase().replace(/\s/g, '-')}`}
+          >
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 rounded-full bg-secondary group-hover:bg-background flex items-center justify-center text-foreground transition-colors">
                 <item.icon size={20} />

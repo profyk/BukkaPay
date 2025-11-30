@@ -41,7 +41,7 @@ export async function registerRoutes(
 
       res.status(201).json({
         token,
-        user: { id: user.id, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
+        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -61,7 +61,7 @@ export async function registerRoutes(
 
       res.json({
         token,
-        user: { id: user.id, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
+        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
       });
     } catch (error: any) {
       res.status(401).json({ error: error.message });
@@ -87,7 +87,7 @@ export async function registerRoutes(
 
       storage.getUser(userId).then(user => {
         if (!user) return res.status(404).json({ error: "User not found" });
-        res.json({ id: user.id, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode });
+        res.json({ id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode });
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

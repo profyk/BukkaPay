@@ -10,6 +10,7 @@ import Scan from "@/pages/scan";
 import Transfer from "@/pages/transfer";
 import Request from "@/pages/request";
 import Profile from "@/pages/profile";
+import MyID from "@/pages/my-id";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
@@ -33,6 +34,7 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/transfer" component={Transfer} />
       <Route path="/request" component={Request} />
       <Route path="/profile" component={Profile} />
+      <Route path="/my-id" component={MyID} />
       <Route component={NotFound} />
     </Switch>
   );
