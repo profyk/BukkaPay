@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import WalletCard from "@/components/WalletCard";
 import TransactionList from "@/components/TransactionList";
 import ActionButtons from "@/components/ActionButtons";
@@ -9,10 +10,19 @@ import { fetchCards, fetchTransactions } from "@/lib/api";
 import { mapCardFromAPI, mapTransactionFromAPI } from "@/lib/mappers";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { getCurrentUser } from "@/lib/auth";
 
 export default function Home() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [userName, setUserName] = useState("");
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+      setUserName(user.name);
+    }
+  }, []);
 
   const { data: cards, isLoading: cardsLoading } = useQuery({
     queryKey: ["cards"],
@@ -50,7 +60,7 @@ export default function Home() {
           <img src={logoUrl} alt="BukkaPay Logo" className="w-10 h-10 rounded-xl object-contain" />
           <div>
             <p className="text-xs text-muted-foreground">Welcome back,</p>
-            <h1 className="font-heading font-bold text-xl">Alex Morgan</h1>
+            <h1 className="font-heading font-bold text-xl">{userName}</h1>
           </div>
         </div>
         <div className="flex space-x-3">
