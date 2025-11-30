@@ -4,8 +4,8 @@ import WalletCard from "@/components/WalletCard";
 import TransactionList from "@/components/TransactionList";
 import ActionButtons from "@/components/ActionButtons";
 import BottomNav from "@/components/BottomNav";
-import { Bell, Search, Database } from "lucide-react";
-import logoUrl from "@assets/file_000000000540722fb204f238188c2387_1764495081777.png";
+import AppBar from "@/components/AppBar";
+import { Database } from "lucide-react";
 import { fetchCards, fetchTransactions } from "@/lib/api";
 import { mapCardFromAPI, mapTransactionFromAPI } from "@/lib/mappers";
 import { Button } from "@/components/ui/button";
@@ -55,26 +55,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <header className="px-6 pt-12 pb-4 flex justify-between items-center bg-background sticky top-0 z-20">
-        <div className="flex items-center space-x-3">
-          <img src={logoUrl} alt="BukkaPay Logo" className="w-10 h-10 rounded-xl object-contain" />
-          <div>
-            <p className="text-xs text-muted-foreground">Welcome back,</p>
-            <h1 className="font-heading font-bold text-xl">{userName}</h1>
-          </div>
-        </div>
-        <div className="flex space-x-3">
-          <button className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" data-testid="button-search">
-            <Search size={20} />
-          </button>
-          <button className="relative w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" data-testid="button-notifications">
-            <Bell size={20} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-background" />
-          </button>
-        </div>
-      </header>
+      <AppBar />
 
-      <div className="px-6 space-y-8">
+      <div className="px-6 space-y-8 pt-24">
         <section>
           {cardsLoading && <div className="h-48 rounded-2xl bg-secondary animate-pulse" />}
           {mainCard && <WalletCard {...mainCard} className="shadow-primary/20 shadow-2xl" />}
