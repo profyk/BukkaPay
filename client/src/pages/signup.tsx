@@ -141,8 +141,8 @@ export default function Signup() {
                   className="px-3 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-secondary font-medium"
                   data-testid="select-country"
                 >
-                  {COUNTRY_CODES.map(item => (
-                    <option key={item.code} value={item.code}>
+                  {COUNTRY_CODES.map((item, index) => (
+                    <option key={`${item.code}-${index}`} value={item.code}>
                       {item.flag} {item.code}
                     </option>
                   ))}
