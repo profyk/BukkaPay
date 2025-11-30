@@ -1,24 +1,15 @@
 import { useState } from "react";
-import { useNavigate, Link } from "wouter";
+import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Mail, Lock, User, Phone, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { signup } from "@/lib/auth";
+import { COUNTRY_CODES } from "@/lib/countryData";
 import logoUrl from "@assets/file_000000000540722fb204f238188c2387_1764495081777.png";
 
-const COUNTRY_CODES = [
-  { code: "+1", country: "USA" },
-  { code: "+44", country: "UK" },
-  { code: "+91", country: "India" },
-  { code: "+234", country: "Nigeria" },
-  { code: "+27", country: "South Africa" },
-  { code: "+60", country: "Malaysia" },
-  { code: "+65", country: "Singapore" },
-];
-
 export default function Signup() {
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -64,7 +55,7 @@ export default function Signup() {
         formData.phone,
         formData.countryCode
       );
-      navigate("/");
+      navigate?.("/");
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {

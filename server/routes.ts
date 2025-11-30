@@ -132,6 +132,7 @@ export async function registerRoutes(
           name: "Alex Morgan",
           email: "alex.morgan@example.com",
           username: "alex_morgan",
+          password: "demo123",
         });
       }
 
