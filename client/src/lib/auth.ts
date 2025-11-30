@@ -14,10 +14,12 @@ export function getAuthToken() {
 export function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN);
   localStorage.removeItem(CURRENT_USER);
+  window.dispatchEvent(new Event("authStateChanged"));
 }
 
 export function setCurrentUser(user: User) {
   localStorage.setItem(CURRENT_USER, JSON.stringify(user));
+  window.dispatchEvent(new Event("authStateChanged"));
 }
 
 export function getCurrentUser(): User | null {

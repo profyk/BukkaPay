@@ -47,9 +47,17 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const user = getCurrentUser();
-    setIsAuthenticated(!!user);
-    setIsLoading(false);
+    const checkAuth = () => {
+      const user = getCurrentUser();
+      setIsAuthenticated(!!user);
+      setIsLoading(false);
+    };
+
+    checkAuth();
+
+    // Listen for auth state changes from login/signup/logout
+    window.addEventListener("authStateChanged", checkAuth);
+    return () => window.removeEventListener("authStateChanged", checkAuth);
   }, []);
 
   if (isLoading) {
