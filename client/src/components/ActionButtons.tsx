@@ -1,4 +1,4 @@
-import { Send, ArrowDownLeft, QrCode, Plus } from "lucide-react";
+import { Send, ArrowDownLeft, Plus } from "lucide-react";
 import { Link } from "wouter";
 
 export default function ActionButtons() {
@@ -6,11 +6,10 @@ export default function ActionButtons() {
     { icon: Send, label: "Send", href: "/scan-pay", color: "bg-blue-500" },
     { icon: ArrowDownLeft, label: "Request", href: "/request", color: "bg-violet-500" },
     { icon: Plus, label: "Top Up", href: "/topup", color: "bg-emerald-500" },
-    { icon: QrCode, label: "Scan", href: "/scan", color: "bg-orange-500" },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-3 gap-4">
       {actions.map((action) => (
         <Link key={action.label} href={action.href}>
           <div className="flex flex-col items-center space-y-2 cursor-pointer group">
