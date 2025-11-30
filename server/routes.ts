@@ -311,56 +311,66 @@ export async function registerRoutes(
     }
   });
 
-  // Transfer endpoint
+  // Transfer endpoint (between cards)
   app.post("/api/transfer", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       
-      const { fromCardId, toCardId, amount } = req.body;
+      const { fromCardId, toUserId, amount } = req.body;
 
-      if (!fromCardId || !toCardId || !amount || parseFloat(amount) <= 0) {
+      if (!fromCardId || !toUserId || !amount || parseFloat(amount) <= 0) {
         return res.status(400).json({ error: "Invalid transfer parameters" });
       }
 
       const fromCard = await storage.getWalletCard(fromCardId, userId);
-      const toCard = await storage.getWalletCard(toCardId, userId);
-
-      if (!fromCard || !toCard) {
+      if (!fromCard) {
         return res.status(404).json({ error: "Card not found" });
       }
 
-      if (parseFloat(fromCard.balance) < parseFloat(amount)) {
+      const fromBalance = parseFloat(fromCard.balance);
+      const transferAmount = parseFloat(amount);
+
+      if (fromBalance < transferAmount) {
         return res.status(400).json({ error: "Insufficient balance" });
       }
 
-      const newFromBalance = (parseFloat(fromCard.balance) - parseFloat(amount)).toFixed(2);
-      const newToBalance = (parseFloat(toCard.balance) + parseFloat(amount)).toFixed(2);
-
+      // Deduct from sender
+      const newFromBalance = (fromBalance - transferAmount).toFixed(2);
       await storage.updateWalletCardBalance(fromCardId, userId, newFromBalance);
-      await storage.updateWalletCardBalance(toCardId, userId, newToBalance);
 
+      // Create transaction record
       await storage.createTransaction({
         userId,
         cardId: fromCardId,
-        title: `Transfer to ${toCard.title}`,
-        category: "Transfer",
-        amount: `-${amount}`,
-        type: "expense",
-        icon: "arrow-right-left",
-      });
-
-      await storage.createTransaction({
-        userId,
-        cardId: toCardId,
-        title: `Transfer from ${fromCard.title}`,
-        category: "Transfer",
+        title: `Sent to ${toUserId}`,
+        category: "transfer",
         amount: amount,
-        type: "income",
-        icon: "arrow-right-left",
+        type: "send",
+        icon: "send",
       });
 
-      res.json({ success: true, fromCard: await storage.getWalletCard(fromCardId, userId), toCard: await storage.getWalletCard(toCardId, userId) });
+      res.json({ success: true, newBalance: newFromBalance });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Receive payment endpoint
+  app.post("/api/receive", async (req, res) => {
+    try {
+      const { fromUserId, toWalletId, amount } = req.body;
+
+      if (!fromUserId || !toWalletId || !amount || parseFloat(amount) <= 0) {
+        return res.status(400).json({ error: "Invalid receive parameters" });
+      }
+
+      const toUser = await storage.getUserByWalletId(toWalletId);
+      if (!toUser) {
+        return res.status(404).json({ error: "Recipient not found" });
+      }
+
+      res.json({ success: true, recipient: toUser });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

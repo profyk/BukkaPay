@@ -59,15 +59,28 @@ export async function createContact(contact: any) {
   return res.json();
 }
 
-export async function transfer(fromCardId: string, toCardId: string, amount: string) {
+export async function transfer(fromCardId: string, toUserId: string, amount: string) {
   const res = await fetch("/api/transfer", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
-    body: JSON.stringify({ fromCardId, toCardId, amount }),
+    body: JSON.stringify({ fromCardId, toUserId, amount }),
   });
   if (!res.ok) {
     const error = await res.json();
     throw new Error(error.error || "Transfer failed");
+  }
+  return res.json();
+}
+
+export async function receivePayment(fromUserId: string, toWalletId: string, amount: string) {
+  const res = await fetch("/api/receive", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
+    body: JSON.stringify({ fromUserId, toWalletId, amount }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Receive failed");
   }
   return res.json();
 }

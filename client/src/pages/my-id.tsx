@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { ArrowLeft, Copy, Download } from "lucide-react";
-import QRCode from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -57,7 +57,7 @@ export default function MyID() {
           <p className="text-center text-muted-foreground text-sm mb-6">Scan to receive payments instantly</p>
           
           <div className="flex justify-center bg-white p-4 rounded-2xl mb-6">
-            <QRCode
+            <QRCodeSVG
               id="qr-code"
               value={JSON.stringify({ userId: user.id, username: user.username, walletId: user.walletId })}
               size={256}

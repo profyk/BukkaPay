@@ -49,12 +49,13 @@ export const contacts = pgTable("contacts", {
   color: text("color").notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, walletId: true, createdAt: true }).extend({
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true }).extend({
   email: z.string().email("Invalid email"),
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   phone: z.string().optional(),
   countryCode: z.string().optional(),
+  walletId: z.string(),
 });
 
 export const loginSchema = z.object({

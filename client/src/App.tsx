@@ -7,6 +7,7 @@ import { getCurrentUser } from "./lib/auth";
 import Home from "@/pages/home";
 import Wallet from "@/pages/wallet";
 import Scan from "@/pages/scan";
+import ScanPay from "@/pages/scan-pay";
 import Transfer from "@/pages/transfer";
 import Request from "@/pages/request";
 import Profile from "@/pages/profile";
@@ -31,6 +32,7 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/" component={Home} />
       <Route path="/wallet" component={Wallet} />
       <Route path="/scan" component={Scan} />
+      <Route path="/scan-pay" component={ScanPay} />
       <Route path="/transfer" component={Transfer} />
       <Route path="/request" component={Request} />
       <Route path="/profile" component={Profile} />
