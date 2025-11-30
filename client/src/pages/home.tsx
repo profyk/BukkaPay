@@ -5,6 +5,7 @@ import ActionButtons from "@/components/ActionButtons";
 import BottomNav from "@/components/BottomNav";
 import { CARDS } from "@/lib/mockData";
 import { Bell, Search } from "lucide-react";
+import logoUrl from "@assets/file_000000000540722fb204f238188c2387_1764495081777.png";
 
 export default function Home() {
   const mainCard = CARDS[0];
@@ -14,9 +15,7 @@ export default function Home() {
       {/* Header */}
       <header className="px-6 pt-12 pb-4 flex justify-between items-center bg-background sticky top-0 z-20">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-            B
-          </div>
+          <img src={logoUrl} alt="BukkaPay Logo" className="w-10 h-10 rounded-xl object-contain" />
           <div>
             <p className="text-xs text-muted-foreground">Welcome back,</p>
             <h1 className="font-heading font-bold text-xl">Alex Morgan</h1>
