@@ -9,10 +9,13 @@ import { getCountries, getBanksByCountry } from "@/lib/banksData";
 import jsQR from "jsqr";
 
 export default function SendMoney() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const [stage, setStage] = useState<"method" | "scan" | "wallet-id" | "amount" | "confirm" | "success">("method");
-  const [paymentMethod, setPaymentMethod] = useState<"qr" | "bukka" | "mobile" | "bank" | null>(null);
+  const queryParams = new URLSearchParams(location.split('?')[1] || '');
+  const initialMode = queryParams.get('mode') === 'qr' ? 'scan' : 'method';
+  const initialPaymentMethod = queryParams.get('mode') === 'qr' ? 'qr' : null;
+  const [stage, setStage] = useState<"method" | "scan" | "wallet-id" | "amount" | "confirm" | "success">(initialMode as any);
+  const [paymentMethod, setPaymentMethod] = useState<"qr" | "bukka" | "mobile" | "bank" | null>(initialPaymentMethod as any);
   const [walletId, setWalletId] = useState("");
   const [amount, setAmount] = useState("");
   const [selectedCard, setSelectedCard] = useState("");

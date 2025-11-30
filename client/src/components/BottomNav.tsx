@@ -30,8 +30,9 @@ export default function BottomNav() {
         <NavItem href="/wallet" icon={Wallet} label="Cards" />
         <div className="relative -top-6">
           <button 
-            onClick={() => setLocation("/scan")}
+            onClick={() => setLocation("/scan-pay?mode=qr")}
             className="flex items-center justify-center w-14 h-14 rounded-full bg-primary text-white shadow-lg shadow-primary/30 hover:scale-105 transition-transform"
+            data-testid="button-floating-scan"
           >
             <Scan size={24} />
           </button>
