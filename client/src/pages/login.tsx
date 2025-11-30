@@ -5,6 +5,7 @@ import { Mail, Lock, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { login } from "@/lib/auth";
+import { COUNTRY_CODES } from "@/lib/countryData";
 import logoUrl from "@assets/file_000000000540722fb204f238188c2387_1764495081777.png";
 
 export default function Login() {
