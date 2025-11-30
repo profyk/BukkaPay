@@ -1,396 +1,306 @@
-import type { Express, Request, Response } from "express";
-import type { Server } from "http";
-import { storage } from "./storage";
-import { signup, login, generateSessionToken } from "./auth";
-import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, insertUserSchema, loginSchema } from "@shared/schema";
-import { fromZodError } from "zod-validation-error";
+import { useState } from "react";
+import { Link } from "wouter";
+import { ArrowLeft, Share2, MessageCircle, Copy, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { getCurrentUser } from "@/lib/auth";
 
-// Session store (in production, use Redis or database)
-const sessions = new Map<string, { userId: string; expiresAt: number }>();
+export default function Request() {
+  const [amount, setAmount] = useState("0");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [step, setStep] = useState<"input" | "confirm" | "share">("input");
+  const [requestId, setRequestId] = useState("");
+  const [copied, setCopied] = useState(false);
 
-// Middleware to get userId from session token
-function getUserIdFromRequest(req: Request): string | null {
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (!token) return null;
-  
-  const session = sessions.get(token);
-  if (!session || session.expiresAt < Date.now()) {
-    sessions.delete(token);
-    return null;
+  const user = getCurrentUser();
+
+  const handleNumberClick = (num: string) => {
+    if (amount === "0" && num !== ".") {
+      setAmount(num);
+    } else {
+      if (num === "." && amount.includes(".")) return;
+      setAmount(amount + num);
+    }
+  };
+
+  const handleBackspace = () => {
+    if (amount.length === 1) {
+      setAmount("0");
+    } else {
+      setAmount(amount.slice(0, -1));
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (parseFloat(amount) <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    if (!recipientName.trim()) {
+      toast.error("Please enter recipient name");
+      return;
+    }
+    setStep("confirm");
+  };
+
+  const handleCreateRequest = async () => {
+    try {
+      const response = await fetch("/api/payment-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+        },
+        body: JSON.stringify({
+          amount,
+          currency: "USD",
+          recipientName,
+          recipientPhone,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to create request");
+
+      const request = await response.json();
+      setRequestId(request.id);
+      setStep("share");
+      toast.success("Payment request created!");
+    } catch (error) {
+      toast.error("Error creating payment request");
+    }
+  };
+
+  const requestLink = `${window.location.origin}/pay/${requestId}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(requestLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast.success("Link copied to clipboard!");
+  };
+
+  const handleShareWhatsApp = () => {
+    const message = `I'm requesting $${amount} payment from you via BukkaPay. Click here to pay: ${requestLink}`;
+    const whatsappUrl = `https://wa.me/${recipientPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
+  if (step === "input") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-6 pt-12 pb-4 flex items-center relative">
+          <Link href="/">
+            <button className="absolute left-6 p-2 rounded-full hover:bg-secondary transition-colors" data-testid="button-back">
+              <ArrowLeft size={24} />
+            </button>
+          </Link>
+          <h1 className="w-full text-center font-heading font-bold text-lg">Request Money</h1>
+        </header>
+
+        <div className="flex-1 flex flex-col px-6 pt-4 pb-8">
+          {/* Recipient Input */}
+          <div className="mb-6">
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">Recipient Name</label>
+            <input
+              type="text"
+              value={recipientName}
+              onChange={(e) => setRecipientName(e.target.value)}
+              placeholder="Enter name or contact"
+              className="w-full px-4 py-3 rounded-lg bg-secondary border border-border focus:outline-none focus:ring-2 focus:ring-violet-500"
+              data-testid="input-recipient-name"
+            />
+          </div>
+
+          <div className="mb-8">
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">Phone Number (Optional)</label>
+            <input
+              type="tel"
+              value={recipientPhone}
+              onChange={(e) => setRecipientPhone(e.target.value)}
+              placeholder="+1234567890"
+              className="w-full px-4 py-3 rounded-lg bg-secondary border border-border focus:outline-none focus:ring-2 focus:ring-violet-500"
+              data-testid="input-recipient-phone"
+            />
+          </div>
+
+          {/* Amount Display */}
+          <div className="flex-1 flex items-center justify-center mb-8">
+            <div className="text-center">
+              <span className="text-4xl font-bold text-muted-foreground mr-1">$</span>
+              <span className="text-6xl font-bold font-heading tracking-tighter">{amount}</span>
+            </div>
+          </div>
+
+          {/* Numpad */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, ".", 0].map((num) => (
+              <motion.button
+                key={num}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => handleNumberClick(num.toString())}
+                className="h-16 rounded-xl text-2xl font-medium hover:bg-secondary/50 transition-colors"
+                data-testid={`button-number-${num}`}
+              >
+                {num}
+              </motion.button>
+            ))}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={handleBackspace}
+              className="h-16 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-backspace"
+            >
+              <ArrowLeft size={24} />
+            </motion.button>
+          </div>
+
+          <Button
+            onClick={handleConfirm}
+            className="w-full h-14 text-lg rounded-xl shadow-lg shadow-violet-500/20 bg-violet-600 hover:bg-violet-700"
+            data-testid="button-confirm-amount"
+          >
+            Continue
+          </Button>
+        </div>
+      </div>
+    );
   }
-  
-  return session.userId;
-}
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
-  
-  // Auth Routes
-  app.post("/api/auth/signup", async (req, res) => {
-    try {
-      const validation = insertUserSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json({ error: fromZodError(validation.error).message });
-      }
+  if (step === "confirm") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-6 pt-12 pb-4 flex items-center relative">
+          <button
+            onClick={() => setStep("input")}
+            className="absolute left-6 p-2 rounded-full hover:bg-secondary transition-colors"
+            data-testid="button-back-confirm"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="w-full text-center font-heading font-bold text-lg">Confirm Request</h1>
+        </header>
 
-      const user = await signup(validation.data);
-      
-      // Create default wallet cards for new user
-      const defaultCards = [
-        { title: "💳 Main Card", balance: "0.00", currency: "$", icon: "credit-card", color: "from-violet-600 to-indigo-600", cardNumber: "4532 **** **** 1234" },
-        { title: "🛒 Groceries", balance: "0.00", currency: "$", icon: "shopping-cart", color: "from-emerald-600 to-teal-600", cardNumber: "5412 **** **** 5678" },
-        { title: "🚗 Transport", balance: "0.00", currency: "$", icon: "car", color: "from-blue-600 to-cyan-600", cardNumber: "3782 **** **** 9012" },
-        { title: "🎉 Leisure", balance: "0.00", currency: "$", icon: "sparkles", color: "from-pink-600 to-rose-600", cardNumber: "6011 **** **** 3456" }
-      ];
+        <div className="flex-1 flex flex-col px-6 pt-8 pb-8">
+          <div className="bg-secondary rounded-2xl p-6 mb-8">
+            <p className="text-muted-foreground text-sm mb-2">Amount</p>
+            <p className="text-5xl font-bold font-heading mb-6">${amount}</p>
 
-      for (const card of defaultCards) {
-        await storage.createWalletCard({
-          userId: user.id,
-          ...card,
-        });
-      }
+            <div className="space-y-4 border-t border-border pt-4">
+              <div>
+                <p className="text-muted-foreground text-sm mb-1">Recipient</p>
+                <p className="font-medium">{recipientName}</p>
+              </div>
+              {recipientPhone && (
+                <div>
+                  <p className="text-muted-foreground text-sm mb-1">Phone</p>
+                  <p className="font-medium">{recipientPhone}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-muted-foreground text-sm mb-1">From</p>
+                <p className="font-medium">{user?.name}</p>
+              </div>
+            </div>
+          </div>
 
-      const token = generateSessionToken();
-      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 }); // 30 days
+          <div className="flex-1" />
 
-      res.status(201).json({
-        token,
-        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
-      });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+          <div className="space-y-3">
+            <Button
+              onClick={handleCreateRequest}
+              className="w-full h-14 text-lg rounded-xl shadow-lg shadow-violet-500/20 bg-violet-600 hover:bg-violet-700"
+              data-testid="button-create-request"
+            >
+              Create Request
+            </Button>
+            <Button
+              onClick={() => setStep("input")}
+              variant="outline"
+              className="w-full h-14 text-lg rounded-xl"
+              data-testid="button-edit-request"
+            >
+              Edit
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const validation = loginSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json({ error: fromZodError(validation.error).message });
-      }
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="px-6 pt-12 pb-4 flex items-center relative">
+        <Link href="/">
+          <button className="absolute left-6 p-2 rounded-full hover:bg-secondary transition-colors" data-testid="button-back-share">
+            <ArrowLeft size={24} />
+          </button>
+        </Link>
+        <h1 className="w-full text-center font-heading font-bold text-lg">Share Request</h1>
+      </header>
 
-      const user = await login(validation.data);
-      const token = generateSessionToken();
-      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+      <div className="flex-1 flex flex-col px-6 pt-8 pb-8">
+        <div className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl p-6 mb-8 text-white">
+          <p className="text-violet-100 text-sm mb-2">Request Amount</p>
+          <p className="text-5xl font-bold font-heading mb-2">${amount}</p>
+          <p className="text-violet-100">From {user?.name}</p>
+        </div>
 
-      res.json({
-        token,
-        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode },
-      });
-    } catch (error: any) {
-      res.status(401).json({ error: error.message });
-    }
-  });
+        <div className="bg-secondary rounded-2xl p-4 mb-8">
+          <p className="text-muted-foreground text-xs mb-2 uppercase font-semibold">Share Link</p>
+          <div className="flex items-center space-x-2 bg-background rounded-lg p-3">
+            <input
+              type="text"
+              value={requestLink}
+              readOnly
+              className="flex-1 bg-transparent text-sm font-mono outline-none text-muted-foreground"
+              data-testid="input-request-link"
+            />
+            <button
+              onClick={handleCopyLink}
+              className="p-2 hover:bg-secondary rounded-lg transition-colors"
+              data-testid="button-copy-link"
+            >
+              {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+            </button>
+          </div>
+        </div>
 
-  app.post("/api/auth/logout", (req, res) => {
-    try {
-      const token = req.headers.authorization?.replace("Bearer ", "");
-      if (token) sessions.delete(token);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+        <div className="space-y-3 flex-1">
+          <p className="text-sm font-medium text-muted-foreground mb-4">Share via:</p>
 
-  app.get("/api/auth/me", (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+          {recipientPhone && (
+            <Button
+              onClick={handleShareWhatsApp}
+              className="w-full h-14 rounded-xl bg-green-600 hover:bg-green-700 flex items-center justify-center space-x-2"
+              data-testid="button-share-whatsapp"
+            >
+              <MessageCircle size={20} />
+              <span>Share on WhatsApp</span>
+            </Button>
+          )}
 
-      storage.getUser(userId).then(user => {
-        if (!user) return res.status(404).json({ error: "User not found" });
-        res.json({ id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode });
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+          <Button
+            onClick={handleCopyLink}
+            variant="outline"
+            className="w-full h-14 rounded-xl flex items-center justify-center space-x-2"
+            data-testid="button-share-link"
+          >
+            <Share2 size={20} />
+            <span>Copy & Share Link</span>
+          </Button>
+        </div>
 
-  // Wallet Cards
-  app.get("/api/cards", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const cards = await storage.getWalletCards(userId);
-      res.json(cards);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/cards", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const validation = insertWalletCardSchema.safeParse({ ...req.body, userId });
-      
-      if (!validation.success) {
-        return res.status(400).json({ error: fromZodError(validation.error).message });
-      }
-
-      const card = await storage.createWalletCard(validation.data);
-      res.status(201).json(card);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.patch("/api/cards/:id/balance", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const { id } = req.params;
-      const { balance } = req.body;
-
-      if (!balance || isNaN(parseFloat(balance))) {
-        return res.status(400).json({ error: "Invalid balance" });
-      }
-
-      const card = await storage.updateWalletCardBalance(id, userId, balance);
-      if (!card) {
-        return res.status(404).json({ error: "Card not found" });
-      }
-
-      res.json(card);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Transactions
-  app.get("/api/transactions", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-      const transactions = await storage.getTransactions(userId, limit);
-      res.json(transactions);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/transactions", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const validation = insertTransactionSchema.safeParse({ ...req.body, userId });
-      
-      if (!validation.success) {
-        return res.status(400).json({ error: fromZodError(validation.error).message });
-      }
-
-      const transaction = await storage.createTransaction(validation.data);
-
-      if (req.body.cardId && req.body.type === "expense") {
-        const card = await storage.getWalletCard(req.body.cardId, userId);
-        if (card) {
-          const newBalance = (parseFloat(card.balance) + parseFloat(req.body.amount)).toFixed(2);
-          await storage.updateWalletCardBalance(req.body.cardId, userId, newBalance);
-        }
-      }
-
-      res.status(201).json(transaction);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Contacts
-  app.get("/api/contacts", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const contacts = await storage.getContacts(userId);
-      res.json(contacts);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/contacts", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const validation = insertContactSchema.safeParse({ ...req.body, userId });
-      
-      if (!validation.success) {
-        return res.status(400).json({ error: fromZodError(validation.error).message });
-      }
-
-      const contact = await storage.createContact(validation.data);
-      res.status(201).json(contact);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Seed endpoint for initial data
-  app.post("/api/seed", async (req, res) => {
-    try {
-      const userId = "demo-user";
-      
-      const existingUser = await storage.getUserByUsername("alex_morgan");
-      if (!existingUser) {
-        await storage.createUser({
-          name: "Alex Morgan",
-          email: "alex.morgan@example.com",
-          username: "alex_morgan",
-          password: "demo123",
-        });
-      }
-
-      const existingCards = await storage.getWalletCards(userId);
-      if (existingCards.length === 0) {
-        await storage.createWalletCard({
-          userId,
-          title: "Fuel",
-          balance: "1250.50",
-          currency: "$",
-          icon: "fuel",
-          color: "blue",
-          cardNumber: "**** 4582",
-        });
-        
-        await storage.createWalletCard({
-          userId,
-          title: "Groceries",
-          balance: "450.75",
-          currency: "$",
-          icon: "shopping-cart",
-          color: "green",
-          cardNumber: "**** 9921",
-        });
-
-        await storage.createWalletCard({
-          userId,
-          title: "Transport",
-          balance: "85.20",
-          currency: "$",
-          icon: "bus",
-          color: "purple",
-          cardNumber: "**** 3310",
-        });
-
-        await storage.createWalletCard({
-          userId,
-          title: "Leisure",
-          balance: "320.00",
-          currency: "$",
-          icon: "coffee",
-          color: "orange",
-          cardNumber: "**** 1209",
-        });
-
-        await storage.createTransaction({
-          userId,
-          title: "Shell Station",
-          category: "Fuel",
-          amount: "-45.00",
-          type: "expense",
-          icon: "fuel",
-        });
-
-        await storage.createTransaction({
-          userId,
-          title: "Sarah Jenkins",
-          category: "Transfer",
-          amount: "150.00",
-          type: "income",
-          icon: "arrow-down-left",
-        });
-
-        await storage.createTransaction({
-          userId,
-          title: "Whole Foods",
-          category: "Groceries",
-          amount: "-123.45",
-          type: "expense",
-          icon: "shopping-cart",
-        });
-      }
-
-      res.json({ success: true, message: "Database seeded" });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Transfer endpoint (between cards)
-  app.post("/api/transfer", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const { fromCardId, toUserId, amount } = req.body;
-
-      if (!fromCardId || !toUserId || !amount || parseFloat(amount) <= 0) {
-        return res.status(400).json({ error: "Invalid transfer parameters" });
-      }
-
-      const fromCard = await storage.getWalletCard(fromCardId, userId);
-      if (!fromCard) {
-        return res.status(404).json({ error: "Card not found" });
-      }
-
-      const fromBalance = parseFloat(fromCard.balance);
-      const transferAmount = parseFloat(amount);
-
-      if (fromBalance < transferAmount) {
-        return res.status(400).json({ error: "Insufficient balance" });
-      }
-
-      // Deduct from sender
-      const newFromBalance = (fromBalance - transferAmount).toFixed(2);
-      await storage.updateWalletCardBalance(fromCardId, userId, newFromBalance);
-
-      // Create transaction record
-      await storage.createTransaction({
-        userId,
-        cardId: fromCardId,
-        title: `Sent to ${toUserId}`,
-        category: "transfer",
-        amount: amount,
-        type: "send",
-        icon: "send",
-      });
-
-      res.json({ success: true, newBalance: newFromBalance });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Receive payment endpoint
-  app.post("/api/receive", async (req, res) => {
-    try {
-      const { fromUserId, toWalletId, amount } = req.body;
-
-      if (!fromUserId || !toWalletId || !amount || parseFloat(amount) <= 0) {
-        return res.status(400).json({ error: "Invalid receive parameters" });
-      }
-
-      const toUser = await storage.getUserByWalletId(toWalletId);
-      if (!toUser) {
-        return res.status(404).json({ error: "Recipient not found" });
-      }
-
-      res.json({ success: true, recipient: toUser });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  return httpServer;
+        <Link href="/">
+          <Button
+            className="w-full h-14 rounded-xl mt-4 bg-secondary hover:bg-secondary/80 text-foreground"
+            data-testid="button-done"
+          >
+            Done
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
 }
