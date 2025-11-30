@@ -5,6 +5,7 @@ import { ArrowLeft, Send, AlertCircle, QrCode, Wallet, Smartphone, Landmark, Fla
 import { useToast } from "@/hooks/use-toast";
 import { transfer, fetchCards } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
+import { getCountries, getBanksByCountry } from "@/lib/banksData";
 import jsQR from "jsqr";
 
 export default function SendMoney() {
@@ -547,6 +548,43 @@ export default function SendMoney() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium mb-2">Country</label>
+                <select
+                  value={bankDetails.country}
+                  onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value, bankName: "" })}
+                  className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background"
+                  data-testid="select-country"
+                >
+                  <option value="">Select a country...</option>
+                  {getCountries().map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Bank Name</label>
+                <select
+                  value={bankDetails.bankName}
+                  onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
+                  disabled={!bankDetails.country}
+                  className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background disabled:opacity-50"
+                  data-testid="select-bank"
+                >
+                  <option value="">
+                    {bankDetails.country ? "Select a bank..." : "Choose a country first..."}
+                  </option>
+                  {bankDetails.country && getBanksByCountry(bankDetails.country).map((bank) => (
+                    <option key={bank} value={bank}>
+                      {bank}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium mb-2">Account Number</label>
                 <input
                   type="text"
@@ -555,30 +593,6 @@ export default function SendMoney() {
                   placeholder="Account number or IBAN"
                   className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50"
                   data-testid="input-account-number"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Bank Name</label>
-                <input
-                  type="text"
-                  value={bankDetails.bankName}
-                  onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
-                  placeholder="Bank name"
-                  className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  data-testid="input-bank-name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Country</label>
-                <input
-                  type="text"
-                  value={bankDetails.country}
-                  onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value })}
-                  placeholder="Country"
-                  className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  data-testid="input-country"
                 />
               </div>
             </div>
