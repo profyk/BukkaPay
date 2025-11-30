@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, Link } from "wouter";
 import { ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -22,7 +21,7 @@ export default function Pay() {
       try {
         const response = await fetch(`/api/payment-requests/${requestId}`);
         if (!response.ok) throw new Error("Request not found");
-        
+
         const data = await response.json();
         setRequest(data);
         setRequester(data.requester);
@@ -51,7 +50,9 @@ export default function Pay() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
         <h1 className="text-2xl font-bold mb-2">Payment Request Not Found</h1>
-        <p className="text-muted-foreground mb-6">This request may have expired or been cancelled.</p>
+        <p className="text-muted-foreground mb-6">
+          This request may have expired or been cancelled.
+        </p>
         <Link href="/">
           <Button className="bg-violet-600 hover:bg-violet-700">Back to Home</Button>
         </Link>
@@ -94,11 +95,16 @@ export default function Pay() {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="px-6 pt-12 pb-4 flex items-center relative">
         <Link href="/">
-          <button className="absolute left-6 p-2 rounded-full hover:bg-secondary transition-colors" data-testid="button-back">
+          <button
+            className="absolute left-6 p-2 rounded-full hover:bg-secondary transition-colors"
+            data-testid="button-back"
+          >
             <ArrowLeft size={24} />
           </button>
         </Link>
-        <h1 className="w-full text-center font-heading font-bold text-lg">Payment Request</h1>
+        <h1 className="w-full text-center font-heading font-bold text-lg">
+          Payment Request
+        </h1>
       </header>
 
       <div className="flex-1 flex flex-col px-6 pt-8 pb-8">
@@ -120,12 +126,20 @@ export default function Pay() {
         <div className="bg-secondary rounded-2xl p-4 mb-8">
           <div className="space-y-3">
             <div>
-              <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">For</p>
+              <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">
+                For
+              </p>
               <p className="font-medium">{request.recipientName}</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">Status</p>
-              <p className={`font-medium ${request.status === "paid" ? "text-green-500" : "text-yellow-500"}`}>
+              <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">
+                Status
+              </p>
+              <p
+                className={`font-medium ${
+                  request.status === "paid" ? "text-green-500" : "text-yellow-500"
+                }`}
+              >
                 {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
               </p>
             </div>
