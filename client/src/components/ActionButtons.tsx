@@ -10,7 +10,7 @@ export default function ActionButtons() {
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-4 gap-3">
       {actions.map((action) => (
         <Link key={action.label} href={action.href}>
           <div className="flex flex-col items-center space-y-2 cursor-pointer group">
