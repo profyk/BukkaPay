@@ -1,20 +1,14 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { User, Shield, Bell, HelpCircle, LogOut, ChevronRight, QrCode, CreditCard, Zap, CheckCircle2, AlertCircle, Edit3, Copy } from "lucide-react";
+import { User, Shield, Bell, HelpCircle, ChevronRight, QrCode, CreditCard, Zap, CheckCircle2, Edit3, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
-import { logout } from "@/lib/auth";
 
 export default function Profile() {
   const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
-
-  const handleLogout = async () => {
-    logout();
-    navigate?.("/login");
-  };
 
   const handleMyID = () => {
     navigate?.("/my-id");
@@ -172,26 +166,9 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Logout Button */}
-      <div className="px-6">
-        <motion.button
-          onClick={handleLogout}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="w-full flex items-center justify-between p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/30 transition-colors mt-2"
-          data-testid="button-logout"
-        >
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-600">
-              <LogOut size={20} />
-            </div>
-            <span className="font-medium">Log Out</span>
-          </div>
-          <ChevronRight size={18} />
-        </motion.button>
-
-        {/* Session Info */}
-        <p className="text-xs text-muted-foreground text-center mt-4">
+      {/* Session Info */}
+      <div className="px-6 text-center">
+        <p className="text-xs text-muted-foreground">
           Last login: Today at 2:34 PM
         </p>
       </div>
