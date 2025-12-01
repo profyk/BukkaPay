@@ -15,7 +15,7 @@ export default function SendMoney() {
   const isFloatingButtonMode = queryParams.get('mode') === 'qr';
   const initialMode = isFloatingButtonMode ? 'scan' : 'method';
   const initialPaymentMethod = isFloatingButtonMode ? 'qr' : null;
-  const [stage, setStage] = useState<"method" | "scan" | "wallet-id" | "amount" | "confirm" | "success">(initialMode as any);
+  const [stage, setStage] = useState<"method" | "scan" | "wallet-id" | "card-select" | "amount" | "confirm" | "success">(initialMode as any);
   const [paymentMethod, setPaymentMethod] = useState<"qr" | "bukka" | "mobile" | "bank" | null>(initialPaymentMethod as any);
   const [walletId, setWalletId] = useState("");
   const [amount, setAmount] = useState("");
@@ -191,7 +191,7 @@ export default function SendMoney() {
       id: walletId,
       type: paymentMethod,
     });
-    setStage("amount");
+    setStage("card-select");
   };
 
   const handleBankDetailsContinue = () => {
@@ -211,6 +211,18 @@ export default function SendMoney() {
       country,
       type: "bank",
     });
+    setStage("card-select");
+  };
+
+  const handleCardSelect = () => {
+    if (!selectedCard) {
+      toast({
+        title: "Select Card",
+        description: "Please select a card to send from",
+        variant: "destructive",
+      });
+      return;
+    }
     setStage("amount");
   };
 
@@ -219,14 +231,6 @@ export default function SendMoney() {
       toast({
         title: "Invalid Amount",
         description: "Please enter a valid amount",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!selectedCard) {
-      toast({
-        title: "Select Card",
-        description: "Please select a card to send from",
         variant: "destructive",
       });
       return;
@@ -627,12 +631,90 @@ export default function SendMoney() {
           </div>
         )}
 
+        {/* Card Selection */}
+        {stage === "card-select" && recipientData && (
+          <div className="space-y-6 py-8">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-heading font-bold">Select Payment Card</h2>
+              <p className="text-muted-foreground">Choose which card to send from</p>
+            </div>
+
+            {cardsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin w-8 h-8 border-3 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading your cards...</p>
+              </div>
+            ) : cards.length === 0 ? (
+              <div className="bg-secondary rounded-xl p-6 text-center">
+                <p className="text-muted-foreground mb-2">No cards available</p>
+                <p className="text-xs text-muted-foreground">Please add a card first</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cards.map((card) => (
+                  <button
+                    key={card.id}
+                    onClick={() => setSelectedCard(card.id)}
+                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                      selectedCard === card.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                    data-testid={`button-card-${card.id}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-sm mb-1">{card.title}</p>
+                        <p className="text-xs text-muted-foreground">Balance: ${parseFloat(card.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                      </div>
+                      {selectedCard === card.id && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (paymentMethod === "bank") {
+                    setStage("wallet-id");
+                  } else {
+                    setStage("wallet-id");
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl border border-border hover:bg-secondary transition-colors font-semibold"
+                data-testid="button-back-card"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleCardSelect}
+                disabled={!selectedCard}
+                className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                data-testid="button-continue-card"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Amount Selection */}
         {stage === "amount" && recipientData && (
           <div className="space-y-6 py-8">
             <div className="space-y-2">
               <h2 className="text-2xl font-heading font-bold">How much to send?</h2>
-              <p className="text-muted-foreground">Enter the amount and select the card to send from</p>
+              <p className="text-muted-foreground">Enter the amount to transfer</p>
+            </div>
+
+            <div className="bg-secondary rounded-xl p-4">
+              <p className="text-xs text-muted-foreground mb-1">From Card</p>
+              <p className="font-semibold">{cards.find(c => c.id === selectedCard)?.title || "Loading..."}</p>
             </div>
 
             <div>
@@ -649,26 +731,6 @@ export default function SendMoney() {
                   autoFocus
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Send from</label>
-              <select
-                value={selectedCard}
-                onChange={(e) => setSelectedCard(e.target.value)}
-                disabled={cardsLoading}
-                className="w-full px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 bg-secondary disabled:opacity-50"
-                data-testid="select-card"
-              >
-                <option value="">
-                  {cardsLoading ? "Loading cards..." : "Choose a card..."}
-                </option>
-                {cards.map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.title} - ${parseFloat(card.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="flex gap-3">
