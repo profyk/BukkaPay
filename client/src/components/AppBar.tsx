@@ -15,6 +15,7 @@ export default function AppBar() {
   };
 
   const menuItems = [
+    { label: "Marketplace", action: () => navigate?.("/buy") },
     { label: "Explore Features", action: () => navigate?.("/features") },
     { label: "Support Chat", action: () => navigate?.("/support-chat") },
     { label: "Settings", action: () => navigate?.("/profile") },
