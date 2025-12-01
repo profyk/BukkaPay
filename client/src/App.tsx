@@ -24,6 +24,7 @@ import Profile from "@/pages/profile";
 import Notifications from "@/pages/notifications";
 import Search from "@/pages/search";
 import MyID from "@/pages/my-id";
+import TransactionSlip from "@/pages/transaction-slip";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
@@ -60,6 +61,7 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/stokvel" component={Stokvel} />
       <Route path="/profile" component={Profile} />
       <Route path="/notifications" component={Notifications} />
+      <Route path="/transaction-slip" component={TransactionSlip} />
       <Route path="/search" component={Search} />
       <Route path="/my-id" component={MyID} />
       <Route component={NotFound} />

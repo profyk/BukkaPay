@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Bell, CheckCircle2, AlertCircle, Info, Trash2 } from "lucide-react";
+import { ArrowLeft, Bell, CheckCircle2, AlertCircle, Info, Trash2, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
@@ -128,6 +128,10 @@ export default function Notifications() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  const handleGetSlip = () => {
+    navigate?.("/transaction-slip");
+  };
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="px-6 pt-12 pb-4 flex items-center justify-between sticky top-0 bg-background/80 backdrop-blur-md z-10">
@@ -152,6 +156,21 @@ export default function Notifications() {
       </header>
 
       <div className="px-6 space-y-4">
+        {/* Get Slip Section */}
+        <motion.button
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={handleGetSlip}
+          whileTap={{ scale: 0.95 }}
+          className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium transition-all hover:shadow-lg hover:shadow-blue-500/20"
+          data-testid="button-get-slip"
+        >
+          <span className="flex items-center gap-2">
+            <Download size={18} />
+            Get Transaction Slip
+          </span>
+          <span className="text-sm opacity-80">→</span>
+        </motion.button>
         {/* Unread Badge */}
         {unreadCount > 0 && (
           <motion.div
