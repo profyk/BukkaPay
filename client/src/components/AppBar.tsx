@@ -1,8 +1,21 @@
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, MoreVertical } from "lucide-react";
 import { motion } from "framer-motion";
+import { useState } from "react";
 import appIcon from "../assets/bukkapay-icon.png";
 
 export default function AppBar() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const menuItems = [
+    { label: "Settings", action: () => window.location.href = "/profile" },
+    { label: "My Wallet ID", action: () => window.location.href = "/my-id" },
+    { label: "Help & Support", action: () => alert("Help & Support coming soon") },
+    { label: "Logout", action: () => {
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    } },
+  ];
+
   return (
     <motion.header 
       initial={{ opacity: 0, y: -20 }}
@@ -35,7 +48,7 @@ export default function AppBar() {
         </motion.div>
 
         {/* Action Buttons */}
-        <div className="flex space-x-3">
+        <div className="flex items-center space-x-3 relative">
           <motion.button 
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
@@ -57,8 +70,56 @@ export default function AppBar() {
               className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-background shadow-lg"
             />
           </motion.button>
+
+          {/* Menu Button */}
+          <div className="relative">
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="w-10 h-10 rounded-full bg-secondary/50 hover:bg-secondary border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all duration-200 backdrop-blur-sm"
+              data-testid="button-menu"
+            >
+              <MoreVertical size={20} />
+            </motion.button>
+
+            {/* Dropdown Menu */}
+            {menuOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                className="absolute right-0 mt-2 w-48 bg-white dark:bg-card rounded-xl shadow-2xl border border-border overflow-hidden z-50"
+                data-testid="menu-dropdown"
+              >
+                {menuItems.map((item, idx) => (
+                  <motion.button
+                    key={idx}
+                    onClick={() => {
+                      item.action();
+                      setMenuOpen(false);
+                    }}
+                    whileHover={{ backgroundColor: "rgba(139, 92, 246, 0.1)" }}
+                    className="w-full px-4 py-3 text-left text-sm font-medium text-foreground hover:bg-secondary transition-colors border-b border-border/50 last:border-b-0"
+                    data-testid={`menu-item-${idx}`}
+                  >
+                    {item.label}
+                  </motion.button>
+                ))}
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Click outside to close menu */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setMenuOpen(false)}
+          data-testid="menu-overlay"
+        />
+      )}
     </motion.header>
   );
 }
