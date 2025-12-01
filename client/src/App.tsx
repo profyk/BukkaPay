@@ -13,6 +13,7 @@ import Request from "@/pages/request";
 import Pay from "@/pages/pay";
 import TapPay from "@/pages/tap-pay";
 import TopUp from "@/pages/topup";
+import Buy from "@/pages/buy";
 import Profile from "@/pages/profile";
 import MyID from "@/pages/my-id";
 import Login from "@/pages/login";
@@ -42,6 +43,7 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/pay/:id" component={Pay} />
       <Route path="/tap-pay" component={TapPay} />
       <Route path="/topup" component={TopUp} />
+      <Route path="/buy" component={Buy} />
       <Route path="/profile" component={Profile} />
       <Route path="/my-id" component={MyID} />
       <Route component={NotFound} />
