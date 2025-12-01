@@ -20,7 +20,7 @@ interface Stokvel {
 }
 
 export default function Stokvel() {
-  const [view, setView] = useState<"list" | "create" | "details">("list");
+  const [view, setView] = useState<"list" | "create" | "details" | "add-members">("list");
   const [selectedStokvel, setSelectedStokvel] = useState<Stokvel | null>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -28,6 +28,8 @@ export default function Stokvel() {
     contributionAmount: "",
     frequency: "monthly",
   });
+  const [memberEmail, setMemberEmail] = useState("");
+  const [members, setMembers] = useState<string[]>([]);
 
   const stokvels: Stokvel[] = [
     {
@@ -80,6 +82,135 @@ export default function Stokvel() {
     setFormData({ name: "", purpose: "", contributionAmount: "", frequency: "monthly" });
     setView("list");
   };
+
+  if (view === "add-members" && selectedStokvel) {
+    const addMember = () => {
+      if (!memberEmail || !memberEmail.includes("@")) {
+        toast.error("Please enter a valid email");
+        return;
+      }
+      if (members.includes(memberEmail)) {
+        toast.error("Member already added");
+        return;
+      }
+      setMembers([...members, memberEmail]);
+      setMemberEmail("");
+      toast.success("Member added to invite list");
+    };
+
+    const sendInvitations = () => {
+      if (members.length === 0) {
+        toast.error("Add at least one member");
+        return;
+      }
+      toast.success(`Invitations sent to ${members.length} member(s)!`);
+      setMembers([]);
+      setMemberEmail("");
+      setView("details");
+    };
+
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <header className="px-6 pt-12 pb-4 flex items-center relative">
+          <button
+            onClick={() => setView("details")}
+            className="absolute left-6 p-2 rounded-full hover:bg-secondary transition-colors"
+            data-testid="button-back-members"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="w-full text-center font-heading font-bold text-lg">Add Members</h1>
+        </header>
+
+        <div className="px-6 space-y-6">
+          <div className={`bg-gradient-to-br ${selectedStokvel.color} rounded-2xl p-6 text-white`}>
+            <p className="text-sm opacity-90 mb-2">Adding members to</p>
+            <p className="text-2xl font-bold">{selectedStokvel.name}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Member Email</label>
+            <div className="flex gap-2 mb-4">
+              <input
+                type="email"
+                placeholder="Enter email address"
+                value={memberEmail}
+                onChange={(e) => setMemberEmail(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && addMember()}
+                className="flex-1 px-4 py-3 rounded-lg bg-secondary border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+                data-testid="input-member-email"
+              />
+              <Button
+                onClick={addMember}
+                className="bg-blue-600 hover:bg-blue-700"
+                data-testid="button-add-member"
+              >
+                <Plus size={18} />
+              </Button>
+            </div>
+          </div>
+
+          {members.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold">Members to Invite ({members.length})</h3>
+              </div>
+              <div className="space-y-2 mb-6">
+                {members.map((email, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center justify-between p-3 bg-secondary rounded-lg"
+                    data-testid={`member-item-${idx}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 flex items-center justify-center text-white text-xs font-bold">
+                        {idx + 1}
+                      </div>
+                      <p className="text-sm">{email}</p>
+                    </div>
+                    <button
+                      onClick={() => setMembers(members.filter((_, i) => i !== idx))}
+                      className="text-red-500 hover:text-red-600 text-sm font-medium"
+                      data-testid={`button-remove-${idx}`}
+                    >
+                      Remove
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-6">
+            <p className="text-xs text-blue-600">
+              💡 Members will receive an invitation email to join this stokvel. They can accept or decline.
+            </p>
+          </div>
+
+          <div className="space-y-3 flex-1">
+            <Button
+              onClick={sendInvitations}
+              disabled={members.length === 0}
+              className="w-full h-12 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50"
+              data-testid="button-send-invitations"
+            >
+              Send {members.length} Invitation{members.length !== 1 ? "s" : ""}
+            </Button>
+            <Button
+              onClick={() => setView("details")}
+              variant="outline"
+              className="w-full h-12 rounded-lg"
+              data-testid="button-cancel-members"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (view === "create") {
     return (
@@ -282,6 +413,18 @@ export default function Stokvel() {
               Make Contribution
             </Button>
             <Button
+              onClick={() => {
+                setMembers([]);
+                setMemberEmail("");
+                setView("add-members");
+              }}
+              className="w-full h-12 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600"
+              data-testid="button-add-members"
+            >
+              <Plus size={18} className="mr-2" />
+              Add Members
+            </Button>
+            <Button
               variant="outline"
               className="w-full h-12 rounded-lg"
               onClick={() => {
@@ -290,7 +433,7 @@ export default function Stokvel() {
               }}
               data-testid="button-invite"
             >
-              Invite Members
+              Share Invite Link
             </Button>
           </div>
         </div>
