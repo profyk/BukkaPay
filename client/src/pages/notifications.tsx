@@ -156,21 +156,6 @@ export default function Notifications() {
       </header>
 
       <div className="px-6 space-y-4">
-        {/* Get Slip Section */}
-        <motion.button
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          onClick={handleGetSlip}
-          whileTap={{ scale: 0.95 }}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium transition-all hover:shadow-lg hover:shadow-blue-500/20"
-          data-testid="button-get-slip"
-        >
-          <span className="flex items-center gap-2">
-            <Download size={18} />
-            Get Transaction Slip
-          </span>
-          <span className="text-sm opacity-80">→</span>
-        </motion.button>
         {/* Unread Badge */}
         {unreadCount > 0 && (
           <motion.div
@@ -209,7 +194,7 @@ export default function Notifications() {
                         <h3 className="font-semibold text-sm mb-1">
                           {notification.title}
                         </h3>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
+                        <p className="text-sm text-muted-foreground">
                           {notification.message}
                         </p>
                       </div>
@@ -220,17 +205,33 @@ export default function Notifications() {
                     <p className="text-xs text-muted-foreground mt-2">
                       {notification.timestamp}
                     </p>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 mt-3">
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate?.("/transaction-slip");
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
+                        data-testid={`button-get-slip-${idx}`}
+                      >
+                        <Download size={14} />
+                        Get Slip
+                      </motion.button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(notification.id);
+                        }}
+                        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition-colors"
+                        data-testid={`button-delete-${idx}`}
+                      >
+                        <Trash2 size={16} className="text-muted-foreground" />
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(notification.id);
-                    }}
-                    className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition-colors flex-shrink-0 ml-2"
-                    data-testid={`button-delete-${idx}`}
-                  >
-                    <Trash2 size={16} className="text-muted-foreground" />
-                  </button>
                 </div>
               </motion.div>
             ))}
