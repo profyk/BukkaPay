@@ -2,21 +2,24 @@ import { Bell, Search, MoreVertical } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { logout } from "@/lib/auth";
 import appIcon from "../assets/bukkapay-icon.png";
 
 export default function AppBar() {
   const [, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const handleLogout = async () => {
+    await logout();
+    navigate?.("/login");
+  };
+
   const menuItems = [
-    { label: "Explore Features", action: () => window.location.href = "/features" },
-    { label: "Support Chat", action: () => window.location.href = "/support-chat" },
-    { label: "Settings", action: () => window.location.href = "/profile" },
-    { label: "My Wallet ID", action: () => window.location.href = "/my-id" },
-    { label: "Logout", action: () => {
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-    } },
+    { label: "Explore Features", action: () => navigate?.("/features") },
+    { label: "Support Chat", action: () => navigate?.("/support-chat") },
+    { label: "Settings", action: () => navigate?.("/profile") },
+    { label: "My Wallet ID", action: () => navigate?.("/my-id") },
+    { label: "Logout", action: handleLogout },
   ];
 
   return (
