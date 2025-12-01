@@ -7,9 +7,10 @@ export default function AppBar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const menuItems = [
+    { label: "Explore Features", action: () => window.location.href = "/features" },
+    { label: "Support Chat", action: () => window.location.href = "/support-chat" },
     { label: "Settings", action: () => window.location.href = "/profile" },
     { label: "My Wallet ID", action: () => window.location.href = "/my-id" },
-    { label: "Help & Support", action: () => alert("Help & Support coming soon") },
     { label: "Logout", action: () => {
       localStorage.removeItem("user");
       window.location.href = "/login";

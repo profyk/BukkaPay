@@ -14,6 +14,12 @@ import Pay from "@/pages/pay";
 import TapPay from "@/pages/tap-pay";
 import TopUp from "@/pages/topup";
 import Buy from "@/pages/buy";
+import Loyalty from "@/pages/loyalty";
+import Analytics from "@/pages/analytics";
+import Referral from "@/pages/referral";
+import Gamification from "@/pages/gamification";
+import SupportChat from "@/pages/support-chat";
+import FeaturesHub from "@/pages/features-hub";
 import Profile from "@/pages/profile";
 import MyID from "@/pages/my-id";
 import Login from "@/pages/login";
@@ -44,6 +50,12 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/tap-pay" component={TapPay} />
       <Route path="/topup" component={TopUp} />
       <Route path="/buy" component={Buy} />
+      <Route path="/loyalty" component={Loyalty} />
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/referral" component={Referral} />
+      <Route path="/gamification" component={Gamification} />
+      <Route path="/support-chat" component={SupportChat} />
+      <Route path="/features" component={FeaturesHub} />
       <Route path="/profile" component={Profile} />
       <Route path="/my-id" component={MyID} />
       <Route component={NotFound} />
