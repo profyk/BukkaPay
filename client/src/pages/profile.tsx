@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { User, Shield, Bell, HelpCircle, ChevronRight, QrCode, CreditCard, Zap, CheckCircle2, Edit3, Copy } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronRight, Zap, CheckCircle2, Edit3, Copy } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
@@ -10,25 +9,12 @@ export default function Profile() {
   const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
 
-  const handleMyID = () => {
-    navigate?.("/my-id");
-  };
-
   const copyWalletID = () => {
     navigator.clipboard.writeText("BKP-A4M2K9L7");
     setCopied(true);
     toast.success("Wallet ID copied!");
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const menuItems = [
-    { icon: QrCode, label: "My ID Code", onClick: handleMyID, color: "text-blue-600" },
-    { icon: User, label: "Personal Information", onClick: () => toast.info("Coming soon"), color: "text-purple-600" },
-    { icon: Shield, label: "Security & Privacy", onClick: () => toast.info("Coming soon"), color: "text-orange-600" },
-    { icon: CreditCard, label: "Payment Methods", onClick: () => toast.info("Coming soon"), color: "text-emerald-600" },
-    { icon: Bell, label: "Notifications", onClick: () => toast.info("Coming soon"), color: "text-cyan-600" },
-    { icon: HelpCircle, label: "Help & Support", onClick: () => toast.info("Coming soon"), color: "text-pink-600" },
-  ];
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -142,32 +128,8 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Menu Section */}
-      <div className="px-6 mb-4">
-        <p className="text-xs text-muted-foreground font-medium mb-3">ACCOUNT SETTINGS</p>
-        <div className="space-y-2">
-          {menuItems.map((item) => (
-            <motion.button
-              key={item.label}
-              onClick={item.onClick}
-              whileHover={{ x: 4 }}
-              className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-secondary transition-colors group"
-              data-testid={`button-${item.label.toLowerCase().replace(/\s/g, "-")}`}
-            >
-              <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 rounded-full bg-secondary group-hover:bg-background flex items-center justify-center transition-colors ${item.color}`}>
-                  <item.icon size={20} />
-                </div>
-                <span className="font-medium text-sm">{item.label}</span>
-              </div>
-              <ChevronRight size={18} className="text-muted-foreground" />
-            </motion.button>
-          ))}
-        </div>
-      </div>
-
       {/* Session Info */}
-      <div className="px-6 text-center">
+      <div className="px-6 text-center pt-6">
         <p className="text-xs text-muted-foreground">
           Last login: Today at 2:34 PM
         </p>
