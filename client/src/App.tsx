@@ -16,7 +16,6 @@ import TopUp from "@/pages/topup";
 import Buy from "@/pages/buy";
 import Loyalty from "@/pages/loyalty";
 import Analytics from "@/pages/analytics";
-import Referral from "@/pages/referral";
 import Gamification from "@/pages/gamification";
 import SupportChat from "@/pages/support-chat";
 import FeaturesHub from "@/pages/features-hub";
@@ -55,7 +54,6 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/buy" component={Buy} />
       <Route path="/loyalty" component={Loyalty} />
       <Route path="/analytics" component={Analytics} />
-      <Route path="/referral" component={Referral} />
       <Route path="/gamification" component={Gamification} />
       <Route path="/support-chat" component={SupportChat} />
       <Route path="/features" component={FeaturesHub} />
