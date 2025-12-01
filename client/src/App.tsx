@@ -7,6 +7,7 @@ import { getCurrentUser } from "./lib/auth";
 import Home from "@/pages/home";
 import Wallet from "@/pages/wallet";
 import ScanPay from "@/pages/scan-pay";
+import QRPay from "@/pages/qr-pay";
 import Transfer from "@/pages/transfer";
 import Request from "@/pages/request";
 import Pay from "@/pages/pay";
@@ -43,6 +44,7 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/" component={Home} />
       <Route path="/wallet" component={Wallet} />
       <Route path="/scan-pay" component={ScanPay} />
+      <Route path="/qr-pay" component={QRPay} />
       <Route path="/transfer" component={Transfer} />
       <Route path="/request" component={Request} />
       <Route path="/pay/:id" component={Pay} />
