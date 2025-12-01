@@ -14,6 +14,8 @@ import {
   ChevronRight,
   Gift,
   Ticket,
+  Music,
+  Plane,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -278,6 +280,76 @@ const products: Product[] = [
     category: "vouchers",
     rating: 4.6,
   },
+
+  // Tickets
+  {
+    id: "ticket-concert-wizkid",
+    name: "Wizkid Concert",
+    provider: "Livespot Events",
+    price: 15000,
+    value: "1 Ticket",
+    description: "Premium seat at Afrobeats Concert",
+    icon: <Music size={24} />,
+    category: "tickets",
+    rating: 4.9,
+    discount: 12,
+  },
+  {
+    id: "ticket-concert-burnaboy",
+    name: "Burna Boy Concert",
+    provider: "Pulse Events",
+    price: 12000,
+    value: "1 Ticket",
+    description: "VIP access to live performance",
+    icon: <Music size={24} />,
+    category: "tickets",
+    rating: 4.8,
+  },
+  {
+    id: "ticket-flight-economy",
+    name: "Flight - Lagos to Abuja",
+    provider: "AirNaija",
+    price: 25000,
+    value: "1 Seat",
+    description: "Economy class round trip",
+    icon: <Plane size={24} />,
+    category: "tickets",
+    rating: 4.7,
+  },
+  {
+    id: "ticket-flight-business",
+    name: "Flight - Lagos to London",
+    provider: "International Airways",
+    price: 180000,
+    value: "1 Seat",
+    description: "Business class international",
+    icon: <Plane size={24} />,
+    category: "tickets",
+    rating: 4.9,
+  },
+  {
+    id: "ticket-event-comedy",
+    name: "Comedy Night - Basket Mouth",
+    provider: "Entertainment Hub",
+    price: 5000,
+    value: "1 Ticket",
+    description: "Stand-up comedy show",
+    icon: <Ticket size={24} />,
+    category: "tickets",
+    rating: 4.6,
+  },
+  {
+    id: "ticket-sports-football",
+    name: "Football Match - Super Eagles",
+    provider: "NFF",
+    price: 8000,
+    value: "1 Ticket",
+    description: "National team match",
+    icon: <Ticket size={24} />,
+    category: "tickets",
+    rating: 4.8,
+    discount: 5,
+  },
 ];
 
 const categories = [
@@ -288,6 +360,7 @@ const categories = [
   { id: "bills", label: "Bills", icon: Tv },
   { id: "insurance", label: "Insurance", icon: Pill },
   { id: "vouchers", label: "Vouchers", icon: Gift },
+  { id: "tickets", label: "Tickets", icon: Ticket },
 ];
 
 export default function Buy() {
