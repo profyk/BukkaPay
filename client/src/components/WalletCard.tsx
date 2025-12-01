@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { Eye, EyeOff } from "lucide-react";
 import cardBg from "@assets/generated_images/abstract_gradient_for_card_background.png";
 
 interface WalletCardProps {
@@ -13,6 +15,22 @@ interface WalletCardProps {
 }
 
 export default function WalletCard({ title, balance, currency, cardNumber, color, icon: Icon, className }: WalletCardProps) {
+  const [showBalance, setShowBalance] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("showWalletBalance");
+    if (stored !== null) {
+      setShowBalance(stored === "true");
+    }
+  }, []);
+
+  const toggleBalance = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newValue = !showBalance;
+    setShowBalance(newValue);
+    localStorage.setItem("showWalletBalance", String(newValue));
+  };
+
   return (
     <motion.div
       whileHover={{ scale: 1.02 }}
@@ -40,9 +58,25 @@ export default function WalletCard({ title, balance, currency, cardNumber, color
         </div>
 
         <div>
-          <div className="text-sm opacity-70 mb-1">Balance</div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm opacity-70">Balance</div>
+            <button
+              onClick={toggleBalance}
+              className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+              data-testid="button-toggle-balance"
+            >
+              {showBalance ? (
+                <Eye size={16} className="text-white opacity-80" />
+              ) : (
+                <EyeOff size={16} className="text-white opacity-80" />
+              )}
+            </button>
+          </div>
           <div className="text-3xl font-bold font-heading tracking-tight">
-            {currency}{balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {showBalance 
+              ? `${currency}${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+              : `${currency}${'•'.repeat(8)}`
+            }
           </div>
         </div>
 
