@@ -1,9 +1,11 @@
 import { Bell, Search, MoreVertical } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import appIcon from "../assets/bukkapay-icon.png";
 
 export default function AppBar() {
+  const [, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const menuItems = [
@@ -61,6 +63,7 @@ export default function AppBar() {
           <motion.button 
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => navigate?.("/notifications")}
             className="relative w-10 h-10 rounded-full bg-secondary/50 hover:bg-secondary border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all duration-200 backdrop-blur-sm"
             data-testid="button-notifications"
           >

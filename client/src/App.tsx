@@ -22,6 +22,7 @@ import SupportChat from "@/pages/support-chat";
 import FeaturesHub from "@/pages/features-hub";
 import Stokvel from "@/pages/stokvel";
 import Profile from "@/pages/profile";
+import Notifications from "@/pages/notifications";
 import MyID from "@/pages/my-id";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
@@ -59,6 +60,7 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/features" component={FeaturesHub} />
       <Route path="/stokvel" component={Stokvel} />
       <Route path="/profile" component={Profile} />
+      <Route path="/notifications" component={Notifications} />
       <Route path="/my-id" component={MyID} />
       <Route component={NotFound} />
     </Switch>
