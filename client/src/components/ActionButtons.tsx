@@ -5,6 +5,7 @@ export default function ActionButtons() {
   const actions = [
     { icon: Send, label: "Send", href: "/scan-pay", color: "bg-blue-500" },
     { icon: ArrowDownLeft, label: "Request", href: "/request", color: "bg-violet-500" },
+    { icon: Plus, label: "Top Up", href: "/topup", color: "bg-green-500" },
     { icon: Smartphone, label: "Tap Pay", href: "/tap-pay", color: "bg-indigo-500" },
   ];
 
