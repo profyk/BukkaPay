@@ -175,6 +175,52 @@ export const virtualCards = pgTable("virtual_cards", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const stokvels = pgTable("stokvels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  purpose: text("purpose"),
+  contributionAmount: decimal("contribution_amount", { precision: 10, scale: 2 }).notNull(),
+  contributionFrequency: text("contribution_frequency").notNull(),
+  payoutDate: timestamp("payout_date"),
+  totalMembers: integer("total_members").default(1),
+  totalContributed: decimal("total_contributed", { precision: 12, scale: 2 }).default("0"),
+  status: text("status").default("active"),
+  icon: text("icon").default("👥"),
+  color: text("color").default("from-purple-600 to-pink-600"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const stokvelMembers = pgTable("stokvel_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stokvelId: varchar("stokvel_id").notNull().references(() => stokvels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  totalContributed: decimal("total_contributed", { precision: 10, scale: 2 }).default("0"),
+  status: text("status").default("active"),
+});
+
+export const stokvelContributions = pgTable("stokvel_contributions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stokvelId: varchar("stokvel_id").notNull().references(() => stokvels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  dueDate: timestamp("due_date"),
+  status: text("status").default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const stokvelPayouts = pgTable("stokvel_payouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stokvelId: varchar("stokvel_id").notNull().references(() => stokvels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  payoutDate: timestamp("payout_date"),
+  status: text("status").default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true }).extend({
   email: z.string().email("Invalid email"),
   username: z.string().min(3, "Username must be at least 3 characters"),

@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ArrowLeft, Gift, BarChart3, Users, Zap, MessageCircle, Split, Lock, Users2 } from "lucide-react";
+import { ArrowLeft, Gift, BarChart3, Users, Zap, MessageCircle, Split, Lock, Users2, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 
 const features = [
@@ -10,7 +10,7 @@ const features = [
   { icon: MessageCircle, label: "Support Chat", href: "/support-chat", color: "from-pink-600 to-rose-600" },
   { icon: Split, label: "Bill Splitting", href: "/bill-split", color: "from-indigo-600 to-purple-600" },
   { icon: Lock, label: "Security Settings", href: "/security", color: "from-slate-600 to-gray-600" },
-  { icon: Users2, label: "Family Accounts", href: "/family", color: "from-amber-600 to-yellow-600" },
+  { icon: TrendingUp, label: "Stokvel Savings", href: "/stokvel", color: "from-purple-600 to-pink-600" },
 ];
 
 export default function FeaturesHub() {

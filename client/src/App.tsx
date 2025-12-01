@@ -20,6 +20,7 @@ import Referral from "@/pages/referral";
 import Gamification from "@/pages/gamification";
 import SupportChat from "@/pages/support-chat";
 import FeaturesHub from "@/pages/features-hub";
+import Stokvel from "@/pages/stokvel";
 import Profile from "@/pages/profile";
 import MyID from "@/pages/my-id";
 import Login from "@/pages/login";
@@ -56,6 +57,7 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Route path="/gamification" component={Gamification} />
       <Route path="/support-chat" component={SupportChat} />
       <Route path="/features" component={FeaturesHub} />
+      <Route path="/stokvel" component={Stokvel} />
       <Route path="/profile" component={Profile} />
       <Route path="/my-id" component={MyID} />
       <Route component={NotFound} />
