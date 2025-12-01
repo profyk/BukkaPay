@@ -1,12 +1,12 @@
 import { db } from "../db/index";
-import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, referrals, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers } from "@shared/schema";
+import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers } from "@shared/schema";
 import type { 
   User, InsertUser, 
   WalletCard, InsertWalletCard,
   Transaction, InsertTransaction,
   Contact, InsertContact,
   PaymentRequest, InsertPaymentRequest,
-  LoyaltyReward, AutoPay, Referral, Beneficiary, Challenge, Achievement, ChatMessage, BillSplit, VirtualCard
+  LoyaltyReward, AutoPay, Beneficiary, Challenge, Achievement, ChatMessage, BillSplit, VirtualCard
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -38,9 +38,6 @@ export interface IStorage {
   
   getAutoPays(userId: string): Promise<AutoPay[]>;
   createAutoPay(autoPay: any): Promise<AutoPay>;
-  
-  getReferral(userId: string, refereeId: string): Promise<Referral | undefined>;
-  createReferral(referral: any): Promise<Referral>;
   
   getBeneficiaries(userId: string): Promise<Beneficiary[]>;
   createBeneficiary(beneficiary: any): Promise<Beneficiary>;
@@ -182,17 +179,6 @@ export class DatabaseStorage implements IStorage {
   async createAutoPay(autoPay: any): Promise<AutoPay> {
     const [newAutoPay] = await db.insert(autoPays).values(autoPay).returning();
     return newAutoPay;
-  }
-
-  async getReferral(userId: string, refereeId: string): Promise<Referral | undefined> {
-    const [referral] = await db.select().from(referrals)
-      .where(and(eq(referrals.referrerId, userId), eq(referrals.refereeId, refereeId)));
-    return referral;
-  }
-
-  async createReferral(referral: any): Promise<Referral> {
-    const [newReferral] = await db.insert(referrals).values(referral).returning();
-    return newReferral;
   }
 
   async getBeneficiaries(userId: string): Promise<Beneficiary[]> {

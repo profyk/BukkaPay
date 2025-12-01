@@ -15,8 +15,6 @@ export const users = pgTable("users", {
   biometricEnabled: boolean("biometric_enabled").default(false),
   verified: boolean("verified").default(false),
   loyaltyPoints: integer("loyalty_points").default(0),
-  referralCode: varchar("referral_code").unique(),
-  referralEarnings: decimal("referral_earnings", { precision: 10, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -85,15 +83,6 @@ export const autoPays = pgTable("auto_pays", {
   frequency: text("frequency").notNull(),
   nextPaymentDate: timestamp("next_payment_date"),
   isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const referrals = pgTable("referrals", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  referrerId: varchar("referrer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  refereeId: varchar("referee_id").references(() => users.id, { onDelete: "cascade" }),
-  earnings: decimal("earnings", { precision: 10, scale: 2 }).default("0"),
-  status: text("status").default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -255,7 +244,6 @@ export type Contact = typeof contacts.$inferSelect;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
 export type LoyaltyReward = typeof loyaltyRewards.$inferSelect;
 export type AutoPay = typeof autoPays.$inferSelect;
-export type Referral = typeof referrals.$inferSelect;
 export type Beneficiary = typeof beneficiaries.$inferSelect;
 export type Challenge = typeof challenges.$inferSelect;
 export type Achievement = typeof achievements.$inferSelect;
