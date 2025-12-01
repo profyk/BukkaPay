@@ -12,6 +12,8 @@ import {
   Search,
   Star,
   ChevronRight,
+  Gift,
+  Ticket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -207,6 +209,75 @@ const products: Product[] = [
     category: "insurance",
     rating: 4.6,
   },
+
+  // Vouchers
+  {
+    id: "voucher-amazon-5000",
+    name: "Amazon Gift Card",
+    provider: "Amazon",
+    price: 5000,
+    value: "₦5,000",
+    description: "Shop anything on Amazon",
+    icon: <Gift size={24} />,
+    category: "vouchers",
+    rating: 4.9,
+  },
+  {
+    id: "voucher-playstore-2000",
+    name: "Google Play Card",
+    provider: "Google Play",
+    price: 2000,
+    value: "₦2,000",
+    description: "Apps, games & entertainment",
+    icon: <Ticket size={24} />,
+    category: "vouchers",
+    rating: 4.8,
+  },
+  {
+    id: "voucher-netflix-3500",
+    name: "Netflix Subscription",
+    provider: "Netflix",
+    price: 3500,
+    value: "1 Month",
+    description: "Unlimited streaming",
+    icon: <Tv size={24} />,
+    category: "vouchers",
+    rating: 4.9,
+    discount: 8,
+  },
+  {
+    id: "voucher-spotify-2500",
+    name: "Spotify Premium",
+    provider: "Spotify",
+    price: 2500,
+    value: "1 Month",
+    description: "Ad-free music streaming",
+    icon: <Ticket size={24} />,
+    category: "vouchers",
+    rating: 4.7,
+  },
+  {
+    id: "voucher-itunes-3000",
+    name: "iTunes Gift Card",
+    provider: "Apple",
+    price: 3000,
+    value: "₦3,000",
+    description: "Music, apps & in-app purchases",
+    icon: <Gift size={24} />,
+    category: "vouchers",
+    rating: 4.8,
+  },
+  {
+    id: "voucher-cinema-4000",
+    name: "Cinema Voucher",
+    provider: "Nigerian Cinemas",
+    price: 4000,
+    value: "2 Tickets",
+    description: "Movie tickets at partner cinemas",
+    icon: <Ticket size={24} />,
+    category: "vouchers",
+    rating: 4.6,
+  },
 ];
 
 const categories = [
@@ -216,6 +287,7 @@ const categories = [
   { id: "electricity", label: "Electricity", icon: Zap },
   { id: "bills", label: "Bills", icon: Tv },
   { id: "insurance", label: "Insurance", icon: Pill },
+  { id: "vouchers", label: "Vouchers", icon: Gift },
 ];
 
 export default function Buy() {
