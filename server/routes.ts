@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { signup, login, generateSessionToken } from "./auth";
-import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, insertUserSchema, loginSchema, insertPaymentRequestSchema } from "@shared/schema";
+import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, insertUserSchema, loginSchema, insertPaymentRequestSchema, insertLoyaltyRewardSchema, insertAutoPaySchema, insertBeneficiarySchema, insertChallengeSchema, insertVirtualCardSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 
 const sessions = new Map<string, { userId: string; expiresAt: number }>();
@@ -36,7 +36,7 @@ export async function registerRoutes(
       const user = await signup(validation.data);
       
       const defaultCards = [
-        { title: "💳 Main Card", balance: "0.00", currency: "$", icon: "credit-card", color: "from-violet-600 to-indigo-600", cardNumber: "4532 **** **** 1234" },
+        { title: "🏦 BukkaPay Main", balance: "0.00", currency: "$", icon: "wallet", color: "from-blue-600 to-indigo-600", cardNumber: "4532 **** **** 1234" },
         { title: "🛒 Groceries", balance: "0.00", currency: "$", icon: "shopping-cart", color: "from-emerald-600 to-teal-600", cardNumber: "5412 **** **** 5678" },
         { title: "🚗 Transport", balance: "0.00", currency: "$", icon: "car", color: "from-blue-600 to-cyan-600", cardNumber: "3782 **** **** 9012" },
         { title: "🎉 Leisure", balance: "0.00", currency: "$", icon: "sparkles", color: "from-pink-600 to-rose-600", cardNumber: "6011 **** **** 3456" }
@@ -296,6 +296,151 @@ export async function registerRoutes(
         ...validation.data,
       });
       res.status(201).json(contact);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Loyalty
+  app.get("/api/loyalty", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
+      const reward = await storage.getLoyaltyReward(userId);
+      res.json(reward || { userId, totalPoints: 0, tier: "bronze" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Auto Pay
+  app.get("/api/autopays", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
+      const autoPays = await storage.getAutoPays(userId);
+      res.json(autoPays);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/autopays", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const validation = insertAutoPaySchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const autoPay = await storage.createAutoPay({
+        userId,
+        ...validation.data,
+      });
+      res.status(201).json(autoPay);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Beneficiaries
+  app.get("/api/beneficiaries", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
+      const beneficiaries = await storage.getBeneficiaries(userId);
+      res.json(beneficiaries);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/beneficiaries", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const validation = insertBeneficiarySchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const beneficiary = await storage.createBeneficiary({
+        userId,
+        ...validation.data,
+      });
+      res.status(201).json(beneficiary);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Challenges
+  app.get("/api/challenges", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
+      const challenges = await storage.getChallenges(userId);
+      res.json(challenges);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/challenges", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const validation = insertChallengeSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const challenge = await storage.createChallenge({
+        userId,
+        ...validation.data,
+      });
+      res.status(201).json(challenge);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Virtual Cards
+  app.get("/api/virtual-cards", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      
+      const cards = await storage.getVirtualCards(userId);
+      res.json(cards);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/virtual-cards", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const validation = insertVirtualCardSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const card = await storage.createVirtualCard({
+        userId,
+        ...validation.data,
+      });
+      res.status(201).json(card);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

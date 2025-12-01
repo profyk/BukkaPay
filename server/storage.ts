@@ -1,11 +1,12 @@
 import { db } from "../db/index";
-import { users, walletCards, transactions, contacts, paymentRequests } from "@shared/schema";
+import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, referrals, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers } from "@shared/schema";
 import type { 
   User, InsertUser, 
   WalletCard, InsertWalletCard,
   Transaction, InsertTransaction,
   Contact, InsertContact,
-  PaymentRequest, InsertPaymentRequest
+  PaymentRequest, InsertPaymentRequest,
+  LoyaltyReward, AutoPay, Referral, Beneficiary, Challenge, Achievement, ChatMessage, BillSplit, VirtualCard
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -31,6 +32,27 @@ export interface IStorage {
   getPaymentRequest(id: string): Promise<PaymentRequest | undefined>;
   getPaymentRequestsByUser(userId: string): Promise<PaymentRequest[]>;
   updatePaymentRequestStatus(id: string, status: string): Promise<PaymentRequest | undefined>;
+  
+  getLoyaltyReward(userId: string): Promise<LoyaltyReward | undefined>;
+  updateLoyaltyPoints(userId: string, points: number): Promise<void>;
+  
+  getAutoPays(userId: string): Promise<AutoPay[]>;
+  createAutoPay(autoPay: any): Promise<AutoPay>;
+  
+  getReferral(userId: string, refereeId: string): Promise<Referral | undefined>;
+  createReferral(referral: any): Promise<Referral>;
+  
+  getBeneficiaries(userId: string): Promise<Beneficiary[]>;
+  createBeneficiary(beneficiary: any): Promise<Beneficiary>;
+  
+  getChallenges(userId: string): Promise<Challenge[]>;
+  createChallenge(challenge: any): Promise<Challenge>;
+  
+  getAchievements(userId: string): Promise<Achievement[]>;
+  createAchievement(achievement: any): Promise<Achievement>;
+  
+  createVirtualCard(card: any): Promise<VirtualCard>;
+  getVirtualCards(userId: string): Promise<VirtualCard[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -130,6 +152,83 @@ export class DatabaseStorage implements IStorage {
       .where(eq(paymentRequests.id, id))
       .returning();
     return updated;
+  }
+
+  async getLoyaltyReward(userId: string): Promise<LoyaltyReward | undefined> {
+    const [reward] = await db.select().from(loyaltyRewards).where(eq(loyaltyRewards.userId, userId));
+    return reward;
+  }
+
+  async updateLoyaltyPoints(userId: string, points: number): Promise<void> {
+    const existing = await this.getLoyaltyReward(userId);
+    if (existing) {
+      await db.update(loyaltyRewards)
+        .set({ totalPoints: existing.totalPoints + points })
+        .where(eq(loyaltyRewards.userId, userId));
+    } else {
+      await db.insert(loyaltyRewards).values({
+        userId,
+        pointsEarned: points,
+        totalPoints: points,
+        tier: "bronze",
+      });
+    }
+  }
+
+  async getAutoPays(userId: string): Promise<AutoPay[]> {
+    return await db.select().from(autoPays).where(eq(autoPays.userId, userId));
+  }
+
+  async createAutoPay(autoPay: any): Promise<AutoPay> {
+    const [newAutoPay] = await db.insert(autoPays).values(autoPay).returning();
+    return newAutoPay;
+  }
+
+  async getReferral(userId: string, refereeId: string): Promise<Referral | undefined> {
+    const [referral] = await db.select().from(referrals)
+      .where(and(eq(referrals.referrerId, userId), eq(referrals.refereeId, refereeId)));
+    return referral;
+  }
+
+  async createReferral(referral: any): Promise<Referral> {
+    const [newReferral] = await db.insert(referrals).values(referral).returning();
+    return newReferral;
+  }
+
+  async getBeneficiaries(userId: string): Promise<Beneficiary[]> {
+    return await db.select().from(beneficiaries).where(eq(beneficiaries.userId, userId));
+  }
+
+  async createBeneficiary(beneficiary: any): Promise<Beneficiary> {
+    const [newBeneficiary] = await db.insert(beneficiaries).values(beneficiary).returning();
+    return newBeneficiary;
+  }
+
+  async getChallenges(userId: string): Promise<Challenge[]> {
+    return await db.select().from(challenges).where(eq(challenges.userId, userId));
+  }
+
+  async createChallenge(challenge: any): Promise<Challenge> {
+    const [newChallenge] = await db.insert(challenges).values(challenge).returning();
+    return newChallenge;
+  }
+
+  async getAchievements(userId: string): Promise<Achievement[]> {
+    return await db.select().from(achievements).where(eq(achievements.userId, userId));
+  }
+
+  async createAchievement(achievement: any): Promise<Achievement> {
+    const [newAchievement] = await db.insert(achievements).values(achievement).returning();
+    return newAchievement;
+  }
+
+  async createVirtualCard(card: any): Promise<VirtualCard> {
+    const [newCard] = await db.insert(virtualCards).values(card).returning();
+    return newCard;
+  }
+
+  async getVirtualCards(userId: string): Promise<VirtualCard[]> {
+    return await db.select().from(virtualCards).where(eq(virtualCards.userId, userId));
   }
 }
 
