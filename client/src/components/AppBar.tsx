@@ -17,6 +17,7 @@ export default function AppBar() {
   const menuItems = [
     { label: "Marketplace", action: () => navigate?.("/buy") },
     { label: "Explore Features", action: () => navigate?.("/features") },
+    { label: "Stokvel", action: () => navigate?.("/stokvel") },
     { label: "Support Chat", action: () => navigate?.("/support-chat") },
     { label: "Settings", action: () => navigate?.("/profile") },
     { label: "My Wallet ID", action: () => navigate?.("/my-id") },
