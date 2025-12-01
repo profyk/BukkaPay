@@ -36,7 +36,7 @@ export async function registerRoutes(
       const user = await signup(validation.data);
       
       const defaultCards = [
-        { title: "🏦 BukkaPay Main", balance: "0.00", currency: "$", icon: "wallet", color: "from-blue-600 to-indigo-600", cardNumber: "4532 **** **** 1234" },
+        { title: "💳 BukkaPay", balance: "0.00", currency: "$", icon: "credit-card", color: "from-blue-900 to-blue-800", cardNumber: "4532 **** **** 1234" },
         { title: "🛒 Groceries", balance: "0.00", currency: "$", icon: "shopping-cart", color: "from-emerald-600 to-teal-600", cardNumber: "5412 **** **** 5678" },
         { title: "🚗 Transport", balance: "0.00", currency: "$", icon: "car", color: "from-blue-600 to-cyan-600", cardNumber: "3782 **** **** 9012" },
         { title: "🎉 Leisure", balance: "0.00", currency: "$", icon: "sparkles", color: "from-pink-600 to-rose-600", cardNumber: "6011 **** **** 3456" }
