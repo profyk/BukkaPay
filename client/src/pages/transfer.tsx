@@ -294,6 +294,23 @@ export default function Transfer() {
             </div>
           </div>
 
+          {/* Quick Amount Buttons */}
+          <div className="bg-secondary rounded-lg p-4 mb-6">
+            <p className="text-xs text-muted-foreground mb-3 font-medium">QUICK AMOUNTS</p>
+            <div className="grid grid-cols-4 gap-2">
+              {["25", "50", "100", "250"].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => setAmount(val)}
+                  className="py-2 px-2 rounded-lg text-sm font-semibold bg-background hover:bg-primary/20 transition-colors"
+                  data-testid={`button-quick-${val}`}
+                >
+                  ${val}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Numpad */}
           <div className="grid grid-cols-3 gap-3 mb-6">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, ".", 0].map((num) => (
