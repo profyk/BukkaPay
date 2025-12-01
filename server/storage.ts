@@ -8,7 +8,7 @@ import type {
   PaymentRequest, InsertPaymentRequest,
   LoyaltyReward, AutoPay, Beneficiary, Challenge, Achievement, ChatMessage, BillSplit, VirtualCard
 } from "@shared/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -215,6 +215,58 @@ export class DatabaseStorage implements IStorage {
 
   async getVirtualCards(userId: string): Promise<VirtualCard[]> {
     return await db.select().from(virtualCards).where(eq(virtualCards.userId, userId));
+  }
+
+  async getProduct(productId: string): Promise<any> {
+    try {
+      const result = await db.execute(
+        sql`SELECT * FROM stripe.products WHERE id = ${productId}`
+      );
+      return result.rows[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async listProducts(active = true, limit = 20, offset = 0): Promise<any[]> {
+    try {
+      const result = await db.execute(
+        sql`SELECT * FROM stripe.products WHERE active = ${active} LIMIT ${limit} OFFSET ${offset}`
+      );
+      return result.rows;
+    } catch {
+      return [];
+    }
+  }
+
+  async getPrice(priceId: string): Promise<any> {
+    try {
+      const result = await db.execute(
+        sql`SELECT * FROM stripe.prices WHERE id = ${priceId}`
+      );
+      return result.rows[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getSubscription(subscriptionId: string): Promise<any> {
+    try {
+      const result = await db.execute(
+        sql`SELECT * FROM stripe.subscriptions WHERE id = ${subscriptionId}`
+      );
+      return result.rows[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async updateUserStripeInfo(userId: string, stripeInfo: any): Promise<User | undefined> {
+    const [user] = await db.update(users)
+      .set(stripeInfo)
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
   }
 }
 
