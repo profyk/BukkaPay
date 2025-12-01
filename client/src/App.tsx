@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { getCurrentUser } from "./lib/auth";
 import Home from "@/pages/home";
 import Wallet from "@/pages/wallet";
-import Scan from "@/pages/scan";
 import ScanPay from "@/pages/scan-pay";
 import Transfer from "@/pages/transfer";
 import Request from "@/pages/request";
@@ -43,7 +42,6 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/wallet" component={Wallet} />
-      <Route path="/scan" component={Scan} />
       <Route path="/scan-pay" component={ScanPay} />
       <Route path="/transfer" component={Transfer} />
       <Route path="/request" component={Request} />
