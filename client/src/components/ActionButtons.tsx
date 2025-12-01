@@ -1,8 +1,9 @@
-import { ArrowDownLeft, Plus, Smartphone, Users } from "lucide-react";
+import { Send, ArrowDownLeft, Plus, Smartphone, Users } from "lucide-react";
 import { Link } from "wouter";
 
 export default function ActionButtons() {
   const actions = [
+    { icon: Send, label: "Send", href: "/scan-pay", color: "bg-blue-500" },
     { icon: ArrowDownLeft, label: "Request", href: "/request", color: "bg-violet-500" },
     { icon: Smartphone, label: "Tap Pay", href: "/tap-pay", color: "bg-indigo-500" },
     { icon: Users, label: "Stokvel", href: "/stokvel", color: "bg-purple-500" },

@@ -304,24 +304,26 @@ export default function SendMoney() {
             </div>
 
             <div className="space-y-3">
-              <button
-                onClick={() => {
-                  setPaymentMethod("qr");
-                  setStage("scan");
-                }}
-                className="w-full p-5 rounded-2xl border-2 border-primary bg-primary/5 hover:bg-primary/10 transition-all text-left group"
-                data-testid="button-method-qr"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-primary/20">
-                    <QrCode size={24} className="text-primary" />
+              {isFloatingButtonMode && (
+                <button
+                  onClick={() => {
+                    setPaymentMethod("qr");
+                    setStage("scan");
+                  }}
+                  className="w-full p-5 rounded-2xl border-2 border-primary bg-primary/5 hover:bg-primary/10 transition-all text-left group"
+                  data-testid="button-method-qr"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-primary/20">
+                      <QrCode size={24} className="text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-1">Scan QR Code</h3>
+                      <p className="text-sm text-muted-foreground">Fast P2P payment with BukkaPay users</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold mb-1">Scan QR Code</h3>
-                    <p className="text-sm text-muted-foreground">Fast P2P payment with BukkaPay users</p>
-                  </div>
-                </div>
-              </button>
+                </button>
+              )}
 
               <button
                 onClick={() => handleMethodSelect("bukka")}
