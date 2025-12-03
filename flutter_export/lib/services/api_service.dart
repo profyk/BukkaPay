@@ -5,7 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/data_models.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://8b023d75-6566-466c-956d-714516a4b01b-00-3ntjnliclylzo.riker.replit.dev';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://8b023d75-6566-466c-956d-714516a4b01b-00-3ntjnliclylzo.riker.replit.dev',
+  );
   
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
