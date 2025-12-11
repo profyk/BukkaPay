@@ -4,6 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["flutter316"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -18,22 +19,6 @@ externalPort = 80
 [[ports]]
 localPort = 5001
 externalPort = 3001
-
-[[ports]]
-localPort = 34771
-externalPort = 3000
-
-[[ports]]
-localPort = 41999
-externalPort = 3002
-
-[[ports]]
-localPort = 42267
-externalPort = 4200
-
-[[ports]]
-localPort = 43919
-externalPort = 3003
 
 [env]
 PORT = "5000"
