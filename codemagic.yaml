@@ -1,12 +1,9 @@
 workflows:
-  flutter_web_build:
-    name: Flutter Web Build for Netlify
+  flutter_web_only:
+    name: Flutter Web Build Only
     max_build_duration: 60
     environment:
       flutter: stable
-      vars:
-        # Optional: Set your Flutter channel if needed
-        FLUTTER_CHANNEL: stable
       flutter_use_cache: true
     scripts:
       - name: Get dependencies
