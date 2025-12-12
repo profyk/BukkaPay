@@ -3,8 +3,7 @@ workflows:
     name: Flutter Web Build Only
     max_build_duration: 60
     environment:
-      flutter: stable
-      
+      flutter: stable     
       - name: Get dependencies
         script: flutter pub get
       - name: Build web release
