@@ -88,3 +88,7 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
+dependencies:
+  flutter:
+    sdk: flutter
+  supabase_flutter: ^1.0.0
