@@ -7,7 +7,6 @@ Cloned from: https://github.com/profyk/BukkaPay-Backend
 - `src/` - TypeScript backend source code (Express.js API)
 - `db/` - Database schema and migration files
 - `shared/` - Shared types and schema definitions
-- `frontend/` - React Native / Expo mobile frontend
 - `bukkapay_supabase.sql` - Supabase SQL schema
 
 ## Tech Stack
