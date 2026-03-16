@@ -16,7 +16,23 @@ if (process.env.SUPABASE_ANON_KEY) {
 const app = express();
 const httpServer = createServer(app);
 
-app.use(cors());
+const allowedOrigins = [
+  "https://api.bukkapay.com",
+  "https://bukkapay.com",
+  "https://www.bukkapay.com",
+  ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",") : []),
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
+  credentials: true,
+}));
 
 declare module "http" {
   interface IncomingMessage {

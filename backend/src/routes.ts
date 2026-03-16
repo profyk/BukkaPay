@@ -20,8 +20,8 @@ const sessions = new Map<string, { userId: string; expiresAt: number }>();
 const webauthnChallenges = new Map<string, { challenge: string; expiresAt: number }>();
 
 const rpName = "BukkaPay";
-const rpID = process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co` : "localhost";
-const origin = process.env.REPL_SLUG ? `https://${rpID}` : "http://localhost:5000";
+const rpID = process.env.API_DOMAIN ?? (process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co` : "localhost");
+const origin = process.env.API_DOMAIN ? `https://${process.env.API_DOMAIN}` : (process.env.REPL_SLUG ? `https://${rpID}` : "http://localhost:5000");
 
 function getUserIdFromRequest(req: Request): string | null {
   const token = req.headers.authorization?.replace("Bearer ", "");
