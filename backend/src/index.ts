@@ -23,7 +23,7 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 }));
 
-app.options("*", cors());
+app.options("/{*path}", cors());
 
 declare module "http" {
   interface IncomingMessage {
