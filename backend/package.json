@@ -2,8 +2,7 @@
   "name": "bukkapay-backend",
   "version": "1.0.0",
   "description": "BukkaPay Express.js backend API with PostgreSQL",
-  "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "engines": {
     "node": "20",
     "npm": ">=9.0.0"
