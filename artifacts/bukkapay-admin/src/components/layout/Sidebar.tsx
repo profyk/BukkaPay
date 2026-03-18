@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter"
-import { LayoutDashboard, Users, ArrowRightLeft, LogOut, Wallet } from "lucide-react"
+import { Users, ArrowRightLeft, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
@@ -15,13 +15,12 @@ export function Sidebar() {
 
   return (
     <aside className="w-72 bg-sidebar border-r border-sidebar-border flex flex-col h-screen sticky top-0">
-      <div className="p-8 flex items-center gap-3">
-        <div className="bg-primary p-2.5 rounded-xl shadow-lg shadow-primary/20">
-          <Wallet className="w-6 h-6 text-primary-foreground" />
-        </div>
-        <span className="text-2xl font-display font-bold text-sidebar-foreground tracking-tight">
-          BukkaPay
-        </span>
+      <div className="p-6 flex items-center">
+        <img
+          src={`${import.meta.env.BASE_URL}images/bukkapay-logo.png`}
+          alt="BukkaPay Technologies"
+          className="h-14 w-auto"
+        />
       </div>
 
       <nav className="flex-1 px-4 space-y-2 mt-4">

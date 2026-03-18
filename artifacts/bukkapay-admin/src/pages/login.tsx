@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useLocation } from "wouter"
 import { motion } from "framer-motion"
-import { Wallet, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { loginSchema, type LoginInput, useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,9 +45,11 @@ export default function Login() {
           className="w-full max-w-md space-y-10"
         >
           <div className="space-y-4">
-            <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20">
-              <Wallet className="w-7 h-7 text-primary-foreground" />
-            </div>
+            <img
+              src={`${import.meta.env.BASE_URL}images/bukkapay-logo.png`}
+              alt="BukkaPay Technologies"
+              className="h-20 w-auto"
+            />
             <h1 className="text-4xl font-display font-bold tracking-tight">Admin Portal</h1>
             <p className="text-lg text-muted-foreground">
               Sign in to manage users and transactions on BukkaPay.
