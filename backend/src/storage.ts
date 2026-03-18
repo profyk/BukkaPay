@@ -411,10 +411,22 @@ export class DatabaseStorage implements IStorage {
     return p;
   }
   async getPropertiesByMerchant(merchantId: string): Promise<Property[]> {
-// ---------------- SAFE CLOSURE FIX ----------------
-
-  async getPurchaseTransactionsByUser(): Promise<PurchaseTransaction[]> {
-    return [];
+// ---------------- Purchase Transactions ----------------
+  async createPurchaseTransaction(transaction: InsertPurchaseTransaction & { reference: string }): Promise<PurchaseTransaction> {
+    const [newTx] = await db.insert(purchaseTransactions).values(transaction).returning();
+    return newTx;
   }
 
-} // ✅ FINAL closing brace for DatabaseStorage class
+  async getPurchaseTransaction(id: string): Promise<PurchaseTransaction | undefined> {
+    const [tx] = await db.select().from(purchaseTransactions).where(eq(purchaseTransactions.id, id));
+    return tx;
+  }
+
+  async getPurchaseTransactionsByUser(userId: string): Promise<PurchaseTransaction[]> {
+    return await db.select()
+      .from(purchaseTransactions)
+      .where(eq(purchaseTransactions.userId, userId))
+      .orderBy(desc(purchaseTransactions.createdAt));
+  }
+
+} // ✅ FINAL closing brace
