@@ -443,3 +443,4 @@ export class DatabaseStorage implements IStorage {
   }
 
 } // ✅ FINAL CLASS CLOSURE
+export const storage = new DatabaseStorage();
