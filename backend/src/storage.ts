@@ -402,19 +402,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ---------------- Properties ----------------
-  async createProperty(property: InsertProperty): Promise<Property> {
-    const [p] = await db.insert(properties).values(property).returning();
-    return p;
-  }
-  async getProperty(id: string): Promise<Property | undefined> {
-    const [p] = await db.select().from(properties).where(eq(properties.id, id));
-    return p;
-  }
   async getPropertiesByMerchant(merchantId: string): Promise<Property[]> {
-// ---------------- Purchase Transactions ----------------
+    return await db.select()
+      .from(properties)
+      .where(eq(properties.merchantId, merchantId))
+      .orderBy(desc(properties.createdAt));
+  }
+
+  async getPropertiesByLandlord(landlordId: string): Promise<Property[]> {
+    return await db.select()
+      .from(properties)
+      .where(eq(properties.landlordId, landlordId))
+      .orderBy(desc(properties.createdAt));
+  }
+
+  async updateProperty(id: string, data: Partial<InsertProperty>): Promise<Property | undefined> {
+    const [p] = await db.update(properties)
+      .set(data)
+      .where(eq(properties.id, id))
+      .returning();
+    return p;
+  }
+
+  // ---------------- Purchase Transactions ----------------
   async createPurchaseTransaction(transaction: InsertPurchaseTransaction & { reference: string }): Promise<PurchaseTransaction> {
-    const [newTx] = await db.insert(purchaseTransactions).values(transaction).returning();
-    return newTx;
+    const [tx] = await db.insert(purchaseTransactions).values(transaction).returning();
+    return tx;
   }
 
   async getPurchaseTransaction(id: string): Promise<PurchaseTransaction | undefined> {
@@ -429,4 +442,4 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(purchaseTransactions.createdAt));
   }
 
-} // ✅ FINAL closing brace
+} // ✅ FINAL CLASS CLOSURE
