@@ -225,8 +225,61 @@ export class DatabaseStorage implements IStorage {
   async getMerchantTransactions(merchantId: string, limit?: number) { let q = db.select().from(merchantTransactions).where(eq(merchantTransactions.merchantId, merchantId)).orderBy(desc(merchantTransactions.createdAt)); if(limit) q = q.limit(limit) as any; return await q; }
 
   // ---------------- Properties ----------------
-  async createProperty(property: InsertProperty) { const [p] = await db.insert(properties).values(property).returning(); return p; }
-  async getProperty(id: string) { const [p] = await db.select().from(properties).where(eq(properties.id, id)); return p; }
-  async getPropertiesByMerchant(merchantId: string) { return await db.select().from(properties).where(eq(properties.merchantId, merchantId)).orderBy(desc(properties.createdAt)); }
-  async getPropertiesByLandlord(landlordId: string) { return await db.select().from(properties).where(eq(properties.landlordId, landlordId)).orderBy(desc(properties.createdAt)); }
-  async updateProperty(id: string, data: Partial<InsertProperty>) { const [p]
+async createProperty(property: InsertProperty): Promise<Property> {
+  const [p] = await db.insert(properties).values(property).returning();
+  return p;
+}
+
+async getProperty(id: string): Promise<Property | undefined> {
+  const [p] = await db.select().from(properties).where(eq(properties.id, id));
+  return p;
+}
+
+async getPropertiesByMerchant(merchantId: string): Promise<Property[]> {
+  return await db.select()
+    .from(properties)
+    .where(eq(properties.merchantId, merchantId))
+    .orderBy(desc(properties.createdAt));
+}
+
+async getPropertiesByLandlord(landlordId: string): Promise<Property[]> {
+  return await db.select()
+    .from(properties)
+    .where(eq(properties.landlordId, landlordId))
+    .orderBy(desc(properties.createdAt));
+}
+
+async updateProperty(id: string, data: Partial<InsertProperty>): Promise<Property | undefined> {
+  const [p] = await db.update(properties)
+    .set(data)
+    .where(eq(properties.id, id))
+    .returning();
+  return p;
+}
+
+// ---------------- Property Units ----------------
+async createPropertyUnit(unit: InsertPropertyUnit): Promise<PropertyUnit> {
+  const [u] = await db.insert(propertyUnits).values(unit).returning();
+  return u;
+}
+
+async getPropertyUnit(id: string): Promise<PropertyUnit | undefined> {
+  const [u] = await db.select().from(propertyUnits).where(eq(propertyUnits.id, id));
+  return u;
+}
+
+async getPropertyUnits(propertyId: string): Promise<PropertyUnit[]> {
+  return await db.select()
+    .from(propertyUnits)
+    .where(eq(propertyUnits.propertyId, propertyId))
+    .orderBy(propertyUnits.unitNumber);
+}
+
+async updatePropertyUnit(id: string, data: Partial<InsertPropertyUnit>): Promise<PropertyUnit | undefined> {
+  const [u] = await db.update(propertyUnits)
+    .set(data)
+    .where(eq(propertyUnits.id, id))
+    .returning();
+  return u;
+}
+  
