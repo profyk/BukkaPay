@@ -495,6 +495,4 @@ export type Contribution = typeof contributions.$inferSelect;
 export type InsertContribution = z.infer<typeof insertContributionSchema>;
 export type PurchaseTransaction = typeof purchaseTransactions.$inferSelect;
 export type InsertPurchaseTransaction = z.infer<typeof insertPurchaseTransactionSchema>;
-endDate: timestamp("end_date"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+
