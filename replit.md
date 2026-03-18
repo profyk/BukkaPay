@@ -48,6 +48,20 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## Artifacts
+
+### `artifacts/bukkapay-admin` (BukkaPay Admin Panel)
+
+React + Vite frontend-only admin panel for BukkaPay. Connects directly to `https://api.bukkapay.com`.
+
+- **Login page** (`/login`): Email/password → JWT stored in localStorage
+- **Users dashboard** (`/`): Table with Freeze, Activate, Delete actions per user
+- **Transactions dashboard** (`/transactions`): Table with Flag action per transaction
+- **Auth**: JWT attached via axios request interceptor; 401 auto-redirects to /login
+- Frozen/deleted users highlighted in red; flagged transactions in amber
+- Key files: `src/lib/api.ts` (axios client), `src/hooks/use-auth.ts`, `src/hooks/use-users.ts`, `src/hooks/use-transactions.ts`
+- Dependencies: axios, react-hook-form, zod, framer-motion, clsx, tailwind-merge
+
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)
