@@ -172,6 +172,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      axios:
+        specifier: ^1.13.6
+        version: 1.13.6
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
