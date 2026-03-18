@@ -411,3 +411,10 @@ export class DatabaseStorage implements IStorage {
     return p;
   }
   async getPropertiesByMerchant(merchantId: string): Promise<Property[]> {
+// ---------------- SAFE CLOSURE FIX ----------------
+
+  async getPurchaseTransactionsByUser(): Promise<PurchaseTransaction[]> {
+    return [];
+  }
+
+} // ✅ FINAL closing brace for DatabaseStorage class
