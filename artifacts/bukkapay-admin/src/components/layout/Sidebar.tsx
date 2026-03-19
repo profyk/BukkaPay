@@ -3,6 +3,17 @@ import { Users, ArrowRightLeft, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export function Sidebar() {
   const [location] = useLocation()
@@ -46,15 +57,40 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border">
-        <Button 
-          variant="ghost" 
-          onClick={logout}
-          className="w-full justify-start text-muted-foreground hover:bg-sidebar-border hover:text-sidebar-foreground"
-        >
-          <LogOut className="w-5 h-5 mr-4" />
-          Sign Out
-        </Button>
+      <div className="p-4 border-t border-sidebar-border space-y-2">
+        <div className="px-4 py-2">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Signed in as</p>
+          <p className="text-sm font-medium text-sidebar-foreground truncate">BukkaPay Admin</p>
+        </div>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            >
+              <LogOut className="w-5 h-5 mr-4" />
+              Sign Out
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sign out of BukkaPay Admin?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You will be redirected to the login page. Any unsaved changes will be lost.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={logout}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sign Out
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </aside>
   )

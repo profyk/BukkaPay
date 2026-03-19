@@ -17,7 +17,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [isAuthenticated, setLocation])
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated) return null
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
