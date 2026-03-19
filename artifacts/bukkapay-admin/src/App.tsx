@@ -4,8 +4,12 @@ import { Toaster } from "@/components/ui/toaster"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import Login from "@/pages/login"
+import DashboardPage from "@/pages/dashboard"
 import UsersPage from "@/pages/users"
 import TransactionsPage from "@/pages/transactions"
+import KycPage from "@/pages/kyc"
+import AuditLogsPage from "@/pages/audit-logs"
+import WalletsPage from "@/pages/wallets"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -20,9 +24,13 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/" component={UsersPage} />
+      <Route path="/login"       component={Login} />
+      <Route path="/"            component={DashboardPage} />
+      <Route path="/users"       component={UsersPage} />
       <Route path="/transactions" component={TransactionsPage} />
+      <Route path="/kyc"         component={KycPage} />
+      <Route path="/audit-logs"  component={AuditLogsPage} />
+      <Route path="/wallets"     component={WalletsPage} />
       <Route component={NotFound} />
     </Switch>
   )
@@ -41,4 +49,4 @@ function App() {
   )
 }
 
-export default App;
+export default App
