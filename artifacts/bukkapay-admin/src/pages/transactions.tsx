@@ -35,13 +35,26 @@ export default function TransactionsPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    switch(status.toLowerCase()) {
+    switch (status.toLowerCase()) {
       case 'completed': return <Badge variant="success">Completed</Badge>
-      case 'pending': return <Badge variant="secondary">Pending</Badge>
-      case 'failed': return <Badge variant="destructive">Failed</Badge>
-      case 'flagged': return <Badge variant="warning">Flagged</Badge>
-      default: return <Badge variant="outline">{status}</Badge>
+      case 'pending':   return <Badge variant="secondary">Pending</Badge>
+      case 'failed':    return <Badge variant="destructive">Failed</Badge>
+      case 'flagged':   return <Badge variant="warning">Flagged</Badge>
+      default:          return <Badge variant="outline">{status}</Badge>
     }
+  }
+
+  const formatDate = (iso?: string) => {
+    if (!iso) return "—"
+    return new Date(iso).toLocaleString("en-GB", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    })
+  }
+
+  const formatType = (type?: string) => {
+    if (!type) return "—"
+    return type.charAt(0).toUpperCase() + type.slice(1)
   }
 
   return (
@@ -51,11 +64,9 @@ export default function TransactionsPage() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-8"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-display">Transactions</h1>
-            <p className="text-muted-foreground mt-1">Monitor all platform transactions and flag suspicious activity.</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-display">Transactions</h1>
+          <p className="text-muted-foreground mt-1">Monitor all platform transactions and flag suspicious activity.</p>
         </div>
 
         {isLoading ? (
@@ -74,9 +85,10 @@ export default function TransactionsPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
-                    <th className="px-6 py-4 text-sm font-semibold text-muted-foreground">ID</th>
                     <th className="px-6 py-4 text-sm font-semibold text-muted-foreground">User Email</th>
+                    <th className="px-6 py-4 text-sm font-semibold text-muted-foreground">Type</th>
                     <th className="px-6 py-4 text-sm font-semibold text-muted-foreground">Amount</th>
+                    <th className="px-6 py-4 text-sm font-semibold text-muted-foreground">Date</th>
                     <th className="px-6 py-4 text-sm font-semibold text-muted-foreground">Status</th>
                     <th className="px-6 py-4 text-sm font-semibold text-muted-foreground text-right">Actions</th>
                   </tr>
@@ -84,35 +96,41 @@ export default function TransactionsPage() {
                 <tbody className="divide-y divide-border">
                   {transactions?.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                      <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                         No transactions found.
                       </td>
                     </tr>
                   )}
                   {transactions?.map((tx) => {
-                    const isFlagged = tx.status.toLowerCase() === 'flagged';
-                    const isProcessing = processingId === tx.id;
+                    const isFlagged = tx.status.toLowerCase() === 'flagged'
+                    const isProcessing = processingId === tx.id
 
                     return (
-                      <tr 
-                        key={tx.id} 
+                      <tr
+                        key={tx.id}
                         className={`transition-colors hover:bg-muted/30 ${isFlagged ? 'bg-warning/10' : ''}`}
                       >
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{tx.id.substring(0,8)}...</span>
-                        </td>
                         <td className="px-6 py-4">
                           <span className="font-medium text-foreground">{tx.user_email}</span>
                         </td>
                         <td className="px-6 py-4">
+                          <span className="text-sm text-muted-foreground capitalize">{formatType(tx.type)}</span>
+                        </td>
+                        <td className="px-6 py-4">
                           <span className="font-semibold">{formatCurrency(tx.amount)}</span>
+                          {tx.currency && (
+                            <span className="ml-1 text-xs text-muted-foreground">{tx.currency}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(tx.created_at)}</span>
                         </td>
                         <td className="px-6 py-4">
                           {getStatusBadge(tx.status)}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <Button 
-                            variant={isFlagged ? "secondary" : "outline"} 
+                          <Button
+                            variant={isFlagged ? "secondary" : "outline"}
                             size="sm"
                             disabled={isFlagged || isProcessing}
                             onClick={() => handleFlag(tx.id)}

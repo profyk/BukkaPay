@@ -23,7 +23,8 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("bukkapay_token");
-      window.location.href = "/login";
+      const base = import.meta.env.BASE_URL ?? "/";
+      window.location.href = base.endsWith("/") ? `${base}login` : `${base}/login`;
     }
     if (!error.response) {
       error.message = "Network error — could not reach the server. Please try again.";
