@@ -5,6 +5,7 @@ import { signup, login, generateSessionToken, hashPassword } from "./auth";
 import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, insertUserSchema, loginSchema, insertPaymentRequestSchema, insertLoyaltyRewardSchema, insertAutoPaySchema, insertBeneficiarySchema, insertChallengeSchema, insertVirtualCardSchema, insertMerchantSchema, insertMerchantTransactionSchema, insertPropertySchema, insertPropertyUnitSchema, insertTenantSchema, insertRentPaymentSchema, insertGiftCardSchema, insertContributionGroupSchema, insertContributionSchema } from "./shared/schema";
 import crypto from "crypto";
 import { fromZodError } from "zod-validation-error";
+import PDFDocument from "pdfkit";
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -1987,6 +1988,416 @@ export async function registerRoutes(
       });
 
       res.status(201).json(transaction);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ─── Payment Links + Invoicing ───────────────────────────────────────────────
+
+  // POST /api/payment-links - Create a payment link
+  app.post("/api/payment-links", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { amount, currency, description, allowPartialPayment, minimumPayment, type, region, subRegion, destination, bankDetails, invoice } = req.body;
+
+      if (!amount || parseFloat(amount) <= 0) {
+        return res.status(400).json({ error: "Valid amount is required" });
+      }
+
+      const amountStr = String(parseFloat(amount).toFixed(2));
+      const link = await storage.createPaymentLink({
+        senderId: userId,
+        amount: amountStr,
+        currency: currency || "ZAR",
+        description: description || null,
+        allowPartialPayment: !!allowPartialPayment,
+        minimumPayment: minimumPayment ? String(parseFloat(minimumPayment).toFixed(2)) : null,
+        type: type || "personal",
+        region: region || "local",
+        subRegion: subRegion || null,
+        destination: destination || "wallet",
+        bankDetails: bankDetails || null,
+        remainingBalance: amountStr,
+      });
+
+      let createdInvoice = null;
+      if (invoice && invoice.customerName) {
+        const items = (invoice.items || []).map((item: any) => ({
+          name: item.name,
+          quantity: Number(item.quantity) || 1,
+          unitPrice: parseFloat(item.unitPrice) || 0,
+          total: (Number(item.quantity) || 1) * (parseFloat(item.unitPrice) || 0),
+        }));
+        const total = items.reduce((sum: number, i: any) => sum + i.total, 0);
+        createdInvoice = await storage.createInvoice({
+          paymentLinkId: link.id,
+          customerName: invoice.customerName,
+          customerEmail: invoice.customerEmail || null,
+          customerPhone: invoice.customerPhone || null,
+          items,
+          totalAmount: String(total.toFixed(2)),
+          type: invoice.type || "invoice",
+          dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null,
+          notes: invoice.notes || null,
+        });
+      }
+
+      const paymentUrl = `https://bukkapay.com/pay/${link.id}`;
+      res.status(201).json({ ...link, invoice: createdInvoice, paymentUrl });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // GET /api/payment-links - Get user's payment links
+  app.get("/api/payment-links", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const links = await storage.getPaymentLinksByUser(userId);
+      res.json(links);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // GET /api/payment-links/:linkId - Get payment link details (public)
+  app.get("/api/payment-links/:linkId", async (req, res) => {
+    try {
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+
+      const invoice = await storage.getInvoiceByPaymentLink(link.id);
+      const payments = await storage.getInvoicePaymentsByLink(link.id);
+      const sender = await storage.getUser(link.senderId);
+
+      res.json({
+        ...link,
+        invoice,
+        payments,
+        senderName: sender?.name || "BukkaPay User",
+        paymentUrl: `https://bukkapay.com/pay/${link.id}`,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/payment-links/:linkId/pay-wallet - Pay with BukkaPay wallet
+  app.post("/api/payment-links/:linkId/pay-wallet", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      if (link.status === "paid") return res.status(400).json({ error: "This payment link has already been fully paid" });
+
+      const { amount } = req.body;
+      const payAmount = parseFloat(amount || link.remainingBalance);
+      const remaining = parseFloat(link.remainingBalance);
+
+      if (isNaN(payAmount) || payAmount <= 0) {
+        return res.status(400).json({ error: "Invalid payment amount" });
+      }
+      if (payAmount > remaining + 0.01) {
+        return res.status(400).json({ error: "Amount exceeds remaining balance" });
+      }
+      if (link.allowPartialPayment && link.minimumPayment) {
+        const minPay = parseFloat(link.minimumPayment);
+        if (payAmount < minPay - 0.01) {
+          return res.status(400).json({ error: `Minimum payment is ${link.currency} ${link.minimumPayment}` });
+        }
+      }
+
+      // Deduct from payer's wallet card
+      const payerCards = await storage.getCardsByUserId(userId);
+      if (!payerCards.length) return res.status(400).json({ error: "No wallet card found" });
+
+      const payerCard = payerCards[0];
+      const payerBalance = parseFloat(payerCard.balance);
+      if (payerBalance < payAmount) {
+        return res.status(400).json({ error: "Insufficient wallet balance" });
+      }
+
+      // Update payer balance
+      await storage.updateCardBalance(payerCard.id, String((payerBalance - payAmount).toFixed(2)));
+
+      // If destination is wallet, credit sender
+      if (link.destination === "wallet") {
+        const senderCards = await storage.getCardsByUserId(link.senderId);
+        if (senderCards.length) {
+          const senderBalance = parseFloat(senderCards[0].balance);
+          await storage.updateCardBalance(senderCards[0].id, String((senderBalance + payAmount).toFixed(2)));
+        }
+      }
+
+      // Record the payment
+      const reference = `PAY-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+      const payer = await storage.getUser(userId);
+      await storage.createInvoicePayment({
+        paymentLinkId: link.id,
+        amount: String(payAmount.toFixed(2)),
+        currency: link.currency,
+        method: "wallet",
+        payerName: payer?.name || null,
+        payerEmail: payer?.email || null,
+        payerUserId: userId,
+        reference,
+        gateway: null,
+        gatewayRef: null,
+      });
+
+      // Update link amounts
+      const newAmountPaid = parseFloat(link.amountPaid) + payAmount;
+      const newRemaining = parseFloat(link.amount) - newAmountPaid;
+      const newStatus = newRemaining <= 0.01 ? "paid" : "partial";
+      await storage.updatePaymentLink(link.id, {
+        amountPaid: String(newAmountPaid.toFixed(2)),
+        remainingBalance: String(Math.max(0, newRemaining).toFixed(2)),
+        status: newStatus,
+      });
+
+      // Create wallet transaction record
+      await storage.createTransaction({
+        userId,
+        title: `Payment to ${payer?.name || "Recipient"}`,
+        category: "payment",
+        amount: String(payAmount.toFixed(2)),
+        type: "debit",
+        icon: "link",
+      });
+
+      res.json({ success: true, amountPaid: newAmountPaid.toFixed(2), remaining: Math.max(0, newRemaining).toFixed(2), status: newStatus });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/payment-links/:linkId/pay-card/initialize - Initialize Paystack card payment
+  app.post("/api/payment-links/:linkId/pay-card/initialize", async (req, res) => {
+    try {
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      if (link.status === "paid") return res.status(400).json({ error: "This payment link has already been fully paid" });
+
+      const { email, amount, payerName } = req.body;
+      if (!email) return res.status(400).json({ error: "Email is required for card payment" });
+
+      const payAmount = parseFloat(amount || link.remainingBalance);
+      const remaining = parseFloat(link.remainingBalance);
+      if (isNaN(payAmount) || payAmount <= 0 || payAmount > remaining + 0.01) {
+        return res.status(400).json({ error: "Invalid payment amount" });
+      }
+
+      const paystackKey = process.env.PAYSTACK_SECRET_KEY;
+      if (!paystackKey) {
+        return res.status(503).json({ error: "Card payment not configured. Please contact the business." });
+      }
+
+      const reference = `PAY-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+      const amountKobo = Math.round(payAmount * 100);
+
+      const paystackRes = await fetch("https://api.paystack.co/transaction/initialize", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${paystackKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          amount: amountKobo,
+          currency: link.currency === "ZAR" ? "ZAR" : link.currency,
+          reference,
+          metadata: { paymentLinkId: link.id, payerName: payerName || email },
+        }),
+      });
+
+      const paystackData: any = await paystackRes.json();
+      if (!paystackData.status) return res.status(400).json({ error: paystackData.message || "Payment initialization failed" });
+
+      // Pre-create invoice payment record as pending
+      await storage.createInvoicePayment({
+        paymentLinkId: link.id,
+        amount: String(payAmount.toFixed(2)),
+        currency: link.currency,
+        method: "card",
+        payerName: payerName || null,
+        payerEmail: email,
+        payerUserId: null,
+        reference,
+        gateway: "paystack",
+        gatewayRef: null,
+      });
+
+      res.json({ authorizationUrl: paystackData.data.authorization_url, reference });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/payments/webhook/paystack - Paystack webhook
+  app.post("/api/payments/webhook/paystack", async (req, res) => {
+    try {
+      const paystackKey = process.env.PAYSTACK_SECRET_KEY;
+      if (paystackKey) {
+        const hash = crypto.createHmac("sha512", paystackKey).update(JSON.stringify(req.body)).digest("hex");
+        if (hash !== req.headers["x-paystack-signature"]) {
+          return res.status(400).json({ error: "Invalid signature" });
+        }
+      }
+
+      const { event, data } = req.body;
+      if (event === "charge.success") {
+        const reference = data.reference;
+        const existingPayment = await storage.getInvoicePaymentByReference(reference);
+        if (!existingPayment || existingPayment.status === "completed") {
+          return res.json({ received: true });
+        }
+
+        await storage.updateInvoicePayment(existingPayment.id, { status: "completed", gatewayRef: data.id?.toString() });
+
+        const link = await storage.getPaymentLink(existingPayment.paymentLinkId);
+        if (link) {
+          const newAmountPaid = parseFloat(link.amountPaid) + parseFloat(existingPayment.amount);
+          const newRemaining = parseFloat(link.amount) - newAmountPaid;
+          const newStatus = newRemaining <= 0.01 ? "paid" : "partial";
+          await storage.updatePaymentLink(link.id, {
+            amountPaid: String(newAmountPaid.toFixed(2)),
+            remainingBalance: String(Math.max(0, newRemaining).toFixed(2)),
+            status: newStatus,
+          });
+
+          // Credit sender's wallet if destination is wallet
+          if (link.destination === "wallet") {
+            const senderCards = await storage.getCardsByUserId(link.senderId);
+            if (senderCards.length) {
+              const payAmount = parseFloat(existingPayment.amount);
+              const senderBalance = parseFloat(senderCards[0].balance);
+              await storage.updateCardBalance(senderCards[0].id, String((senderBalance + payAmount).toFixed(2)));
+            }
+          }
+        }
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // GET /api/payment-links/:linkId/invoice/pdf - Download invoice as PDF
+  app.get("/api/payment-links/:linkId/invoice/pdf", async (req, res) => {
+    try {
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+
+      const invoice = await storage.getInvoiceByPaymentLink(link.id);
+      const sender = await storage.getUser(link.senderId);
+      const payments = await storage.getInvoicePaymentsByLink(link.id);
+
+      const doc = new PDFDocument({ margin: 50 });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="invoice-${link.id.slice(0, 8)}.pdf"`);
+      doc.pipe(res);
+
+      const PRIMARY = "#7C3AED";
+      doc.rect(0, 0, doc.page.width, 80).fill(PRIMARY);
+      doc.fillColor("#FFFFFF").fontSize(24).font("Helvetica-Bold").text("BukkaPay", 50, 25);
+      doc.fontSize(10).font("Helvetica").text(invoice?.type?.toUpperCase() || "PAYMENT RECEIPT", 50, 55);
+
+      doc.fillColor("#1A1A2E").fontSize(11).font("Helvetica-Bold");
+      doc.text(`Document #: ${link.id.slice(0, 8).toUpperCase()}`, 50, 110);
+      doc.text(`Date: ${new Date(link.createdAt).toLocaleDateString()}`, 50, 128);
+      if (invoice?.dueDate) {
+        doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, 50, 146);
+      }
+      doc.text(`Status: ${link.status.toUpperCase()}`, 50, 164);
+
+      doc.font("Helvetica-Bold").text("From:", 350, 110);
+      doc.font("Helvetica").text(sender?.name || "BukkaPay User", 350, 128);
+      if (sender?.email) doc.text(sender.email, 350, 146);
+
+      if (invoice) {
+        doc.font("Helvetica-Bold").text("Bill To:", 50, 210);
+        doc.font("Helvetica").text(invoice.customerName, 50, 228);
+        if (invoice.customerEmail) doc.text(invoice.customerEmail, 50, 246);
+        if (invoice.customerPhone) doc.text(invoice.customerPhone, 50, 264);
+      }
+
+      if (invoice && Array.isArray(invoice.items) && invoice.items.length > 0) {
+        let y = 310;
+        doc.rect(50, y, doc.page.width - 100, 22).fill("#F3F0FF");
+        doc.fillColor("#1A1A2E").font("Helvetica-Bold").fontSize(10);
+        doc.text("Item", 60, y + 6);
+        doc.text("Qty", 280, y + 6);
+        doc.text("Unit Price", 340, y + 6);
+        doc.text("Total", 450, y + 6);
+        y += 28;
+
+        for (const item of invoice.items as any[]) {
+          doc.font("Helvetica").fillColor("#374151");
+          doc.text(item.name || "", 60, y, { width: 200 });
+          doc.text(String(item.quantity || 1), 280, y);
+          doc.text(`${link.currency} ${parseFloat(item.unitPrice || 0).toFixed(2)}`, 340, y);
+          doc.text(`${link.currency} ${parseFloat(item.total || 0).toFixed(2)}`, 450, y);
+          y += 20;
+          doc.moveTo(50, y - 2).lineTo(doc.page.width - 50, y - 2).strokeColor("#E5E7EB").stroke();
+        }
+
+        y += 10;
+        doc.font("Helvetica-Bold").fillColor("#1A1A2E");
+        doc.text("Total Amount:", 340, y);
+        doc.text(`${link.currency} ${parseFloat(link.amount).toFixed(2)}`, 450, y);
+        y += 20;
+        doc.fillColor("#10B981").text("Amount Paid:", 340, y);
+        doc.text(`${link.currency} ${parseFloat(link.amountPaid).toFixed(2)}`, 450, y);
+        y += 20;
+        if (parseFloat(link.remainingBalance) > 0) {
+          doc.fillColor("#EF4444").text("Remaining:", 340, y);
+          doc.text(`${link.currency} ${parseFloat(link.remainingBalance).toFixed(2)}`, 450, y);
+        }
+      } else {
+        let y = 280;
+        doc.font("Helvetica-Bold").fillColor("#1A1A2E").text("Payment Details", 50, y);
+        y += 20;
+        doc.font("Helvetica").text(`Description: ${link.description || "Payment"}`, 50, y);
+        y += 20;
+        doc.text(`Amount: ${link.currency} ${parseFloat(link.amount).toFixed(2)}`, 50, y);
+        y += 20;
+        doc.fillColor("#10B981").text(`Paid: ${link.currency} ${parseFloat(link.amountPaid).toFixed(2)}`, 50, y);
+        if (parseFloat(link.remainingBalance) > 0) {
+          y += 20;
+          doc.fillColor("#EF4444").text(`Remaining: ${link.currency} ${parseFloat(link.remainingBalance).toFixed(2)}`, 50, y);
+        }
+      }
+
+      if (payments.length > 0) {
+        let y = doc.page.height - 180;
+        doc.fillColor("#6B7280").font("Helvetica").fontSize(9).text("Payment History:", 50, y);
+        y += 16;
+        for (const p of payments.filter(p => p.status === "completed").slice(0, 5)) {
+          doc.text(`• ${new Date(p.createdAt).toLocaleDateString()} — ${p.method.toUpperCase()} — ${link.currency} ${parseFloat(p.amount).toFixed(2)}`, 50, y);
+          y += 14;
+        }
+      }
+
+      doc.fillColor("#9CA3AF").fontSize(8).text("Generated by BukkaPay | bukkapay.com", 50, doc.page.height - 40, { align: "center" });
+      doc.end();
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // GET /api/payment-links/:linkId/payments - Get all payments for a link
+  app.get("/api/payment-links/:linkId/payments", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      if (userId && link.senderId !== userId) return res.status(403).json({ error: "Access denied" });
+      const payments = await storage.getInvoicePaymentsByLink(link.id);
+      res.json(payments);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

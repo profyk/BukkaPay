@@ -26,11 +26,13 @@
   "dependencies": {
     "@simplewebauthn/server": "^13.2.3",
     "@supabase/supabase-js": "^2.94.0",
+    "@types/pdfkit": "^0.17.5",
     "cors": "^2.8.6",
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
     "express": "^5.2.1",
     "nanoid": "^5.1.6",
+    "pdfkit": "^0.18.0",
     "pg": "^8.18.0",
     "stripe": "^20.2.0",
     "stripe-replit-sync": "^1.0.0",
