@@ -282,12 +282,12 @@ export const insertBillSplitSchema = (createInsertSchema(billSplits) as any).omi
 export const insertVirtualCardSchema = (createInsertSchema(virtualCards) as any).omit({ id: true, createdAt: true });
 
 export const insertMerchantSchema = z.object({
-  userId: z.string().optional(),
   businessName: z.string().min(1, "Business name is required"),
   businessType: z.string().min(1, "Business type is required"),
   businessCategory: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   dailyLimit: z.string().optional(),
+  userId: z.string().optional(),
 });
 // @ts-ignore - drizzle-zod type compatibility
 export const insertMerchantTransactionSchema = (createInsertSchema(merchantTransactions) as any).omit({ id: true, createdAt: true });
@@ -448,7 +448,6 @@ export const insertRentPaymentSchema = (createInsertSchema(rentPayments) as any)
 // @ts-ignore - drizzle-zod type compatibility
 export const insertRentPaymentLinkSchema = (createInsertSchema(rentPaymentLinks) as any).omit({ id: true, createdAt: true });
 
-export type LoginInput = z.infer<typeof loginSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Merchant = typeof merchants.$inferSelect;
@@ -456,13 +455,9 @@ export type InsertMerchant = z.infer<typeof insertMerchantSchema>;
 export type MerchantTransaction = typeof merchantTransactions.$inferSelect;
 export type InsertMerchantTransaction = z.infer<typeof insertMerchantTransactionSchema>;
 export type WalletCard = typeof walletCards.$inferSelect;
-export type InsertWalletCard = z.infer<typeof insertWalletCardSchema>;
 export type Transaction = typeof transactions.$inferSelect;
-export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Contact = typeof contacts.$inferSelect;
-export type InsertContact = z.infer<typeof insertContactSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
-export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
 export type LoyaltyReward = typeof loyaltyRewards.$inferSelect;
 export type AutoPay = typeof autoPays.$inferSelect;
 export type Beneficiary = typeof beneficiaries.$inferSelect;
@@ -491,3 +486,8 @@ export type Contribution = typeof contributions.$inferSelect;
 export type InsertContribution = z.infer<typeof insertContributionSchema>;
 export type PurchaseTransaction = typeof purchaseTransactions.$inferSelect;
 export type InsertPurchaseTransaction = z.infer<typeof insertPurchaseTransactionSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+export type InsertWalletCard = z.infer<typeof insertWalletCardSchema>;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type InsertContact = z.infer<typeof insertContactSchema>;
+export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;

@@ -10,15 +10,13 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": ".",
-    "baseUrl": ".",
+    "rootDir": "./src",
+    "baseUrl": "./src",
     "paths": {
-      "@shared/*": ["src/shared/*"],
-      "@/*": ["src/*"]
+      "@shared/*": ["shared/*"]
     },
     "noUnusedLocals": false,
     "noUnusedParameters": false,
@@ -26,10 +24,7 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": [
-    "*.ts",
-    "src/**/*.ts",
-    "db/**/*.ts",
-    "shared/**/*.ts"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",

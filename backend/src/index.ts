@@ -16,14 +16,27 @@ if (process.env.SUPABASE_ANON_KEY) {
 const app = express();
 const httpServer = createServer(app);
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-}));
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+  : [];
 
-app.options("/{*path}", cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    // Allow all origins in development
+    if (process.env.NODE_ENV !== "production") return callback(null, true);
+    // In production, allow any origin (open API) or restrict to ALLOWED_ORIGINS
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-token", "x-api-key"],
+  credentials: true,
+  maxAge: 86400,
+}));
 
 declare module "http" {
   interface IncomingMessage {
