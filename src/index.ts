@@ -215,6 +215,7 @@ async function ensureTables() {
         expires_at TIMESTAMPTZ NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS attachment JSONB;
     `);
     await pool.end();
     console.log("[db] Core tables ensured");

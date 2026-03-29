@@ -2088,7 +2088,8 @@ export async function registerRoutes(
           type: invoice.type || "invoice",
           dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null,
           notes: invoice.notes || null,
-        });
+          attachment: invoice.attachment || null,
+        } as any);
       }
 
       const paymentUrl = `https://bukkapay.com/pay/${link.id}`;

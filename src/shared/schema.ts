@@ -526,6 +526,7 @@ export const invoices = pgTable("invoices", {
   type: text("type").notNull().default("invoice"),
   dueDate: timestamp("due_date"),
   notes: text("notes"),
+  attachment: jsonb("attachment"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
