@@ -2149,6 +2149,21 @@ export async function registerRoutes(
     }
   });
 
+  // DELETE /api/payment-links/:linkId - Delete a payment link (sender only)
+  app.delete("/api/payment-links/:linkId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      if (link.senderId !== userId) return res.status(403).json({ error: "You can only delete your own payment links" });
+      await storage.deletePaymentLink(req.params.linkId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // GET /api/payment-links/:linkId - Get payment link details (public)
   app.get("/api/payment-links/:linkId", async (req, res) => {
     try {
