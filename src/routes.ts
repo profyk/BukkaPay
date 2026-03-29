@@ -2112,17 +2112,38 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/payment-links - Get user's payment links
+  // GET /api/payment-links - Get user's payment links (created + received)
   app.get("/api/payment-links", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const links = await storage.getPaymentLinksByUser(userId);
-      const normalized = links.map((l: any) => ({
+      const [created, received] = await Promise.all([
+        storage.getPaymentLinksByUser(userId),
+        storage.getSavedPaymentLinks(userId),
+      ]);
+      const normalize = (l: any, direction: string) => ({
         ...l,
+        direction,
         paymentUrl: `https://app.bukkapay.com/pay/${l.id}`,
-      }));
-      res.json(normalized);
+      });
+      res.json([
+        ...created.map((l: any) => normalize(l, "sent")),
+        ...received.map((l: any) => normalize(l, "received")),
+      ]);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/payment-links/:linkId/save - Save a received payment link to wallet
+  app.post("/api/payment-links/:linkId/save", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      await storage.savePaymentLink(userId, link.id);
+      res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
