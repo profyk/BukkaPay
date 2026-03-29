@@ -154,7 +154,77 @@ app.use((req, res, next) => {
   next();
 });
 
+async function ensureTables() {
+  try {
+    const { Pool } = require("pg");
+    const dbUrl = process.env.DATABASE_URL || process.env.EXTERNAL_DATABASE_URL;
+    if (!dbUrl) return;
+    const pool = new Pool({ connectionString: dbUrl, ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false });
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payment_links (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        sender_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount DECIMAL(12,2) NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'ZAR',
+        description TEXT,
+        amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0,
+        remaining_balance DECIMAL(12,2) NOT NULL,
+        allow_partial_payment BOOLEAN DEFAULT false,
+        minimum_payment DECIMAL(12,2),
+        type TEXT NOT NULL DEFAULT 'personal',
+        region TEXT NOT NULL DEFAULT 'local',
+        sub_region TEXT,
+        destination TEXT NOT NULL DEFAULT 'wallet',
+        bank_details JSONB,
+        business_name TEXT,
+        business_logo TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS invoices (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        payment_link_id VARCHAR NOT NULL REFERENCES payment_links(id) ON DELETE CASCADE,
+        customer_name TEXT NOT NULL,
+        customer_email TEXT,
+        customer_phone TEXT,
+        items JSONB NOT NULL DEFAULT '[]',
+        total_amount DECIMAL(12,2) NOT NULL,
+        type TEXT NOT NULL DEFAULT 'invoice',
+        due_date TIMESTAMPTZ,
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS invoice_payments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        payment_link_id VARCHAR NOT NULL REFERENCES payment_links(id) ON DELETE CASCADE,
+        amount DECIMAL(12,2) NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'ZAR',
+        method TEXT NOT NULL DEFAULT 'card',
+        payer_name TEXT,
+        payer_email TEXT,
+        payer_user_id VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        reference TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        gateway TEXT,
+        gateway_ref TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        token VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pool.end();
+    console.log("[db] Core tables ensured");
+  } catch (e: any) {
+    console.warn("[db] Table ensure warning:", e.message);
+  }
+}
+
 (async () => {
+  await ensureTables();
   await initStripe();
   await registerRoutes(httpServer, app);
 
