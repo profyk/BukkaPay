@@ -136,6 +136,11 @@ export async function registerRoutes(
       }
 
       const user = await login(validation.data);
+
+      if ((user as any).frozen) {
+        return res.status(403).json({ error: "Your account has been suspended. Please contact support." });
+      }
+
       const token = generateSessionToken();
       const exp30d2 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       sessions.set(token, { userId: user.id, expiresAt: exp30d2.getTime() });
@@ -143,7 +148,7 @@ export async function registerRoutes(
 
       res.json({
         token,
-        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode, loyaltyPoints: user.loyaltyPoints, biometricEnabled: user.biometricEnabled },
+        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode, loyaltyPoints: user.loyaltyPoints, biometricEnabled: user.biometricEnabled, verified: user.verified },
       });
     } catch (error: any) {
       res.status(401).json({ error: error.message });

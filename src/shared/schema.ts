@@ -16,6 +16,8 @@ export const users = pgTable("users", {
   biometricEnabled: boolean("biometric_enabled").default(false),
   verified: boolean("verified").default(false),
   loyaltyPoints: integer("loyalty_points").default(0),
+  frozen: boolean("frozen").notNull().default(false),
+  role: text("role").notNull().default("user"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

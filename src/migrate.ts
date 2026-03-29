@@ -98,6 +98,8 @@ export async function runCoreMigrations(): Promise<void> {
     `);
 
     const alterStmts = [
+      `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS frozen BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS remaining_balance DECIMAL(12,2)`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS allow_partial_payment BOOLEAN DEFAULT false`,
