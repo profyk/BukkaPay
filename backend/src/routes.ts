@@ -2139,7 +2139,7 @@ export async function registerRoutes(
         invoice,
         payments,
         senderName: sender?.name || "BukkaPay User",
-        paymentUrl: `https://bukkapay.com/pay/${link.id}`,
+        paymentUrl: `https://app.bukkapay.com/pay/${link.id}`,
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
