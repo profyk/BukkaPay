@@ -120,6 +120,14 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Rewrite /admin/* → /api/admin/* so proxies that strip the /api prefix still work
+app.use((req, _res, next) => {
+  if (req.url.startsWith("/admin")) {
+    req.url = "/api" + req.url;
+  }
+  next();
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
