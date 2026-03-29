@@ -2105,7 +2105,7 @@ export async function registerRoutes(
         } as any);
       }
 
-      const paymentUrl = `https://bukkapay.com/pay/${link.id}`;
+      const paymentUrl = `https://app.bukkapay.com/pay/${link.id}`;
       res.status(201).json({ ...link, invoice: createdInvoice, paymentUrl });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
