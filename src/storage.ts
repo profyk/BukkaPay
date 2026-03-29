@@ -1,5 +1,5 @@
 import { db } from "./db/index";
-import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions, paymentLinks, invoices, invoicePayments, savedPaymentLinks } from "./shared/schema";
+import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions, paymentLinks, invoices, invoicePayments, savedPaymentLinks, notifications } from "./shared/schema";
 import type { 
   User, InsertUser, 
   WalletCard, InsertWalletCard,
@@ -16,7 +16,8 @@ import type {
   PurchaseTransaction, InsertPurchaseTransaction,
   PaymentLink, InsertPaymentLink,
   Invoice, InsertInvoice,
-  InvoicePayment, InsertInvoicePayment
+  InvoicePayment, InsertInvoicePayment,
+  Notification, InsertNotification
 } from "./shared/schema";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 
@@ -169,6 +170,14 @@ export interface IStorage {
   // Saved / received payment links
   savePaymentLink(userId: string, paymentLinkId: string): Promise<void>;
   getSavedPaymentLinks(userId: string): Promise<any[]>;
+
+  // Notifications
+  getNotifications(userId: string): Promise<Notification[]>;
+  createNotification(data: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: string, userId: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+  deleteNotification(id: string, userId: string): Promise<void>;
+  clearAllNotifications(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -856,6 +865,39 @@ export class DatabaseStorage implements IStorage {
       .where(eq(savedPaymentLinks.userId, userId))
       .orderBy(desc(savedPaymentLinks.savedAt));
     return rows.map((r: any) => ({ ...r.payment_links, direction: "received" }));
+  }
+
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(100);
+  }
+
+  async createNotification(data: InsertNotification): Promise<Notification> {
+    const [n] = await db.insert(notifications).values(data).returning();
+    return n;
+  }
+
+  async markNotificationRead(id: string, userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ read: true })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ read: true })
+      .where(eq(notifications.userId, userId));
+  }
+
+  async deleteNotification(id: string, userId: string): Promise<void> {
+    await db.delete(notifications)
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+  }
+
+  async clearAllNotifications(userId: string): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.userId, userId));
   }
 }
 

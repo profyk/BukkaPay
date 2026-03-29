@@ -600,6 +600,22 @@ export const insertClaimPaymentSchema = (createInsertSchema(claimPayments) as an
 export type ClaimPayment = typeof claimPayments.$inferSelect;
 export type InsertClaimPayment = z.infer<typeof insertClaimPaymentSchema>;
 
+// ─── Notifications ────────────────────────────────────────────────────────────
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull().default("info"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").notNull().default(false),
+  relatedId: varchar("related_id"),
+  relatedType: text("related_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
+
 // ─── Saved / Received Payment Links ───────────────────────────────────────────
 export const savedPaymentLinks = pgTable("saved_payment_links", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

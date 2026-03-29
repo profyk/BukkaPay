@@ -337,6 +337,14 @@ export async function registerRoutes(
         userId,
         ...validation.data,
       });
+      await storage.createNotification({
+        userId,
+        type: "success",
+        title: "Card Added",
+        message: `Your card "${card.name}" has been added successfully`,
+        relatedId: card.id,
+        relatedType: "card",
+      });
       res.status(201).json(card);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -387,6 +395,18 @@ export async function registerRoutes(
         userId,
         ...validation.data,
       });
+
+      const isCredit = String(validation.data.type).toLowerCase() === "credit";
+      const amount = parseFloat(String(validation.data.amount)).toLocaleString("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 2 });
+      await storage.createNotification({
+        userId,
+        type: isCredit ? "success" : "info",
+        title: isCredit ? "Money Received" : "Payment Sent",
+        message: `${validation.data.title} — ${amount}`,
+        relatedId: transaction.id,
+        relatedType: "transaction",
+      });
+
       res.status(201).json(transaction);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -2831,6 +2851,63 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ─── Notifications ────────────────────────────────────────────────────────────
+
+  app.get("/api/notifications", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const items = await storage.getNotifications(userId);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.markNotificationRead(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/notifications/read-all", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.markAllNotificationsRead(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/notifications/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.deleteNotification(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/notifications", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.clearAllNotifications(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

@@ -83,6 +83,20 @@ export async function runCoreMigrations(): Promise<void> {
       );
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type TEXT NOT NULL DEFAULT 'info',
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        read BOOLEAN NOT NULL DEFAULT false,
+        related_id VARCHAR,
+        related_type TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     const alterStmts = [
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS remaining_balance DECIMAL(12,2)`,
