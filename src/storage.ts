@@ -775,20 +775,16 @@ export class DatabaseStorage implements IStorage {
       const [created] = await db.insert(paymentLinks).values(link as any).returning();
       return created;
     } catch (e: any) {
-      // If the table is missing a column (old Railway schema), run migrations and retry once
-      const msg = e.message || "";
-      if (msg.includes("does not exist") || msg.includes("column") || msg.includes("relation")) {
-        console.warn("[storage] payment_links insert failed — running migration and retrying:", msg.slice(0, 120));
-        try {
-          const { runCoreMigrations } = await import("./migrate");
-          await runCoreMigrations();
-        } catch (me: any) {
-          console.warn("[storage] migration warning:", me.message);
-        }
-        const [created] = await db.insert(paymentLinks).values(link as any).returning();
-        return created;
+      // Any DB error on createPaymentLink → run migrations and retry once (idempotent)
+      console.warn("[storage] payment_links insert failed — running migration and retrying:", (e.message || "").slice(0, 160));
+      try {
+        const { runCoreMigrations } = await import("./migrate");
+        await runCoreMigrations();
+      } catch (me: any) {
+        console.warn("[storage] migration warning:", me.message);
       }
-      throw e;
+      const [created] = await db.insert(paymentLinks).values(link as any).returning();
+      return created;
     }
   }
 

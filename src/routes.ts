@@ -80,6 +80,19 @@ export async function registerRoutes(
   // Load persisted sessions from DB so they survive backend restarts
   await loadSessionsFromDB();
 
+  // One-time migration trigger endpoint (secret key protected, idempotent)
+  app.post("/api/sys/migrate", async (req, res) => {
+    const key = req.headers["x-migrate-key"] || req.query.key;
+    if (key !== "bukkapay-migrate-2024") return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { runCoreMigrations } = await import("./migrate");
+      await runCoreMigrations();
+      res.json({ ok: true, message: "Migration completed successfully" });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   // Auth Routes
   app.post("/api/auth/signup", async (req, res) => {
     try {
