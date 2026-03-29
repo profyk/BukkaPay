@@ -1,5 +1,5 @@
 import { db } from "./db/index";
-import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions } from "./shared/schema";
+import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions, paymentLinks, invoices, invoicePayments } from "./shared/schema";
 import type { 
   User, InsertUser, 
   WalletCard, InsertWalletCard,
@@ -13,7 +13,10 @@ import type {
   WebauthnCredential, InsertWebauthnCredential,
   GiftCard, InsertGiftCard,
   ContributionGroup, InsertContributionGroup, Contribution, InsertContribution,
-  PurchaseTransaction, InsertPurchaseTransaction
+  PurchaseTransaction, InsertPurchaseTransaction,
+  PaymentLink, InsertPaymentLink,
+  Invoice, InsertInvoice,
+  InvoicePayment, InsertInvoicePayment
 } from "./shared/schema";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 
@@ -145,6 +148,22 @@ export interface IStorage {
   createPurchaseTransaction(transaction: InsertPurchaseTransaction & { reference: string }): Promise<PurchaseTransaction>;
   getPurchaseTransaction(id: string): Promise<PurchaseTransaction | undefined>;
   getPurchaseTransactionsByUser(userId: string, filters?: { category?: string; status?: string; startDate?: Date; endDate?: Date; limit?: number; offset?: number }): Promise<PurchaseTransaction[]>;
+
+  // Payment links
+  createPaymentLink(link: InsertPaymentLink & { remainingBalance: string }): Promise<PaymentLink>;
+  getPaymentLink(id: string): Promise<PaymentLink | undefined>;
+  getPaymentLinksByUser(userId: string): Promise<PaymentLink[]>;
+  updatePaymentLink(id: string, data: Partial<{ amountPaid: string; remainingBalance: string; status: string }>): Promise<PaymentLink | undefined>;
+
+  // Invoices
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  getInvoiceByPaymentLink(paymentLinkId: string): Promise<Invoice | undefined>;
+
+  // Invoice payments
+  createInvoicePayment(payment: InsertInvoicePayment): Promise<InvoicePayment>;
+  getInvoicePaymentByReference(reference: string): Promise<InvoicePayment | undefined>;
+  getInvoicePaymentsByLink(paymentLinkId: string): Promise<InvoicePayment[]>;
+  updateInvoicePayment(id: string, data: Partial<{ status: string; gatewayRef: string }>): Promise<InvoicePayment | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -748,6 +767,74 @@ export class DatabaseStorage implements IStorage {
     }
 
     return await query;
+  }
+
+  // Payment link methods
+  async createPaymentLink(link: InsertPaymentLink & { remainingBalance: string }): Promise<PaymentLink> {
+    try {
+      const [created] = await db.insert(paymentLinks).values(link as any).returning();
+      return created;
+    } catch (e: any) {
+      // If the table is missing a column (old Railway schema), run migrations and retry once
+      const msg = e.message || "";
+      if (msg.includes("does not exist") || msg.includes("column") || msg.includes("relation")) {
+        console.warn("[storage] payment_links insert failed — running migration and retrying:", msg.slice(0, 120));
+        try {
+          const { runCoreMigrations } = await import("./migrate");
+          await runCoreMigrations();
+        } catch (me: any) {
+          console.warn("[storage] migration warning:", me.message);
+        }
+        const [created] = await db.insert(paymentLinks).values(link as any).returning();
+        return created;
+      }
+      throw e;
+    }
+  }
+
+  async getPaymentLink(id: string): Promise<PaymentLink | undefined> {
+    const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, id));
+    return link;
+  }
+
+  async getPaymentLinksByUser(userId: string): Promise<PaymentLink[]> {
+    return await db.select().from(paymentLinks).where(eq(paymentLinks.senderId, userId)).orderBy(desc(paymentLinks.createdAt));
+  }
+
+  async updatePaymentLink(id: string, data: Partial<{ amountPaid: string; remainingBalance: string; status: string }>): Promise<PaymentLink | undefined> {
+    const [updated] = await db.update(paymentLinks).set(data as any).where(eq(paymentLinks.id, id)).returning();
+    return updated;
+  }
+
+  // Invoice methods
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const [created] = await db.insert(invoices).values(invoice as any).returning();
+    return created;
+  }
+
+  async getInvoiceByPaymentLink(paymentLinkId: string): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.paymentLinkId, paymentLinkId));
+    return invoice;
+  }
+
+  // Invoice payment methods
+  async createInvoicePayment(payment: InsertInvoicePayment): Promise<InvoicePayment> {
+    const [created] = await db.insert(invoicePayments).values(payment as any).returning();
+    return created;
+  }
+
+  async getInvoicePaymentByReference(reference: string): Promise<InvoicePayment | undefined> {
+    const [payment] = await db.select().from(invoicePayments).where(eq(invoicePayments.reference, reference));
+    return payment;
+  }
+
+  async getInvoicePaymentsByLink(paymentLinkId: string): Promise<InvoicePayment[]> {
+    return await db.select().from(invoicePayments).where(eq(invoicePayments.paymentLinkId, paymentLinkId)).orderBy(desc(invoicePayments.createdAt));
+  }
+
+  async updateInvoicePayment(id: string, data: Partial<{ status: string; gatewayRef: string }>): Promise<InvoicePayment | undefined> {
+    const [updated] = await db.update(invoicePayments).set(data as any).where(eq(invoicePayments.id, id)).returning();
+    return updated;
   }
 }
 
