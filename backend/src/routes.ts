@@ -2535,7 +2535,7 @@ export async function registerRoutes(
 
       res.status(201).json({
         id: claim.id,
-        claimUrl: `https://bukkapay.com/claim/${claim.id}`,
+        claimUrl: `https://app.bukkapay.com/claim/${claim.id}`,
         expiresAt: claim.expiresAt,
         recipientName: claim.recipientName,
         amount: claim.amount,
