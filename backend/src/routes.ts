@@ -5,6 +5,10 @@ import { signup, login, generateSessionToken, hashPassword } from "./auth";
 import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, insertUserSchema, loginSchema, insertPaymentRequestSchema, insertLoyaltyRewardSchema, insertAutoPaySchema, insertBeneficiarySchema, insertChallengeSchema, insertVirtualCardSchema, insertMerchantSchema, insertMerchantTransactionSchema, insertPropertySchema, insertPropertyUnitSchema, insertTenantSchema, insertRentPaymentSchema, insertGiftCardSchema, insertContributionGroupSchema, insertContributionSchema } from "./shared/schema";
 import crypto from "crypto";
 import { fromZodError } from "zod-validation-error";
+import bcrypt from "bcryptjs";
+import { db } from "./db";
+import { claimPayments, userSessions } from "./shared/schema";
+import { eq, and, gt } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import {
   generateRegistrationOptions,
@@ -20,6 +24,36 @@ import type {
 const sessions = new Map<string, { userId: string; expiresAt: number }>();
 const webauthnChallenges = new Map<string, { challenge: string; expiresAt: number }>();
 
+// Load all active sessions from DB into memory (called once at startup)
+async function loadSessionsFromDB() {
+  try {
+    const rows = await db.select().from(userSessions).where(gt(userSessions.expiresAt, new Date()));
+    for (const row of rows) {
+      sessions.set(row.token, { userId: row.userId, expiresAt: row.expiresAt.getTime() });
+    }
+    console.log(`[sessions] Loaded ${rows.length} active session(s) from DB`);
+  } catch (e: any) {
+    console.warn("[sessions] Could not load sessions from DB:", e.message);
+  }
+}
+
+async function persistSessionToDB(token: string, userId: string, expiresAt: Date) {
+  try {
+    await db.insert(userSessions).values({ token, userId, expiresAt })
+      .onConflictDoUpdate({ target: userSessions.token, set: { userId, expiresAt } });
+  } catch (e: any) {
+    console.warn("[sessions] Failed to persist session to DB:", e.message);
+  }
+}
+
+async function deleteSessionFromDB(token: string) {
+  try {
+    await db.delete(userSessions).where(eq(userSessions.token, token));
+  } catch (e: any) {
+    console.warn("[sessions] Failed to delete session from DB:", e.message);
+  }
+}
+
 const rpName = "BukkaPay";
 const rpID = process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co` : "localhost";
 const origin = process.env.REPL_SLUG ? `https://${rpID}` : "http://localhost:5000";
@@ -31,6 +65,7 @@ function getUserIdFromRequest(req: Request): string | null {
   const session = sessions.get(token);
   if (!session || session.expiresAt < Date.now()) {
     sessions.delete(token);
+    deleteSessionFromDB(token); // fire-and-forget cleanup
     return null;
   }
   
@@ -41,7 +76,23 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
+  // Load persisted sessions from DB so they survive backend restarts
+  await loadSessionsFromDB();
+
+  // One-time migration trigger endpoint (secret key protected, idempotent)
+  app.post("/api/sys/migrate", async (req, res) => {
+    const key = req.headers["x-migrate-key"] || req.query.key;
+    if (key !== "bukkapay-migrate-2024") return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { runCoreMigrations } = await import("./migrate");
+      await runCoreMigrations();
+      res.json({ ok: true, message: "Migration completed successfully" });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   // Auth Routes
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -64,7 +115,9 @@ export async function registerRoutes(
       });
 
       const token = generateSessionToken();
-      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+      const exp30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      sessions.set(token, { userId: user.id, expiresAt: exp30d.getTime() });
+      persistSessionToDB(token, user.id, exp30d);
 
       res.status(201).json({
         token,
@@ -84,7 +137,9 @@ export async function registerRoutes(
 
       const user = await login(validation.data);
       const token = generateSessionToken();
-      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+      const exp30d2 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      sessions.set(token, { userId: user.id, expiresAt: exp30d2.getTime() });
+      persistSessionToDB(token, user.id, exp30d2);
 
       res.json({
         token,
@@ -95,10 +150,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     try {
       const token = req.headers.authorization?.replace("Bearer ", "");
-      if (token) sessions.delete(token);
+      if (token) { sessions.delete(token); await deleteSessionFromDB(token); }
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1511,7 +1566,9 @@ export async function registerRoutes(
       if (!user) return res.status(404).json({ error: "User not found" });
 
       const token = generateSessionToken();
-      sessions.set(token, { userId, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
+      const exp24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      sessions.set(token, { userId, expiresAt: exp24h.getTime() });
+      persistSessionToDB(token, userId, exp24h);
 
       webauthnChallenges.delete(userId);
       res.json({
@@ -2001,7 +2058,7 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const { amount, currency, description, allowPartialPayment, minimumPayment, type, region, subRegion, destination, bankDetails, invoice } = req.body;
+      const { amount, currency, description, allowPartialPayment, minimumPayment, type, region, subRegion, destination, bankDetails, invoice, businessName, businessLogo } = req.body;
 
       if (!amount || parseFloat(amount) <= 0) {
         return res.status(400).json({ error: "Valid amount is required" });
@@ -2020,6 +2077,8 @@ export async function registerRoutes(
         subRegion: subRegion || null,
         destination: destination || "wallet",
         bankDetails: bankDetails || null,
+        businessName: businessName || null,
+        businessLogo: businessLogo || null,
         remainingBalance: amountStr,
       });
 
@@ -2042,7 +2101,8 @@ export async function registerRoutes(
           type: invoice.type || "invoice",
           dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null,
           notes: invoice.notes || null,
-        });
+          attachment: invoice.attachment || null,
+        } as any);
       }
 
       const paymentUrl = `https://bukkapay.com/pay/${link.id}`;
@@ -2398,6 +2458,337 @@ export async function registerRoutes(
       if (userId && link.senderId !== userId) return res.status(403).json({ error: "Access denied" });
       const payments = await storage.getInvoicePaymentsByLink(link.id);
       res.json(payments);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ==========================================
+  // Claim Payments — Send Money to Anyone
+  // ==========================================
+
+  function generatePickupCode(): string {
+    const part = () => Math.floor(Math.random() * 100000).toString().padStart(5, "0");
+    return `${part()}${part()}${part()}`;
+  }
+
+  // POST /api/claim-payments — create a claim (auth required)
+  app.post("/api/claim-payments", async (req, res) => {
+    try {
+      const senderId = getUserIdFromRequest(req);
+      if (!senderId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { recipientName, recipientContact, amount, currency, note, pin } = req.body;
+      if (!recipientName || !recipientContact || !amount || !pin) {
+        return res.status(400).json({ error: "recipientName, recipientContact, amount and pin are required" });
+      }
+      if (String(pin).length < 4 || String(pin).length > 6) {
+        return res.status(400).json({ error: "PIN must be 4–6 digits" });
+      }
+      if (isNaN(Number(pin)) || !/^\d+$/.test(String(pin))) {
+        return res.status(400).json({ error: "PIN must be numeric" });
+      }
+
+      const sender = await storage.getUser(senderId);
+      if (!sender) return res.status(404).json({ error: "Sender not found" });
+
+      const senderCards = await storage.getWalletCards(senderId);
+      if (!senderCards.length) return res.status(400).json({ error: "No wallet card found" });
+      const card = senderCards[0];
+
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) return res.status(400).json({ error: "Invalid amount" });
+      if (parseFloat(card.balance) < amountNum) return res.status(400).json({ error: "Insufficient balance" });
+
+      const pinHash = await bcrypt.hash(String(pin), 12);
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      const [claim] = await db.insert(claimPayments).values({
+        senderId,
+        recipientName,
+        recipientContact,
+        amount: amountNum.toFixed(2),
+        currency: currency || "ZAR",
+        note: note || null,
+        pinHash,
+        requirePin: true,
+        status: "pending",
+        claimed: false,
+        attempts: 0,
+        expiresAt,
+      }).returning();
+
+      // Deduct from sender wallet (escrow)
+      const newBalance = (parseFloat(card.balance) - amountNum).toFixed(2);
+      await storage.updateWalletCardBalance(card.id, senderId, newBalance);
+
+      // Record transaction
+      await storage.createTransaction({
+        userId: senderId,
+        cardId: card.id,
+        title: `Claim sent to ${recipientName}`,
+        category: "transfer",
+        amount: amountNum.toFixed(2),
+        type: "debit",
+        icon: "send",
+      });
+
+      res.status(201).json({
+        id: claim.id,
+        claimUrl: `https://bukkapay.com/claim/${claim.id}`,
+        expiresAt: claim.expiresAt,
+        recipientName: claim.recipientName,
+        amount: claim.amount,
+        currency: claim.currency,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // GET /api/claim-payments/mine — sender's claims (auth required)
+  app.get("/api/claim-payments/mine", async (req, res) => {
+    try {
+      const senderId = getUserIdFromRequest(req);
+      if (!senderId) return res.status(401).json({ error: "Unauthorized" });
+
+      const claims = await db.select().from(claimPayments)
+        .where(eq(claimPayments.senderId, senderId))
+        .orderBy(claimPayments.createdAt);
+
+      res.json(claims.map(c => ({
+        id: c.id,
+        recipientName: c.recipientName,
+        recipientContact: c.recipientContact,
+        amount: c.amount,
+        currency: c.currency,
+        note: c.note,
+        status: c.status,
+        claimed: c.claimed,
+        claimMethod: c.claimMethod,
+        pickupStatus: c.pickupStatus,
+        expiresAt: c.expiresAt,
+        createdAt: c.createdAt,
+      })));
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/claim-payments/:id — cancel and refund (auth required)
+  app.delete("/api/claim-payments/:id", async (req, res) => {
+    try {
+      const senderId = getUserIdFromRequest(req);
+      if (!senderId) return res.status(401).json({ error: "Unauthorized" });
+
+      const [claim] = await db.select().from(claimPayments)
+        .where(and(eq(claimPayments.id, req.params.id), eq(claimPayments.senderId, senderId)));
+
+      if (!claim) return res.status(404).json({ error: "Claim not found" });
+      if (claim.claimed) return res.status(400).json({ error: "Cannot cancel — already claimed" });
+      if (claim.status === "cancelled") return res.status(400).json({ error: "Already cancelled" });
+
+      await db.update(claimPayments).set({ status: "cancelled" })
+        .where(eq(claimPayments.id, claim.id));
+
+      // Refund to sender
+      const senderCards = await storage.getWalletCards(senderId);
+      if (senderCards.length) {
+        const card = senderCards[0];
+        const refunded = (parseFloat(card.balance) + parseFloat(claim.amount)).toFixed(2);
+        await storage.updateWalletCardBalance(card.id, senderId, refunded);
+        await storage.createTransaction({
+          userId: senderId,
+          cardId: card.id,
+          title: `Refund — cancelled claim for ${claim.recipientName}`,
+          category: "refund",
+          amount: claim.amount,
+          type: "credit",
+          icon: "refresh-cw",
+        });
+      }
+
+      res.json({ success: true, message: "Claim cancelled and refunded" });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // GET /api/claim-payments/:id/public — public claim info (no auth)
+  app.get("/api/claim-payments/:id/public", async (req, res) => {
+    try {
+      const [claim] = await db.select({
+        id: claimPayments.id,
+        recipientName: claimPayments.recipientName,
+        amount: claimPayments.amount,
+        currency: claimPayments.currency,
+        note: claimPayments.note,
+        status: claimPayments.status,
+        claimed: claimPayments.claimed,
+        claimMethod: claimPayments.claimMethod,
+        pickupCode: claimPayments.pickupCode,
+        pickupStatus: claimPayments.pickupStatus,
+        expiresAt: claimPayments.expiresAt,
+        createdAt: claimPayments.createdAt,
+      }).from(claimPayments).where(eq(claimPayments.id, req.params.id));
+
+      if (!claim) return res.status(404).json({ error: "Claim not found" });
+      if (new Date() > new Date(claim.expiresAt)) {
+        return res.status(410).json({ error: "This claim link has expired" });
+      }
+      res.json(claim);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/claim-payments/:id/verify-pin — verify PIN (no auth, max 5 attempts)
+  app.post("/api/claim-payments/:id/verify-pin", async (req, res) => {
+    try {
+      const [claim] = await db.select().from(claimPayments).where(eq(claimPayments.id, req.params.id));
+      if (!claim) return res.status(404).json({ error: "Claim not found" });
+      if (claim.claimed) return res.status(400).json({ error: "This payment has already been claimed" });
+      if (claim.status === "cancelled") return res.status(400).json({ error: "This claim has been cancelled" });
+      if (new Date() > new Date(claim.expiresAt)) return res.status(410).json({ error: "Claim link expired" });
+      if (claim.attempts >= 5) return res.status(429).json({ error: "Too many attempts. Contact the sender." });
+
+      const { pin } = req.body;
+      if (!pin) return res.status(400).json({ error: "PIN is required" });
+
+      const match = await bcrypt.compare(String(pin), claim.pinHash);
+      if (!match) {
+        await db.update(claimPayments).set({ attempts: claim.attempts + 1 })
+          .where(eq(claimPayments.id, claim.id));
+        const remaining = 4 - claim.attempts;
+        return res.status(401).json({ error: `Incorrect PIN. ${remaining} attempt(s) remaining.` });
+      }
+
+      res.json({ success: true, message: "PIN verified" });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/claim-payments/:id/claim-bank — claim via bank transfer
+  app.post("/api/claim-payments/:id/claim-bank", async (req, res) => {
+    try {
+      const [claim] = await db.select().from(claimPayments).where(eq(claimPayments.id, req.params.id));
+      if (!claim) return res.status(404).json({ error: "Claim not found" });
+      if (claim.claimed) return res.status(400).json({ error: "Already claimed" });
+      if (claim.status !== "pending") return res.status(400).json({ error: "Claim is not pending" });
+
+      const { accountName, bankName, accountNumber, branchCode } = req.body;
+      if (!accountName || !bankName || !accountNumber) {
+        return res.status(400).json({ error: "accountName, bankName and accountNumber are required" });
+      }
+
+      await db.update(claimPayments).set({
+        claimed: true,
+        status: "completed",
+        claimMethod: "bank",
+        bankDetails: { accountName, bankName, accountNumber, branchCode: branchCode || "" },
+      }).where(eq(claimPayments.id, claim.id));
+
+      res.json({ success: true, message: `R${claim.amount} will be transferred to your ${bankName} account within 1–2 business days.` });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/claim-payments/:id/claim-wallet — claim via BukkaPay wallet
+  app.post("/api/claim-payments/:id/claim-wallet", async (req, res) => {
+    try {
+      const [claim] = await db.select().from(claimPayments).where(eq(claimPayments.id, req.params.id));
+      if (!claim) return res.status(404).json({ error: "Claim not found" });
+      if (claim.claimed) return res.status(400).json({ error: "Already claimed" });
+      if (claim.status !== "pending") return res.status(400).json({ error: "Claim is not pending" });
+
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "email is required" });
+
+      const receiver = await storage.getUserByEmail(email);
+      if (!receiver) return res.status(404).json({ error: "No BukkaPay account found for this email. Please sign up first." });
+
+      const receiverCards = await storage.getWalletCards(receiver.id);
+      if (receiverCards.length) {
+        const card = receiverCards[0];
+        const newBalance = (parseFloat(card.balance) + parseFloat(claim.amount)).toFixed(2);
+        await storage.updateWalletCardBalance(card.id, receiver.id, newBalance);
+        await storage.createTransaction({
+          userId: receiver.id,
+          cardId: card.id,
+          title: `Claim received from ${claim.recipientName}`,
+          category: "transfer",
+          amount: claim.amount,
+          type: "credit",
+          icon: "download",
+        });
+      }
+
+      await db.update(claimPayments).set({
+        claimed: true,
+        status: "completed",
+        claimMethod: "wallet",
+      }).where(eq(claimPayments.id, claim.id));
+
+      res.json({ success: true, message: `R${claim.amount} has been added to your BukkaPay wallet!` });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/claim-payments/:id/claim-cash — generate pickup code
+  app.post("/api/claim-payments/:id/claim-cash", async (req, res) => {
+    try {
+      const [claim] = await db.select().from(claimPayments).where(eq(claimPayments.id, req.params.id));
+      if (!claim) return res.status(404).json({ error: "Claim not found" });
+      if (claim.claimed) return res.status(400).json({ error: "Already claimed" });
+      if (claim.status !== "pending") return res.status(400).json({ error: "Claim is not pending" });
+
+      // If pickup code already generated, return it
+      if (claim.pickupCode) {
+        return res.json({ success: true, pickupCode: claim.pickupCode, amount: claim.amount, currency: claim.currency });
+      }
+
+      const pickupCode = generatePickupCode();
+      await db.update(claimPayments).set({
+        claimMethod: "cash",
+        pickupCode,
+        pickupStatus: "pending",
+      }).where(eq(claimPayments.id, claim.id));
+
+      res.json({ success: true, pickupCode, amount: claim.amount, currency: claim.currency });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/pickup/claim — agent redeems a pickup code
+  app.post("/api/pickup/claim", async (req, res) => {
+    try {
+      const { pickupCode } = req.body;
+      if (!pickupCode) return res.status(400).json({ error: "pickupCode is required" });
+
+      const [claim] = await db.select().from(claimPayments)
+        .where(eq(claimPayments.pickupCode, String(pickupCode)));
+
+      if (!claim) return res.status(404).json({ error: "Invalid pickup code" });
+      if (claim.claimed) return res.status(400).json({ error: "This pickup code has already been used" });
+      if (claim.pickupStatus === "completed") return res.status(400).json({ error: "Already redeemed" });
+
+      await db.update(claimPayments).set({
+        claimed: true,
+        status: "completed",
+        pickupStatus: "completed",
+      }).where(eq(claimPayments.id, claim.id));
+
+      res.json({
+        success: true,
+        amount: claim.amount,
+        currency: claim.currency,
+        recipientName: claim.recipientName,
+        message: `Cash pickup of ${claim.currency} ${claim.amount} confirmed for ${claim.recipientName}.`,
+      });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

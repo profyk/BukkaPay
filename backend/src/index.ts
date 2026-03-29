@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from "./stripe-client";
 import { WebhookHandlers } from "./stripe-webhooks";
+import { runCoreMigrations } from "./migrate";
 
 if (process.env.SUPABASE_URL) {
   process.env.VITE_SUPABASE_URL = process.env.SUPABASE_URL;
@@ -154,7 +155,16 @@ app.use((req, res, next) => {
   next();
 });
 
+async function ensureTables() {
+  try {
+    await runCoreMigrations();
+  } catch (e: any) {
+    console.warn("[db] Table ensure warning:", e.message);
+  }
+}
+
 (async () => {
+  await ensureTables();
   await initStripe();
   await registerRoutes(httpServer, app);
 

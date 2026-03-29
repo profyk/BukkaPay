@@ -771,8 +771,21 @@ export class DatabaseStorage implements IStorage {
 
   // Payment link methods
   async createPaymentLink(link: InsertPaymentLink & { remainingBalance: string }): Promise<PaymentLink> {
-    const [created] = await db.insert(paymentLinks).values(link as any).returning();
-    return created;
+    try {
+      const [created] = await db.insert(paymentLinks).values(link as any).returning();
+      return created;
+    } catch (e: any) {
+      // Any DB error on createPaymentLink → run migrations and retry once (idempotent)
+      console.warn("[storage] payment_links insert failed — running migration and retrying:", (e.message || "").slice(0, 160));
+      try {
+        const { runCoreMigrations } = await import("./migrate");
+        await runCoreMigrations();
+      } catch (me: any) {
+        console.warn("[storage] migration warning:", me.message);
+      }
+      const [created] = await db.insert(paymentLinks).values(link as any).returning();
+      return created;
+    }
   }
 
   async getPaymentLink(id: string): Promise<PaymentLink | undefined> {

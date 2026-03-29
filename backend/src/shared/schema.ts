@@ -509,6 +509,8 @@ export const paymentLinks = pgTable("payment_links", {
   subRegion: text("sub_region"),
   destination: text("destination").notNull().default("wallet"),
   bankDetails: jsonb("bank_details"),
+  businessName: text("business_name"),
+  businessLogo: text("business_logo"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -524,6 +526,7 @@ export const invoices = pgTable("invoices", {
   type: text("type").notNull().default("invoice"),
   dueDate: timestamp("due_date"),
   notes: text("notes"),
+  attachment: jsonb("attachment"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -556,3 +559,43 @@ export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type InvoicePayment = typeof invoicePayments.$inferSelect;
 export type InsertInvoicePayment = z.infer<typeof insertInvoicePaymentSchema>;
+
+// ─── Claim Payments (Send Money to Anyone) ───────────────────────────────────
+
+export const claimPayments = pgTable("claim_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  recipientName: text("recipient_name").notNull(),
+  recipientContact: text("recipient_contact").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("ZAR"),
+  note: text("note"),
+  pinHash: text("pin_hash").notNull(),
+  requirePin: boolean("require_pin").notNull().default(true),
+  status: text("status").notNull().default("pending"),
+  claimed: boolean("claimed").notNull().default(false),
+  claimMethod: text("claim_method"),
+  bankDetails: jsonb("bank_details"),
+  pickupCode: text("pickup_code"),
+  pickupStatus: text("pickup_status").default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Persistent sessions — survive backend restarts/redeploys
+export const userSessions = pgTable("user_sessions", {
+  token: varchar("token", { length: 64 }).primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// @ts-ignore
+export const insertClaimPaymentSchema = (createInsertSchema(claimPayments) as any).omit({
+  id: true, createdAt: true, status: true, claimed: true, claimMethod: true,
+  bankDetails: true, pickupCode: true, pickupStatus: true, attempts: true, pinHash: true,
+});
+
+export type ClaimPayment = typeof claimPayments.$inferSelect;
+export type InsertClaimPayment = z.infer<typeof insertClaimPaymentSchema>;
