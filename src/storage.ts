@@ -154,6 +154,7 @@ export interface IStorage {
   getPaymentLink(id: string): Promise<PaymentLink | undefined>;
   getPaymentLinksByUser(userId: string): Promise<PaymentLink[]>;
   updatePaymentLink(id: string, data: Partial<{ amountPaid: string; remainingBalance: string; status: string }>): Promise<PaymentLink | undefined>;
+  deletePaymentLink(id: string): Promise<void>;
 
   // Invoices
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
@@ -804,6 +805,10 @@ export class DatabaseStorage implements IStorage {
   async updatePaymentLink(id: string, data: Partial<{ amountPaid: string; remainingBalance: string; status: string }>): Promise<PaymentLink | undefined> {
     const [updated] = await db.update(paymentLinks).set(data as any).where(eq(paymentLinks.id, id)).returning();
     return updated;
+  }
+
+  async deletePaymentLink(id: string): Promise<void> {
+    await db.delete(paymentLinks).where(eq(paymentLinks.id, id));
   }
 
   // Invoice methods
