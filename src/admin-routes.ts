@@ -213,7 +213,7 @@ export async function registerAdminRoutes(app: Express) {
 
       if (Object.keys(updates).length === 0) return res.status(400).json({ error: "No fields to update" });
 
-      const [updated] = await db.update(adminUsers).set(updates).where(eq(adminUsers.id, req.params.id)).returning();
+      const [updated] = await db.update(adminUsers).set(updates).where(eq(adminUsers.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "Admin not found" });
 
       res.json(safeAdmin(updated));
@@ -225,7 +225,7 @@ export async function registerAdminRoutes(app: Express) {
   // DELETE /api/admin/admins/:id — delete admin user
   app.delete("/api/admin/admins/:id", adminAuth, masterKeyOnly, async (req, res) => {
     try {
-      const [deleted] = await db.delete(adminUsers).where(eq(adminUsers.id, req.params.id)).returning();
+      const [deleted] = await db.delete(adminUsers).where(eq(adminUsers.id, String(req.params.id))).returning();
       if (!deleted) return res.status(404).json({ error: "Admin not found" });
       res.json({ success: true, message: `Admin ${deleted.email} deleted` });
     } catch (e: any) {
@@ -237,7 +237,7 @@ export async function registerAdminRoutes(app: Express) {
 
   app.get("/api/admin/stats", adminAuth, async (_req, res) => {
     try {
-      const [[{ total: totalUsers }], [{ total: totalTxns }], [{ vol }], [{ totalLinks }], [{ active }]] = await Promise.all([
+      const [[{ total: totalUsers }], [{ total: totalTxns }], [{ vol }], [{ total: totalLinks }], [{ active }]] = await Promise.all([
         db.select({ total: count() }).from(users),
         db.select({ total: count() }).from(transactions),
         db.select({ vol: sum(transactions.amount) }).from(transactions),
@@ -307,7 +307,7 @@ export async function registerAdminRoutes(app: Express) {
 
   app.get("/api/admin/users/:id", adminAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.params.id);
+      const user = await storage.getUser(String(req.params.id));
       if (!user) return res.status(404).json({ error: "User not found" });
 
       const [cards, recentTxns, recentLinks, loyalty] = await Promise.all([
@@ -333,7 +333,7 @@ export async function registerAdminRoutes(app: Express) {
       if (phone !== undefined) updates.phone = phone;
       if (verified !== undefined) updates.verified = Boolean(verified);
       if (Object.keys(updates).length === 0) return res.status(400).json({ error: "No fields to update" });
-      const [updated] = await db.update(users).set(updates).where(eq(users.id, req.params.id)).returning();
+      const [updated] = await db.update(users).set(updates).where(eq(users.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "User not found" });
       res.json(safeUser(updated));
     } catch (e: any) {
@@ -344,10 +344,10 @@ export async function registerAdminRoutes(app: Express) {
   app.patch("/api/admin/users/:id/freeze", adminAuth, async (req, res) => {
     try {
       const frozen = req.body.frozen !== false;
-      const [updated] = await db.update(users).set({ frozen }).where(eq(users.id, req.params.id)).returning();
+      const [updated] = await db.update(users).set({ frozen }).where(eq(users.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "User not found" });
       await storage.createNotification({
-        userId: req.params.id,
+        userId: String(req.params.id),
         type: frozen ? "alert" : "info",
         title: frozen ? "Account Suspended" : "Account Reinstated",
         message: frozen
@@ -363,10 +363,10 @@ export async function registerAdminRoutes(app: Express) {
   app.patch("/api/admin/users/:id/verify", adminAuth, async (req, res) => {
     try {
       const verified = req.body.verified !== false;
-      const [updated] = await db.update(users).set({ verified }).where(eq(users.id, req.params.id)).returning();
+      const [updated] = await db.update(users).set({ verified }).where(eq(users.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "User not found" });
       if (verified) {
-        await storage.createNotification({ userId: req.params.id, type: "success", title: "Account Verified", message: "Congratulations! Your BukkaPay account has been verified." });
+        await storage.createNotification({ userId: String(req.params.id), type: "success", title: "Account Verified", message: "Congratulations! Your BukkaPay account has been verified." });
       }
       res.json({ success: true, verified, user: safeUser(updated) });
     } catch (e: any) {
@@ -376,9 +376,9 @@ export async function registerAdminRoutes(app: Express) {
 
   app.delete("/api/admin/users/:id", adminAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.params.id);
+      const user = await storage.getUser(String(req.params.id));
       if (!user) return res.status(404).json({ error: "User not found" });
-      await db.delete(users).where(eq(users.id, req.params.id));
+      await db.delete(users).where(eq(users.id, String(req.params.id)));
       res.json({ success: true, message: `User ${user.username} deleted` });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -389,9 +389,9 @@ export async function registerAdminRoutes(app: Express) {
     try {
       const { type = "info", title, message } = req.body;
       if (!title || !message) return res.status(400).json({ error: "title and message are required" });
-      const user = await storage.getUser(req.params.id);
+      const user = await storage.getUser(String(req.params.id));
       if (!user) return res.status(404).json({ error: "User not found" });
-      const notif = await storage.createNotification({ userId: req.params.id, type, title, message });
+      const notif = await storage.createNotification({ userId: String(req.params.id), type, title, message });
       res.status(201).json(notif);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -438,7 +438,7 @@ export async function registerAdminRoutes(app: Express) {
 
   app.delete("/api/admin/transactions/:id", adminAuth, async (req, res) => {
     try {
-      await db.delete(transactions).where(eq(transactions.id, req.params.id));
+      await db.delete(transactions).where(eq(transactions.id, String(req.params.id)));
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -474,7 +474,7 @@ export async function registerAdminRoutes(app: Express) {
   app.patch("/api/admin/wallets/:id/freeze", adminAuth, async (req, res) => {
     try {
       const frozen = req.body.frozen !== false;
-      const [updated] = await db.update(walletCards).set({ frozen }).where(eq(walletCards.id, req.params.id)).returning();
+      const [updated] = await db.update(walletCards).set({ frozen }).where(eq(walletCards.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "Card not found" });
       res.json({ success: true, frozen, card: updated });
     } catch (e: any) {
@@ -486,7 +486,7 @@ export async function registerAdminRoutes(app: Express) {
     try {
       const { balance } = req.body;
       if (balance === undefined) return res.status(400).json({ error: "balance is required" });
-      const [updated] = await db.update(walletCards).set({ balance: String(balance) }).where(eq(walletCards.id, req.params.id)).returning();
+      const [updated] = await db.update(walletCards).set({ balance: String(balance) }).where(eq(walletCards.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "Card not found" });
       res.json({ success: true, card: updated });
     } catch (e: any) {
@@ -524,7 +524,7 @@ export async function registerAdminRoutes(app: Express) {
     try {
       const { status } = req.body;
       if (!status) return res.status(400).json({ error: "status is required" });
-      const [updated] = await db.update(paymentLinks).set({ status }).where(eq(paymentLinks.id, req.params.id)).returning();
+      const [updated] = await db.update(paymentLinks).set({ status }).where(eq(paymentLinks.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "Payment link not found" });
       res.json({ success: true, paymentLink: updated });
     } catch (e: any) {
