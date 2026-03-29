@@ -215,6 +215,17 @@ async function ensureTables() {
         expires_at TIMESTAMPTZ NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      -- payment_links: add columns that may be missing from older Railway deployments
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS remaining_balance DECIMAL(12,2);
+      UPDATE payment_links SET remaining_balance = amount WHERE remaining_balance IS NULL;
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS allow_partial_payment BOOLEAN DEFAULT false;
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS minimum_payment DECIMAL(12,2);
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS sub_region TEXT;
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS bank_details JSONB;
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS business_name TEXT;
+      ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS business_logo TEXT;
+      -- invoices: add columns that may be missing
       ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS attachment JSONB;
     `);
     await pool.end();
