@@ -599,3 +599,11 @@ export const insertClaimPaymentSchema = (createInsertSchema(claimPayments) as an
 
 export type ClaimPayment = typeof claimPayments.$inferSelect;
 export type InsertClaimPayment = z.infer<typeof insertClaimPaymentSchema>;
+
+// ─── Saved / Received Payment Links ───────────────────────────────────────────
+export const savedPaymentLinks = pgTable("saved_payment_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  paymentLinkId: varchar("payment_link_id").notNull().references(() => paymentLinks.id, { onDelete: "cascade" }),
+  savedAt: timestamp("saved_at").defaultNow().notNull(),
+});
