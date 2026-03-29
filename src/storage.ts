@@ -1,5 +1,5 @@
 import { db } from "./db/index";
-import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions, paymentLinks, invoices, invoicePayments } from "./shared/schema";
+import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions, paymentLinks, invoices, invoicePayments, savedPaymentLinks } from "./shared/schema";
 import type { 
   User, InsertUser, 
   WalletCard, InsertWalletCard,
@@ -164,6 +164,10 @@ export interface IStorage {
   getInvoicePaymentByReference(reference: string): Promise<InvoicePayment | undefined>;
   getInvoicePaymentsByLink(paymentLinkId: string): Promise<InvoicePayment[]>;
   updateInvoicePayment(id: string, data: Partial<{ status: string; gatewayRef: string }>): Promise<InvoicePayment | undefined>;
+
+  // Saved / received payment links
+  savePaymentLink(userId: string, paymentLinkId: string): Promise<void>;
+  getSavedPaymentLinks(userId: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -831,6 +835,22 @@ export class DatabaseStorage implements IStorage {
   async updateInvoicePayment(id: string, data: Partial<{ status: string; gatewayRef: string }>): Promise<InvoicePayment | undefined> {
     const [updated] = await db.update(invoicePayments).set(data as any).where(eq(invoicePayments.id, id)).returning();
     return updated;
+  }
+
+  async savePaymentLink(userId: string, paymentLinkId: string): Promise<void> {
+    const existing = await db.select().from(savedPaymentLinks)
+      .where(and(eq(savedPaymentLinks.userId, userId), eq(savedPaymentLinks.paymentLinkId, paymentLinkId)));
+    if (existing.length === 0) {
+      await db.insert(savedPaymentLinks).values({ userId, paymentLinkId });
+    }
+  }
+
+  async getSavedPaymentLinks(userId: string): Promise<any[]> {
+    const rows = await db.select().from(savedPaymentLinks)
+      .innerJoin(paymentLinks, eq(savedPaymentLinks.paymentLinkId, paymentLinks.id))
+      .where(eq(savedPaymentLinks.userId, userId))
+      .orderBy(desc(savedPaymentLinks.savedAt));
+    return rows.map((r: any) => ({ ...r.payment_links, direction: "received" }));
   }
 }
 
