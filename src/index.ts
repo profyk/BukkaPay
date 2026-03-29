@@ -168,7 +168,7 @@ async function ensureTables() {
 (async () => {
   await ensureTables();
   await initStripe();
-  registerAdminRoutes(app);
+  await registerAdminRoutes(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
