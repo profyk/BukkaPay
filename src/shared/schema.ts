@@ -582,6 +582,14 @@ export const claimPayments = pgTable("claim_payments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Persistent sessions — survive backend restarts/redeploys
+export const userSessions = pgTable("user_sessions", {
+  token: varchar("token", { length: 64 }).primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // @ts-ignore
 export const insertClaimPaymentSchema = (createInsertSchema(claimPayments) as any).omit({
   id: true, createdAt: true, status: true, claimed: true, claimMethod: true,

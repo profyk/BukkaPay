@@ -7,8 +7,8 @@ import crypto from "crypto";
 import { fromZodError } from "zod-validation-error";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
-import { claimPayments } from "./shared/schema";
-import { eq, and } from "drizzle-orm";
+import { claimPayments, userSessions } from "./shared/schema";
+import { eq, and, gt } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import {
   generateRegistrationOptions,
@@ -24,6 +24,36 @@ import type {
 const sessions = new Map<string, { userId: string; expiresAt: number }>();
 const webauthnChallenges = new Map<string, { challenge: string; expiresAt: number }>();
 
+// Load all active sessions from DB into memory (called once at startup)
+async function loadSessionsFromDB() {
+  try {
+    const rows = await db.select().from(userSessions).where(gt(userSessions.expiresAt, new Date()));
+    for (const row of rows) {
+      sessions.set(row.token, { userId: row.userId, expiresAt: row.expiresAt.getTime() });
+    }
+    console.log(`[sessions] Loaded ${rows.length} active session(s) from DB`);
+  } catch (e: any) {
+    console.warn("[sessions] Could not load sessions from DB:", e.message);
+  }
+}
+
+async function persistSessionToDB(token: string, userId: string, expiresAt: Date) {
+  try {
+    await db.insert(userSessions).values({ token, userId, expiresAt })
+      .onConflictDoUpdate({ target: userSessions.token, set: { userId, expiresAt } });
+  } catch (e: any) {
+    console.warn("[sessions] Failed to persist session to DB:", e.message);
+  }
+}
+
+async function deleteSessionFromDB(token: string) {
+  try {
+    await db.delete(userSessions).where(eq(userSessions.token, token));
+  } catch (e: any) {
+    console.warn("[sessions] Failed to delete session from DB:", e.message);
+  }
+}
+
 const rpName = "BukkaPay";
 const rpID = process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co` : "localhost";
 const origin = process.env.REPL_SLUG ? `https://${rpID}` : "http://localhost:5000";
@@ -35,6 +65,7 @@ function getUserIdFromRequest(req: Request): string | null {
   const session = sessions.get(token);
   if (!session || session.expiresAt < Date.now()) {
     sessions.delete(token);
+    deleteSessionFromDB(token); // fire-and-forget cleanup
     return null;
   }
   
@@ -45,7 +76,10 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
+  // Load persisted sessions from DB so they survive backend restarts
+  await loadSessionsFromDB();
+
   // Auth Routes
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -68,7 +102,9 @@ export async function registerRoutes(
       });
 
       const token = generateSessionToken();
-      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+      const exp30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      sessions.set(token, { userId: user.id, expiresAt: exp30d.getTime() });
+      persistSessionToDB(token, user.id, exp30d);
 
       res.status(201).json({
         token,
@@ -88,7 +124,9 @@ export async function registerRoutes(
 
       const user = await login(validation.data);
       const token = generateSessionToken();
-      sessions.set(token, { userId: user.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+      const exp30d2 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      sessions.set(token, { userId: user.id, expiresAt: exp30d2.getTime() });
+      persistSessionToDB(token, user.id, exp30d2);
 
       res.json({
         token,
@@ -99,10 +137,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     try {
       const token = req.headers.authorization?.replace("Bearer ", "");
-      if (token) sessions.delete(token);
+      if (token) { sessions.delete(token); await deleteSessionFromDB(token); }
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1515,7 +1553,9 @@ export async function registerRoutes(
       if (!user) return res.status(404).json({ error: "User not found" });
 
       const token = generateSessionToken();
-      sessions.set(token, { userId, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
+      const exp24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      sessions.set(token, { userId, expiresAt: exp24h.getTime() });
+      persistSessionToDB(token, userId, exp24h);
 
       webauthnChallenges.delete(userId);
       res.json({
