@@ -2105,7 +2105,7 @@ export async function registerRoutes(
         } as any);
       }
 
-      const paymentUrl = `https://bukkapay.com/pay/${link.id}`;
+      const paymentUrl = `https://app.bukkapay.com/pay/${link.id}`;
       res.status(201).json({ ...link, invoice: createdInvoice, paymentUrl });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -2118,7 +2118,11 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const links = await storage.getPaymentLinksByUser(userId);
-      res.json(links);
+      const normalized = links.map((l: any) => ({
+        ...l,
+        paymentUrl: `https://app.bukkapay.com/pay/${l.id}`,
+      }));
+      res.json(normalized);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2139,7 +2143,7 @@ export async function registerRoutes(
         invoice,
         payments,
         senderName: sender?.name || "BukkaPay User",
-        paymentUrl: `https://bukkapay.com/pay/${link.id}`,
+        paymentUrl: `https://app.bukkapay.com/pay/${link.id}`,
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -2535,7 +2539,7 @@ export async function registerRoutes(
 
       res.status(201).json({
         id: claim.id,
-        claimUrl: `https://bukkapay.com/claim/${claim.id}`,
+        claimUrl: `https://app.bukkapay.com/claim/${claim.id}`,
         expiresAt: claim.expiresAt,
         recipientName: claim.recipientName,
         amount: claim.amount,
