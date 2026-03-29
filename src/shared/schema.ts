@@ -491,3 +491,70 @@ export type InsertWalletCard = z.infer<typeof insertWalletCardSchema>;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
+
+// ─── Payment Links + Invoicing ───────────────────────────────────────────────
+
+export const paymentLinks = pgTable("payment_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("ZAR"),
+  description: text("description"),
+  amountPaid: decimal("amount_paid", { precision: 12, scale: 2 }).notNull().default("0"),
+  remainingBalance: decimal("remaining_balance", { precision: 12, scale: 2 }).notNull(),
+  allowPartialPayment: boolean("allow_partial_payment").default(false),
+  minimumPayment: decimal("minimum_payment", { precision: 12, scale: 2 }),
+  type: text("type").notNull().default("personal"),
+  region: text("region").notNull().default("local"),
+  subRegion: text("sub_region"),
+  destination: text("destination").notNull().default("wallet"),
+  bankDetails: jsonb("bank_details"),
+  businessName: text("business_name"),
+  businessLogo: text("business_logo"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  paymentLinkId: varchar("payment_link_id").notNull().references(() => paymentLinks.id, { onDelete: "cascade" }),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email"),
+  customerPhone: text("customer_phone"),
+  items: jsonb("items").notNull().default([]),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  type: text("type").notNull().default("invoice"),
+  dueDate: timestamp("due_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const invoicePayments = pgTable("invoice_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  paymentLinkId: varchar("payment_link_id").notNull().references(() => paymentLinks.id, { onDelete: "cascade" }),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("ZAR"),
+  method: text("method").notNull().default("card"),
+  payerName: text("payer_name"),
+  payerEmail: text("payer_email"),
+  payerUserId: varchar("payer_user_id").references(() => users.id, { onDelete: "set null" }),
+  reference: text("reference").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  gateway: text("gateway"),
+  gatewayRef: text("gateway_ref"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// @ts-ignore
+export const insertPaymentLinkSchema = (createInsertSchema(paymentLinks) as any).omit({ id: true, createdAt: true, amountPaid: true, remainingBalance: true, status: true });
+// @ts-ignore
+export const insertInvoiceSchema = (createInsertSchema(invoices) as any).omit({ id: true, createdAt: true });
+// @ts-ignore
+export const insertInvoicePaymentSchema = (createInsertSchema(invoicePayments) as any).omit({ id: true, createdAt: true, status: true });
+
+export type PaymentLink = typeof paymentLinks.$inferSelect;
+export type InsertPaymentLink = z.infer<typeof insertPaymentLinkSchema>;
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type InvoicePayment = typeof invoicePayments.$inferSelect;
+export type InsertInvoicePayment = z.infer<typeof insertInvoicePaymentSchema>;
