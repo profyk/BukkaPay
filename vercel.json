@@ -1,0 +1,10 @@
+{
+  "buildCommand": null,
+  "outputDirectory": "dist",
+  "installCommand": "echo 'skip'",
+  "framework": null,
+  "routes": [
+    { "src": "/pay/(?<id>[^/]+)", "dest": "/pay/[linkId].html" },
+    { "src": "/claim/(?<id>[^/]+)", "dest": "/claim/[id].html" }
+  ]
+}
