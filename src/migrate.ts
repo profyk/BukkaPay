@@ -119,6 +119,44 @@ export async function runCoreMigrations(): Promise<void> {
       );
     `);
 
+    // New tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS merchant_subscriptions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        merchant_id VARCHAR NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        plan TEXT NOT NULL DEFAULT 'starter',
+        status TEXT NOT NULL DEFAULT 'active',
+        price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ,
+        stripe_subscription_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_links (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        merchant_id VARCHAR NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+        payment_link_id VARCHAR REFERENCES payment_links(id) ON DELETE SET NULL,
+        biller_name TEXT NOT NULL,
+        bill_type TEXT NOT NULL DEFAULT 'other',
+        description TEXT,
+        amount DECIMAL(12,2) NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'ZAR',
+        account_number TEXT,
+        billing_period TEXT,
+        due_date TIMESTAMPTZ,
+        attachments JSONB DEFAULT '[]',
+        recipients JSONB DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'active',
+        total_collected DECIMAL(12,2) NOT NULL DEFAULT 0,
+        payment_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     const alterStmts = [
       `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS frozen BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`,
@@ -130,7 +168,19 @@ export async function runCoreMigrations(): Promise<void> {
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS bank_details JSONB`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS business_name TEXT`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS business_logo TEXT`,
+      `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS attachments JSONB`,
+      `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS link_type TEXT NOT NULL DEFAULT 'payment'`,
       `ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS attachment JSONB`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS business_logo TEXT`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS business_email TEXT`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS business_phone TEXT`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS business_address TEXT`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS business_reg_number TEXT`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS vat_number TEXT`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS website TEXT`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS subscription_plan TEXT NOT NULL DEFAULT 'starter'`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS subscription_status TEXT NOT NULL DEFAULT 'active'`,
+      `ALTER TABLE IF EXISTS merchants ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ`,
     ];
     for (const stmt of alterStmts) {
       try { await pool.query(stmt); } catch (_) {}
