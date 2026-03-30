@@ -6,7 +6,7 @@ import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, i
 import crypto from "crypto";
 import { fromZodError } from "zod-validation-error";
 import bcrypt from "bcryptjs";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { claimPayments, userSessions } from "./shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import PDFDocument from "pdfkit";
@@ -707,7 +707,26 @@ export async function registerRoutes(
         qrCode,
         paymentLink,
       });
-      res.status(201).json(merchant);
+
+      // Update extended merchant fields (added via ALTER TABLE)
+      const { businessLogo, businessEmail, businessPhone, businessAddress, businessRegNumber, vatNumber, website, subscriptionPlan } = validation.data;
+      const extras: string[] = [];
+      const vals: any[] = [];
+      let idx = 1;
+      if (businessLogo) { extras.push(`business_logo = $${idx++}`); vals.push(businessLogo); }
+      if (businessEmail) { extras.push(`business_email = $${idx++}`); vals.push(businessEmail); }
+      if (businessPhone) { extras.push(`business_phone = $${idx++}`); vals.push(businessPhone); }
+      if (businessAddress) { extras.push(`business_address = $${idx++}`); vals.push(businessAddress); }
+      if (businessRegNumber) { extras.push(`business_reg_number = $${idx++}`); vals.push(businessRegNumber); }
+      if (vatNumber) { extras.push(`vat_number = $${idx++}`); vals.push(vatNumber); }
+      if (website) { extras.push(`website = $${idx++}`); vals.push(website); }
+      if (subscriptionPlan) { extras.push(`subscription_plan = $${idx++}`); vals.push(subscriptionPlan); }
+      if (extras.length > 0) {
+        vals.push(merchant.id);
+        try { await pool.query(`UPDATE merchants SET ${extras.join(", ")} WHERE id = $${idx}`, vals); } catch (_) {}
+      }
+
+      res.status(201).json({ ...merchant, businessLogo, businessEmail, businessPhone, subscriptionPlan: subscriptionPlan || "starter" });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2969,6 +2988,210 @@ export async function registerRoutes(
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       await storage.clearAllNotifications(userId);
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── File Upload (base64 → stored as data URI for now) ─────────────────────
+  app.post("/api/upload", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { base64, mimeType, filename } = req.body;
+      if (!base64 || !mimeType) return res.status(400).json({ error: "base64 and mimeType are required" });
+      const dataUri = `data:${mimeType};base64,${base64}`;
+      res.json({ url: dataUri, filename: filename || "file", mimeType });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Merchant Subscription ─────────────────────────────────────────────────
+  app.post("/api/merchants/:id/subscribe", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const merchant = await storage.getMerchant(req.params.id);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if ((merchant as any).userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const { plan } = req.body;
+      const planConfig: Record<string, { price: number }> = {
+        starter: { price: 0 },
+        pro: { price: 99 },
+        business: { price: 299 },
+      };
+      if (!planConfig[plan]) return res.status(400).json({ error: "Invalid plan" });
+
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+      const pool = pool;
+      if (pool) {
+        await pool.query(
+          `INSERT INTO merchant_subscriptions (merchant_id, plan, status, price, billing_cycle, expires_at)
+           VALUES ($1, $2, 'active', $3, 'monthly', $4)
+           ON CONFLICT DO NOTHING`,
+          [merchant.id, plan, planConfig[plan].price, expiresAt.toISOString()]
+        );
+        await pool.query(
+          `UPDATE merchants SET subscription_plan = $1, subscription_status = 'active', subscription_expires_at = $2 WHERE id = $3`,
+          [plan, expiresAt.toISOString(), merchant.id]
+        );
+      }
+
+      res.json({ success: true, plan, expiresAt });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Billing Links ─────────────────────────────────────────────────────────
+  app.get("/api/billing-links", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const merchantsList = await storage.getMerchantsByUser(userId);
+      if (!merchantsList.length) return res.json([]);
+
+      const merchantIds = merchantsList.map(m => m.id);
+      const pool = pool;
+      if (!pool) return res.json([]);
+
+      const placeholders = merchantIds.map((_, i) => `$${i + 1}`).join(", ");
+      const result = await pool.query(
+        `SELECT * FROM billing_links WHERE merchant_id IN (${placeholders}) ORDER BY created_at DESC`,
+        merchantIds
+      );
+      res.json(result.rows);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/billing-links", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const {
+        merchantId, billerName, billType, description, amount, currency,
+        accountNumber, billingPeriod, dueDate, attachments, recipients,
+      } = req.body;
+
+      if (!merchantId || !billerName || !amount) {
+        return res.status(400).json({ error: "merchantId, billerName and amount are required" });
+      }
+
+      const merchant = await storage.getMerchant(merchantId);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if ((merchant as any).userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+
+      const result = await pool.query(
+        `INSERT INTO billing_links
+           (merchant_id, biller_name, bill_type, description, amount, currency, account_number,
+            billing_period, due_date, attachments, recipients, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active')
+         RETURNING *`,
+        [
+          merchantId, billerName, billType || "other", description || null,
+          parseFloat(amount), currency || "ZAR", accountNumber || null,
+          billingPeriod || null, dueDate || null,
+          JSON.stringify(attachments || []), JSON.stringify(recipients || []),
+        ]
+      );
+
+      const link = result.rows[0];
+      // Create a corresponding payment link
+      try {
+        const authHeaders = await storage.getUser(userId);
+        const plResult = await pool.query(
+          `INSERT INTO payment_links
+             (sender_id, amount, currency, description, remaining_balance, type, destination, business_name, link_type, status)
+           VALUES ($1,$2,$3,$4,$5,'business','wallet',$6,'billing','active')
+           RETURNING id`,
+          [userId, parseFloat(amount), currency || "ZAR", `${billerName} — ${billingPeriod || "Bill"}`, parseFloat(amount), merchant.businessName]
+        );
+        const plId = plResult.rows[0]?.id;
+        if (plId) {
+          await pool.query(`UPDATE billing_links SET payment_link_id = $1 WHERE id = $2`, [plId, link.id]);
+          link.payment_link_id = plId;
+          link.payUrl = `https://app.bukkapay.com/pay/${plId}`;
+        }
+      } catch (_) {}
+
+      res.status(201).json({ ...link, payUrl: link.payment_link_id ? `https://app.bukkapay.com/pay/${link.payment_link_id}` : null });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/billing-links/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const result = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
+      if (!result.rows.length) return res.status(404).json({ error: "Not found" });
+      const link = result.rows[0];
+      if (link.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      res.json({ ...link, payUrl: link.payment_link_id ? `https://app.bukkapay.com/pay/${link.payment_link_id}` : null });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/billing-links/:id/status", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { status } = req.body;
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const check = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ error: "Not found" });
+      if (check.rows[0].user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      await pool.query(`UPDATE billing_links SET status = $1 WHERE id = $2`, [status, req.params.id]);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/billing-links/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const check = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ error: "Not found" });
+      if (check.rows[0].user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      await pool.query(`DELETE FROM billing_links WHERE id = $1`, [req.params.id]);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Patch payment link with attachments ──────────────────────────────────
+  app.patch("/api/payment-links/:id/attachments", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { attachments } = req.body;
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const check = await pool.query(`SELECT * FROM payment_links WHERE id = $1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ error: "Not found" });
+      if (check.rows[0].sender_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      await pool.query(`UPDATE payment_links SET attachments = $1 WHERE id = $2`, [JSON.stringify(attachments), req.params.id]);
+      res.json({ success: true, attachments });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
