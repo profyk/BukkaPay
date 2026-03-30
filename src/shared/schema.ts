@@ -290,6 +290,14 @@ export const insertMerchantSchema = z.object({
   isActive: z.boolean().optional(),
   dailyLimit: z.string().optional(),
   userId: z.string().optional(),
+  businessLogo: z.string().optional().nullable(),
+  businessEmail: z.string().optional().nullable(),
+  businessPhone: z.string().optional().nullable(),
+  businessAddress: z.string().optional().nullable(),
+  businessRegNumber: z.string().optional().nullable(),
+  vatNumber: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+  subscriptionPlan: z.string().optional().nullable(),
 });
 // @ts-ignore - drizzle-zod type compatibility
 export const insertMerchantTransactionSchema = (createInsertSchema(merchantTransactions) as any).omit({ id: true, createdAt: true });
