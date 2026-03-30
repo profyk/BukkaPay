@@ -827,6 +827,64 @@ export async function registerRoutes(
     }
   });
 
+  // POST /api/merchants/:id/withdraw — request a payout to bank account
+  app.post("/api/merchants/:id/withdraw", async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const merchant = await storage.getMerchant(req.params.id);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if (merchant.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const { amount, currency, bankingDetails } = req.body;
+      const parsedAmount = parseFloat(amount);
+      if (!parsedAmount || parsedAmount <= 0) return res.status(400).json({ error: "Invalid withdrawal amount" });
+      if (!bankingDetails?.accountHolder || !bankingDetails?.accountNumber) {
+        return res.status(400).json({ error: "Account holder name and account number are required" });
+      }
+
+      const currentBalance = parseFloat(merchant.walletBalance || "0");
+      if (parsedAmount > currentBalance) {
+        return res.status(400).json({ error: `Insufficient balance. Available: ${currentBalance.toFixed(2)}` });
+      }
+
+      // Debit the merchant wallet
+      const newBalance = (currentBalance - parsedAmount).toFixed(2);
+      await storage.updateMerchantBalance(merchant.id, newBalance);
+
+      // Log as a merchant transaction
+      await storage.createMerchantTransaction({
+        merchantId: merchant.id,
+        amount: parsedAmount.toFixed(2),
+        type: "withdrawal",
+        status: "pending",
+        reference: `WD-${Date.now()}`,
+      });
+
+      // Send notification to user
+      try {
+        await storage.createNotification({
+          userId,
+          title: "Withdrawal Requested",
+          message: `Your withdrawal of ${currency || "ZAR"} ${parsedAmount.toFixed(2)} has been submitted and will arrive in 1–3 business days.`,
+          type: "transaction",
+          read: false,
+        });
+      } catch {}
+
+      res.json({
+        success: true,
+        message: "Withdrawal request submitted. Funds will arrive in 1–3 business days.",
+        newBalance,
+        amount: parsedAmount.toFixed(2),
+        currency: currency || "ZAR",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/merchant-pay/:paymentLink", async (req, res) => {
     try {
       const merchant = await storage.getMerchantByPaymentLink(req.params.paymentLink);
