@@ -7,11 +7,13 @@ import { useToast } from "../hooks/use-toast";
 import { transfer, fetchCards } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import { getCountries, getBanksByCountry } from "../lib/banksData";
+import { useCurrency } from "../lib/CurrencyContext";
 
 export default function SendMoney() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { toast } = useToast();
+  const { currency } = useCurrency();
 
   const isFloatingButtonMode = params.mode === "qr";
   const initialMode = isFloatingButtonMode ? "scan" : "method";
@@ -92,7 +94,7 @@ export default function SendMoney() {
       }
 
       setStage("success");
-      toast({ title: "Payment Sent", description: `$${amount} sent successfully` });
+      toast({ title: "Payment Sent", description: `${currency.symbol}${amount} sent successfully` });
 
       setTimeout(() => {
         router.push("/(tabs)");
@@ -357,7 +359,7 @@ export default function SendMoney() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{card.title}</Text>
                   <Text style={styles.cardBalance}>
-                    Balance: ${parseFloat(card.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    Balance: {currency.symbol}{parseFloat(card.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
                 {selectedCard === card.id && (
@@ -396,7 +398,7 @@ export default function SendMoney() {
 
           <Text style={styles.inputLabel}>Amount</Text>
           <View style={styles.amountInputRow}>
-            <Text style={styles.amountDollar}>$</Text>
+            <Text style={styles.amountDollar}>{currency.symbol}</Text>
             <TextInput
               value={amount}
               onChangeText={setAmount}
@@ -451,7 +453,7 @@ export default function SendMoney() {
           <View style={styles.confirmGrid}>
             <View style={styles.confirmGridItem}>
               <Text style={styles.confirmGridLabel}>Amount</Text>
-              <Text style={styles.confirmGridValue}>${amount}</Text>
+              <Text style={styles.confirmGridValue}>{currency.symbol}{amount}</Text>
             </View>
             <View style={styles.confirmGridItem}>
               <Text style={styles.confirmGridLabel}>From Card</Text>
@@ -474,7 +476,7 @@ export default function SendMoney() {
               style={[styles.primaryButton, loading && { opacity: 0.5 }]}
             >
               <Ionicons name="send" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.primaryButtonText}>{loading ? "Sending..." : `Pay $${amount}`}</Text>
+              <Text style={styles.primaryButtonText}>{loading ? "Sending..." : `Pay ${currency.symbol}${amount}`}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -486,7 +488,7 @@ export default function SendMoney() {
             <Ionicons name="checkmark" size={40} color="#FFFFFF" />
           </View>
           <Text style={styles.successTitle}>Payment Sent!</Text>
-          <Text style={styles.successSubtitle}>${amount} has been sent successfully</Text>
+          <Text style={styles.successSubtitle}>{currency.symbol}{amount} has been sent successfully</Text>
           <Text style={styles.successRedirect}>Redirecting to home...</Text>
         </View>
       )}

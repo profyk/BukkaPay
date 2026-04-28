@@ -3,10 +3,12 @@ import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
+import { useCurrency } from "../lib/CurrencyContext";
 
 export default function TopUp() {
   const router = useRouter();
   const { toast } = useToast();
+  const { currency } = useCurrency();
   const [section, setSection] = useState<"select" | "card" | "voucher">("select");
   const [cardNumber, setCardNumber] = useState("");
   const [cardHolderName, setCardHolderName] = useState("");
@@ -19,7 +21,7 @@ export default function TopUp() {
       return;
     }
     try {
-      toast({ title: "Success", description: `$${amount} added to your wallet!` });
+      toast({ title: "Success", description: `${currency.symbol}${amount} added to your wallet!` });
       setCardNumber("");
       setCardHolderName("");
       setAmount("");

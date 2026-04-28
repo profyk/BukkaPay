@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { transfer, fetchCards } from "../lib/api";
@@ -9,6 +9,7 @@ import { useCurrency } from "../lib/CurrencyContext";
 
 export default function QRPay() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { toast } = useToast();
   const { currency } = useCurrency();
   const [stage, setStage] = useState<"scan" | "amount" | "confirm" | "success">("scan");
@@ -31,6 +32,15 @@ export default function QRPay() {
     queryKey: ["cards"],
     queryFn: fetchCards,
   });
+
+  useEffect(() => {
+    const incomingWalletId = params.walletId as string | undefined;
+    if (incomingWalletId) {
+      stopWebCamera();
+      setScannedData({ userId: incomingWalletId, username: incomingWalletId, walletId: incomingWalletId });
+      setStage("amount");
+    }
+  }, [params.walletId]);
 
   useEffect(() => {
     if (Platform.OS === "web" && stage === "scan") {
@@ -116,18 +126,6 @@ export default function QRPay() {
     setScannedData(data);
     setStage("amount");
     toast({ title: "QR Code Scanned!", description: `Found ${data.username || data.userId}` });
-  };
-
-  const handleSimulateScan = () => {
-    const mockData = {
-      userId: "demo-user-123",
-      username: "demo_merchant",
-      walletId: "WLT-DEMO-001",
-    };
-    stopWebCamera();
-    setScannedData(mockData);
-    setStage("amount");
-    toast({ title: "QR Code Scanned!", description: `Found ${mockData.username}` });
   };
 
   const toggleTorch = async () => {
@@ -228,13 +226,6 @@ export default function QRPay() {
               ? "Hold QR code steady inside the frame"
               : "Align QR code within the frame"}
           </Text>
-
-          <TouchableOpacity style={styles.simulateButton} onPress={handleSimulateScan}>
-            <Ionicons name="scan" size={20} color="#FFFFFF" />
-            <Text style={styles.simulateButtonText}>
-              {cameraReady ? "Use Demo QR Code" : "Simulate QR Scan"}
-            </Text>
-          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.flashButton, torchOn && styles.flashButtonActive]}
