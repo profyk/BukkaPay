@@ -1,0 +1,14 @@
+{
+    "buildCommand": "npx expo export --platform web",
+    "outputDirectory": "dist",
+    "installCommand": "npm install --legacy-peer-deps",
+    "framework": null,
+    "env": {
+      "EXPO_NO_TELEMETRY": "1",
+      "CI": "1"
+    },
+    "routes": [
+      { "src": "/pay/(?<id>[^/]+)", "dest": "/pay/[linkId].html" },
+      { "src": "/claim/(?<id>[^/]+)", "dest": "/claim/[id].html" }
+    ]
+  }
