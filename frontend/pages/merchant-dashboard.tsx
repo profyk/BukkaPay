@@ -392,6 +392,39 @@ export default function MerchantDashboard() {
     setWAmount(""); setWReference(""); setWCountry("ZA"); setWCurrency("ZAR");
   };
 
+  const deleteBusiness = (merchant: Merchant) => {
+    Alert.alert(
+      "Delete Business",
+      `Are you sure you want to permanently delete "${merchant.businessName}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const headers = await getAuthHeader();
+              const res = await fetch(`${API_BASE}/api/merchants/${merchant.id}`, {
+                method: "DELETE",
+                headers,
+              });
+              if (!res.ok) {
+                const d = await res.json().catch(() => ({}));
+                Alert.alert("Error", d.error || "Could not delete this business.");
+                return;
+              }
+              queryClient.invalidateQueries({ queryKey: ["/api/merchants"] });
+              if (selectedMerchantId === merchant.id) setSelectedMerchantId(null);
+              setShowSwitcher(false);
+            } catch {
+              Alert.alert("Error", "Something went wrong. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // ─── Loading / Empty States ────────────────────────────────────────────────
 
   if (isLoading) {
@@ -1049,19 +1082,36 @@ export default function MerchantDashboard() {
       {showSwitcher && (
         <View style={styles.switcherDropdown}>
           {merchants.map((m) => (
-            <TouchableOpacity
+            <View
               key={m.id}
               style={[styles.switcherItem, m.id === selectedMerchantId && styles.switcherItemActive]}
-              onPress={() => { setSelectedMerchantId(m.id); setShowSwitcher(false); }}
             >
-              <Ionicons name="storefront" size={16} color="#7C3AED" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.switcherName}>{m.businessName}</Text>
-                <Text style={styles.switcherType}>{m.businessType.replace(/_/g, " ")}</Text>
-              </View>
-              {m.id === selectedMerchantId && <Ionicons name="checkmark-circle" size={18} color="#7C3AED" />}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
+                onPress={() => { setSelectedMerchantId(m.id); setShowSwitcher(false); }}
+              >
+                <Ionicons name="storefront" size={16} color="#7C3AED" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switcherName}>{m.businessName}</Text>
+                  <Text style={styles.switcherType}>{m.businessType.replace(/_/g, " ")}</Text>
+                </View>
+                {m.id === selectedMerchantId && <Ionicons name="checkmark-circle" size={18} color="#7C3AED" />}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.switcherDeleteBtn}
+                onPress={() => deleteBusiness(m)}
+              >
+                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
           ))}
+          <TouchableOpacity
+            style={styles.switcherAddBtn}
+            onPress={() => { setShowSwitcher(false); router.push("/(screens)/become-merchant"); }}
+          >
+            <Ionicons name="add-circle-outline" size={18} color="#7C3AED" />
+            <Text style={styles.switcherAddText}>Add Another Business</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1266,6 +1316,9 @@ const styles = StyleSheet.create({
   switcherItemActive: { backgroundColor: "#FAF5FF" },
   switcherName: { fontSize: 14, fontWeight: "700", color: "#1A1A2E" },
   switcherType: { fontSize: 12, color: "#9CA3AF", marginTop: 1, textTransform: "capitalize" },
+  switcherDeleteBtn: { padding: 8, marginLeft: 4 },
+  switcherAddBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 14, borderTopWidth: 1, borderTopColor: "#F0F0F5" },
+  switcherAddText: { fontSize: 14, fontWeight: "700", color: "#7C3AED" },
 
   // ── Tab Bar ──
   tabBar: { flexDirection: "row", backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#F0F0F5" },
