@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
+import { registerAdminRoutes } from "./admin-routes";
 import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from "./stripe-client";
@@ -20,6 +22,12 @@ const httpServer = createServer(app);
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
   : [];
+
+// Security headers — must come before all routes
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // allow mobile apps to load assets
+  contentSecurityPolicy: false, // disabled for API server (no HTML served)
+}));
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -119,6 +127,14 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Rewrite /admin/* → /api/admin/* so proxies that strip the /api prefix still work
+app.use((req, _res, next) => {
+  if (req.url.startsWith("/admin")) {
+    req.url = "/api" + req.url;
+  }
+  next();
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -167,6 +183,7 @@ async function ensureTables() {
 (async () => {
   await ensureTables();
   await initStripe();
+  await registerAdminRoutes(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

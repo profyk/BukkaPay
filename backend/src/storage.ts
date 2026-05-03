@@ -1,5 +1,5 @@
 import { db } from "./db/index";
-import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions, paymentLinks, invoices, invoicePayments } from "./shared/schema";
+import { users, walletCards, transactions, contacts, paymentRequests, loyaltyRewards, autoPays, beneficiaries, challenges, achievements, chatMessages, billSplits, virtualCards, securitySettings, familyMembers, stokvels, stokvelMembers, merchants, merchantTransactions, properties, propertyUnits, tenants, rentPayments, rentPaymentLinks, webauthnCredentials, giftCards, contributionGroups, contributions, purchaseTransactions, paymentLinks, invoices, invoicePayments, savedPaymentLinks, notifications } from "./shared/schema";
 import type { 
   User, InsertUser, 
   WalletCard, InsertWalletCard,
@@ -16,7 +16,8 @@ import type {
   PurchaseTransaction, InsertPurchaseTransaction,
   PaymentLink, InsertPaymentLink,
   Invoice, InsertInvoice,
-  InvoicePayment, InsertInvoicePayment
+  InvoicePayment, InsertInvoicePayment,
+  Notification, InsertNotification
 } from "./shared/schema";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 
@@ -70,6 +71,7 @@ export interface IStorage {
   getMerchantByPaymentLink(paymentLink: string): Promise<Merchant | undefined>;
   getMerchantsByUser(userId: string): Promise<Merchant[]>;
   updateMerchantBalance(id: string, balance: string): Promise<Merchant | undefined>;
+  deleteMerchant(id: string): Promise<void>;
   
   // Merchant transactions
   createMerchantTransaction(transaction: InsertMerchantTransaction): Promise<MerchantTransaction>;
@@ -148,12 +150,14 @@ export interface IStorage {
   createPurchaseTransaction(transaction: InsertPurchaseTransaction & { reference: string }): Promise<PurchaseTransaction>;
   getPurchaseTransaction(id: string): Promise<PurchaseTransaction | undefined>;
   getPurchaseTransactionsByUser(userId: string, filters?: { category?: string; status?: string; startDate?: Date; endDate?: Date; limit?: number; offset?: number }): Promise<PurchaseTransaction[]>;
+  updatePurchaseTransactionMetadata(id: string, userId: string, metadata: Record<string, any>): Promise<PurchaseTransaction | undefined>;
 
   // Payment links
   createPaymentLink(link: InsertPaymentLink & { remainingBalance: string }): Promise<PaymentLink>;
   getPaymentLink(id: string): Promise<PaymentLink | undefined>;
   getPaymentLinksByUser(userId: string): Promise<PaymentLink[]>;
   updatePaymentLink(id: string, data: Partial<{ amountPaid: string; remainingBalance: string; status: string }>): Promise<PaymentLink | undefined>;
+  deletePaymentLink(id: string): Promise<void>;
 
   // Invoices
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
@@ -164,6 +168,19 @@ export interface IStorage {
   getInvoicePaymentByReference(reference: string): Promise<InvoicePayment | undefined>;
   getInvoicePaymentsByLink(paymentLinkId: string): Promise<InvoicePayment[]>;
   updateInvoicePayment(id: string, data: Partial<{ status: string; gatewayRef: string }>): Promise<InvoicePayment | undefined>;
+
+  // Saved / received payment links
+  savePaymentLink(userId: string, paymentLinkId: string): Promise<void>;
+  removeSavedPaymentLink(userId: string, paymentLinkId: string): Promise<void>;
+  getSavedPaymentLinks(userId: string): Promise<any[]>;
+
+  // Notifications
+  getNotifications(userId: string): Promise<Notification[]>;
+  createNotification(data: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: string, userId: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+  deleteNotification(id: string, userId: string): Promise<void>;
+  clearAllNotifications(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -430,6 +447,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(merchants.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteMerchant(id: string): Promise<void> {
+    await db.delete(merchants).where(eq(merchants.id, id));
   }
 
   async createMerchantTransaction(transaction: InsertMerchantTransaction): Promise<MerchantTransaction> {
@@ -769,6 +790,14 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
+  async updatePurchaseTransactionMetadata(id: string, userId: string, metadata: Record<string, any>): Promise<PurchaseTransaction | undefined> {
+    const [updated] = await db.update(purchaseTransactions)
+      .set({ metadata, updatedAt: new Date() })
+      .where(and(eq(purchaseTransactions.id, id), eq(purchaseTransactions.userId, userId)))
+      .returning();
+    return updated;
+  }
+
   // Payment link methods
   async createPaymentLink(link: InsertPaymentLink & { remainingBalance: string }): Promise<PaymentLink> {
     try {
@@ -802,6 +831,10 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async deletePaymentLink(id: string): Promise<void> {
+    await db.delete(paymentLinks).where(eq(paymentLinks.id, id));
+  }
+
   // Invoice methods
   async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
     const [created] = await db.insert(invoices).values(invoice as any).returning();
@@ -831,6 +864,60 @@ export class DatabaseStorage implements IStorage {
   async updateInvoicePayment(id: string, data: Partial<{ status: string; gatewayRef: string }>): Promise<InvoicePayment | undefined> {
     const [updated] = await db.update(invoicePayments).set(data as any).where(eq(invoicePayments.id, id)).returning();
     return updated;
+  }
+
+  async savePaymentLink(userId: string, paymentLinkId: string): Promise<void> {
+    const existing = await db.select().from(savedPaymentLinks)
+      .where(and(eq(savedPaymentLinks.userId, userId), eq(savedPaymentLinks.paymentLinkId, paymentLinkId)));
+    if (existing.length === 0) {
+      await db.insert(savedPaymentLinks).values({ userId, paymentLinkId });
+    }
+  }
+
+  async removeSavedPaymentLink(userId: string, paymentLinkId: string): Promise<void> {
+    await db.delete(savedPaymentLinks)
+      .where(and(eq(savedPaymentLinks.userId, userId), eq(savedPaymentLinks.paymentLinkId, paymentLinkId)));
+  }
+
+  async getSavedPaymentLinks(userId: string): Promise<any[]> {
+    const rows = await db.select().from(savedPaymentLinks)
+      .innerJoin(paymentLinks, eq(savedPaymentLinks.paymentLinkId, paymentLinks.id))
+      .where(eq(savedPaymentLinks.userId, userId))
+      .orderBy(desc(savedPaymentLinks.savedAt));
+    return rows.map((r: any) => ({ ...r.payment_links, direction: "received" }));
+  }
+
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(100);
+  }
+
+  async createNotification(data: InsertNotification): Promise<Notification> {
+    const [n] = await db.insert(notifications).values(data).returning();
+    return n;
+  }
+
+  async markNotificationRead(id: string, userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ read: true })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ read: true })
+      .where(eq(notifications.userId, userId));
+  }
+
+  async deleteNotification(id: string, userId: string): Promise<void> {
+    await db.delete(notifications)
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+  }
+
+  async clearAllNotifications(userId: string): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.userId, userId));
   }
 }
 

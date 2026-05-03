@@ -8,7 +8,7 @@ if (!databaseUrl) {
   throw new Error("DATABASE_URL or EXTERNAL_DATABASE_URL must be set.");
 }
 
-const pool = new pg.Pool({
+export const pool = new pg.Pool({
   connectionString: databaseUrl,
   ssl: { rejectUnauthorized: false }
 });

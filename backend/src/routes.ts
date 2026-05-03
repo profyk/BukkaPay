@@ -1,12 +1,13 @@
 import type { Express, Request, Response } from "express";
 import type { Server } from "http";
+import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { signup, login, generateSessionToken, hashPassword } from "./auth";
 import { insertWalletCardSchema, insertTransactionSchema, insertContactSchema, insertUserSchema, loginSchema, insertPaymentRequestSchema, insertLoyaltyRewardSchema, insertAutoPaySchema, insertBeneficiarySchema, insertChallengeSchema, insertVirtualCardSchema, insertMerchantSchema, insertMerchantTransactionSchema, insertPropertySchema, insertPropertyUnitSchema, insertTenantSchema, insertRentPaymentSchema, insertGiftCardSchema, insertContributionGroupSchema, insertContributionSchema } from "./shared/schema";
 import crypto from "crypto";
 import { fromZodError } from "zod-validation-error";
 import bcrypt from "bcryptjs";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { claimPayments, userSessions } from "./shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import PDFDocument from "pdfkit";
@@ -23,6 +24,40 @@ import type {
 
 const sessions = new Map<string, { userId: string; expiresAt: number }>();
 const webauthnChallenges = new Map<string, { challenge: string; expiresAt: number }>();
+
+// Per-email brute-force tracking: lock after 10 failed attempts for 30 minutes
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+
+// ─── Rate limiters ─────────────────────────────────────────────────────────
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many accounts created from this IP. Please try again later." },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { error: "Too many password reset requests. Please try again later." },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+const paymentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: "Too many payment requests. Please slow down." },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+// ──────────────────────────────────────────────────────────────────────────
 
 // Load all active sessions from DB into memory (called once at startup)
 async function loadSessionsFromDB() {
@@ -94,7 +129,7 @@ export async function registerRoutes(
   });
 
   // Auth Routes
-  app.post("/api/auth/signup", async (req, res) => {
+  app.post("/api/auth/signup", signupLimiter, async (req, res) => {
     try {
       const validation = insertUserSchema.safeParse(req.body);
       if (!validation.success) {
@@ -128,14 +163,49 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", loginLimiter, async (req, res) => {
     try {
       const validation = loginSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({ error: fromZodError(validation.error as any).message });
       }
 
-      const user = await login(validation.data);
+      const emailKey = (validation.data.email || "").toLowerCase();
+
+      // Account lockout check
+      const attempt = loginAttempts.get(emailKey);
+      if (attempt && attempt.lockedUntil > Date.now()) {
+        const minutesLeft = Math.ceil((attempt.lockedUntil - Date.now()) / 60000);
+        return res.status(429).json({ error: `Account locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).` });
+      }
+
+      let loginResult: { user: any; needsRehash: boolean };
+      try {
+        loginResult = await login(validation.data);
+      } catch (err: any) {
+        // Track failed attempt
+        const prev = loginAttempts.get(emailKey) || { count: 0, lockedUntil: 0 };
+        const newCount = prev.count + 1;
+        const lockedUntil = newCount >= 10 ? Date.now() + 30 * 60 * 1000 : 0;
+        loginAttempts.set(emailKey, { count: newCount, lockedUntil });
+        return res.status(401).json({ error: err.message });
+      }
+
+      // Clear lockout on success
+      loginAttempts.delete(emailKey);
+
+      const { user, needsRehash } = loginResult;
+
+      if ((user as any).frozen) {
+        return res.status(403).json({ error: "Your account has been suspended. Please contact support." });
+      }
+
+      // Transparently upgrade legacy SHA-256 passwords to bcrypt
+      if (needsRehash) {
+        const upgraded = await hashPassword(validation.data.password);
+        await storage.updateUserPassword(user.id, upgraded);
+      }
+
       const token = generateSessionToken();
       const exp30d2 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       sessions.set(token, { userId: user.id, expiresAt: exp30d2.getTime() });
@@ -143,7 +213,7 @@ export async function registerRoutes(
 
       res.json({
         token,
-        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode, loyaltyPoints: user.loyaltyPoints, biometricEnabled: user.biometricEnabled },
+        user: { id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode, loyaltyPoints: user.loyaltyPoints, biometricEnabled: user.biometricEnabled, verified: user.verified },
       });
     } catch (error: any) {
       res.status(401).json({ error: error.message });
@@ -163,37 +233,25 @@ export async function registerRoutes(
   // Password reset tokens storage (in production, use database with expiration)
   const resetTokens = new Map<string, { email: string; expires: number }>();
 
-  app.post("/api/auth/forgot-password", async (req, res) => {
+  app.post("/api/auth/forgot-password", forgotPasswordLimiter, async (req, res) => {
     try {
       const { email } = req.body;
-      
+
       if (!email) {
         return res.status(400).json({ error: "Email is required" });
       }
 
-      // Check if user exists
+      // Always return the same response — never reveal if an email exists
       const user = await storage.getUserByEmail(email);
-      if (!user) {
-        // Don't reveal if email exists for security, but still return success
-        return res.json({ success: true, message: "If an account with that email exists, we've sent reset instructions." });
+      if (user) {
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const expires = Date.now() + 3600000; // 1 hour
+        resetTokens.set(resetToken, { email, expires });
+        // TODO: send email with reset link /reset-password?token=${resetToken}
+        console.log(`[auth] Password reset requested for ${email}`);
       }
 
-      // Generate reset token
-      const resetToken = crypto.randomBytes(32).toString("hex");
-      const expires = Date.now() + 3600000; // 1 hour
-
-      // Store token
-      resetTokens.set(resetToken, { email, expires });
-
-      // In a real app, you would send an email here
-      // For demo purposes, we return the reset link
-      const resetLink = `/reset-password?token=${resetToken}`;
-
-      res.json({ 
-        success: true, 
-        message: "Password reset link sent",
-        resetLink // Only for demo - remove in production
-      });
+      res.json({ success: true, message: "If an account with that email exists, you will receive reset instructions shortly." });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -207,8 +265,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Token and password are required" });
       }
 
-      if (password.length < 6) {
-        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      if (password.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
       }
 
       // Verify token
@@ -228,14 +286,22 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Hash new password and update
+      // Hash new password with bcrypt and update
       const hashedPassword = await hashPassword(password);
       await storage.updateUserPassword(user.id, hashedPassword);
+
+      // Invalidate ALL existing sessions for this user (prevents account hijacking after reset)
+      for (const [sessionToken, sessionData] of sessions.entries()) {
+        if (sessionData.userId === user.id) {
+          sessions.delete(sessionToken);
+          deleteSessionFromDB(sessionToken);
+        }
+      }
 
       // Delete used token
       resetTokens.delete(token);
 
-      res.json({ success: true, message: "Password reset successful" });
+      res.json({ success: true, message: "Password reset successful. Please log in again." });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -337,6 +403,14 @@ export async function registerRoutes(
         userId,
         ...validation.data,
       });
+      await storage.createNotification({
+        userId,
+        type: "success",
+        title: "Card Added",
+        message: `Your card "${card.name}" has been added successfully`,
+        relatedId: card.id,
+        relatedType: "card",
+      });
       res.status(201).json(card);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -387,6 +461,18 @@ export async function registerRoutes(
         userId,
         ...validation.data,
       });
+
+      const isCredit = String(validation.data.type).toLowerCase() === "credit";
+      const amount = parseFloat(String(validation.data.amount)).toLocaleString("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 2 });
+      await storage.createNotification({
+        userId,
+        type: isCredit ? "success" : "info",
+        title: isCredit ? "Money Received" : "Payment Sent",
+        message: `${validation.data.title} — ${amount}`,
+        relatedId: transaction.id,
+        relatedType: "transaction",
+      });
+
       res.status(201).json(transaction);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -682,7 +768,26 @@ export async function registerRoutes(
         qrCode,
         paymentLink,
       });
-      res.status(201).json(merchant);
+
+      // Update extended merchant fields (added via ALTER TABLE)
+      const { businessLogo, businessEmail, businessPhone, businessAddress, businessRegNumber, vatNumber, website, subscriptionPlan } = validation.data;
+      const extras: string[] = [];
+      const vals: any[] = [];
+      let idx = 1;
+      if (businessLogo) { extras.push(`business_logo = $${idx++}`); vals.push(businessLogo); }
+      if (businessEmail) { extras.push(`business_email = $${idx++}`); vals.push(businessEmail); }
+      if (businessPhone) { extras.push(`business_phone = $${idx++}`); vals.push(businessPhone); }
+      if (businessAddress) { extras.push(`business_address = $${idx++}`); vals.push(businessAddress); }
+      if (businessRegNumber) { extras.push(`business_reg_number = $${idx++}`); vals.push(businessRegNumber); }
+      if (vatNumber) { extras.push(`vat_number = $${idx++}`); vals.push(vatNumber); }
+      if (website) { extras.push(`website = $${idx++}`); vals.push(website); }
+      if (subscriptionPlan) { extras.push(`subscription_plan = $${idx++}`); vals.push(subscriptionPlan); }
+      if (extras.length > 0) {
+        vals.push(merchant.id);
+        try { await pool.query(`UPDATE merchants SET ${extras.join(", ")} WHERE id = $${idx}`, vals); } catch (_) {}
+      }
+
+      res.status(201).json({ ...merchant, businessLogo, businessEmail, businessPhone, subscriptionPlan: subscriptionPlan || "starter" });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -796,6 +901,79 @@ export async function registerRoutes(
           remaining: Math.max(0, dailyLimit - dailyUsed),
           percentUsed: dailyLimit > 0 ? Math.round((dailyUsed / dailyLimit) * 100) : 0,
         },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/merchants/:id — delete a merchant business (owner only)
+  app.delete("/api/merchants/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const merchant = await storage.getMerchant(req.params.id);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if (merchant.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+      await storage.deleteMerchant(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/merchants/:id/withdraw — request a payout to bank account
+  app.post("/api/merchants/:id/withdraw", async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const merchant = await storage.getMerchant(req.params.id);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if (merchant.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const { amount, currency, bankingDetails } = req.body;
+      const parsedAmount = parseFloat(amount);
+      if (!parsedAmount || parsedAmount <= 0) return res.status(400).json({ error: "Invalid withdrawal amount" });
+      if (!bankingDetails?.accountHolder || !bankingDetails?.accountNumber) {
+        return res.status(400).json({ error: "Account holder name and account number are required" });
+      }
+
+      const currentBalance = parseFloat(merchant.walletBalance || "0");
+      if (parsedAmount > currentBalance) {
+        return res.status(400).json({ error: `Insufficient balance. Available: ${currentBalance.toFixed(2)}` });
+      }
+
+      // Debit the merchant wallet
+      const newBalance = (currentBalance - parsedAmount).toFixed(2);
+      await storage.updateMerchantBalance(merchant.id, newBalance);
+
+      // Log as a merchant transaction
+      await storage.createMerchantTransaction({
+        merchantId: merchant.id,
+        amount: parsedAmount.toFixed(2),
+        type: "withdrawal",
+        status: "pending",
+        reference: `WD-${Date.now()}`,
+      });
+
+      // Send notification to user
+      try {
+        await storage.createNotification({
+          userId,
+          title: "Withdrawal Requested",
+          message: `Your withdrawal of ${currency || "ZAR"} ${parsedAmount.toFixed(2)} has been submitted and will arrive in 1–3 business days.`,
+          type: "transaction",
+          read: false,
+        });
+      } catch {}
+
+      res.json({
+        success: true,
+        message: "Withdrawal request submitted. Funds will arrive in 1–3 business days.",
+        newBalance,
+        amount: parsedAmount.toFixed(2),
+        currency: currency || "ZAR",
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -2050,6 +2228,29 @@ export async function registerRoutes(
     }
   });
 
+  // PATCH /api/transactions/:id - Update purchase transaction metadata (e.g. used/unused)
+  app.patch("/api/transactions/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { metadata } = req.body;
+      if (!metadata || typeof metadata !== "object") {
+        return res.status(400).json({ error: "metadata object is required" });
+      }
+
+      const existing = await storage.getPurchaseTransaction(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Transaction not found" });
+      if (existing.userId !== userId) return res.status(403).json({ error: "Access denied" });
+
+      const merged = { ...(existing.metadata as Record<string, any> || {}), ...metadata };
+      const updated = await storage.updatePurchaseTransactionMetadata(req.params.id, userId, merged);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // ─── Payment Links + Invoicing ───────────────────────────────────────────────
 
   // POST /api/payment-links - Create a payment link
@@ -2112,13 +2313,65 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/payment-links - Get user's payment links
+  // GET /api/payment-links - Get user's payment links (created + received)
   app.get("/api/payment-links", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const links = await storage.getPaymentLinksByUser(userId);
-      res.json(links);
+      const [created, received] = await Promise.all([
+        storage.getPaymentLinksByUser(userId),
+        storage.getSavedPaymentLinks(userId),
+      ]);
+      const normalize = (l: any, direction: string) => ({
+        ...l,
+        direction,
+        paymentUrl: `https://app.bukkapay.com/pay/${l.id}`,
+      });
+      res.json([
+        ...created.map((l: any) => normalize(l, "sent")),
+        ...received.map((l: any) => normalize(l, "received")),
+      ]);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/payment-links/:linkId/save - Save a received payment link to inbox
+  app.post("/api/payment-links/:linkId/save", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      await storage.savePaymentLink(userId, link.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/payment-links/:linkId/save - Remove a saved link from inbox
+  app.delete("/api/payment-links/:linkId/save", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.removeSavedPaymentLink(userId, req.params.linkId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/payment-links/:linkId - Delete a payment link (sender only)
+  app.delete("/api/payment-links/:linkId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const link = await storage.getPaymentLink(req.params.linkId);
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      if (link.senderId !== userId) return res.status(403).json({ error: "You can only delete your own payment links" });
+      await storage.deletePaymentLink(req.params.linkId);
+      res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2147,7 +2400,7 @@ export async function registerRoutes(
   });
 
   // POST /api/payment-links/:linkId/pay-wallet - Pay with BukkaPay wallet
-  app.post("/api/payment-links/:linkId/pay-wallet", async (req, res) => {
+  app.post("/api/payment-links/:linkId/pay-wallet", paymentLimiter, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -2238,7 +2491,7 @@ export async function registerRoutes(
   });
 
   // POST /api/payment-links/:linkId/pay-card/initialize - Initialize Paystack card payment
-  app.post("/api/payment-links/:linkId/pay-card/initialize", async (req, res) => {
+  app.post("/api/payment-links/:linkId/pay-card/initialize", paymentLimiter, async (req, res) => {
     try {
       const link = await storage.getPaymentLink(req.params.linkId);
       if (!link) return res.status(404).json({ error: "Payment link not found" });
@@ -2791,6 +3044,425 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ─── Notifications ────────────────────────────────────────────────────────────
+
+  app.get("/api/notifications", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const items = await storage.getNotifications(userId);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.markNotificationRead(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/notifications/read-all", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.markAllNotificationsRead(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/notifications/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.deleteNotification(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/notifications", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.clearAllNotifications(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── File Upload (base64 → stored as data URI for now) ─────────────────────
+  app.post("/api/upload", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { base64, mimeType, filename } = req.body;
+      if (!base64 || !mimeType) return res.status(400).json({ error: "base64 and mimeType are required" });
+      const dataUri = `data:${mimeType};base64,${base64}`;
+      res.json({ url: dataUri, filename: filename || "file", mimeType });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Merchant Subscription ─────────────────────────────────────────────────
+  app.post("/api/merchants/:id/subscribe", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const merchant = await storage.getMerchant(req.params.id);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if ((merchant as any).userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const { plan } = req.body;
+      const planConfig: Record<string, { price: number }> = {
+        starter: { price: 0 },
+        pro: { price: 99 },
+        business: { price: 299 },
+      };
+      if (!planConfig[plan]) return res.status(400).json({ error: "Invalid plan" });
+
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+      const pool = pool;
+      if (pool) {
+        await pool.query(
+          `INSERT INTO merchant_subscriptions (merchant_id, plan, status, price, billing_cycle, expires_at)
+           VALUES ($1, $2, 'active', $3, 'monthly', $4)
+           ON CONFLICT DO NOTHING`,
+          [merchant.id, plan, planConfig[plan].price, expiresAt.toISOString()]
+        );
+        await pool.query(
+          `UPDATE merchants SET subscription_plan = $1, subscription_status = 'active', subscription_expires_at = $2 WHERE id = $3`,
+          [plan, expiresAt.toISOString(), merchant.id]
+        );
+      }
+
+      res.json({ success: true, plan, expiresAt });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Billing Links ─────────────────────────────────────────────────────────
+  app.get("/api/billing-links", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const merchantsList = await storage.getMerchantsByUser(userId);
+      if (!merchantsList.length) return res.json([]);
+
+      const merchantIds = merchantsList.map(m => m.id);
+      const pool = pool;
+      if (!pool) return res.json([]);
+
+      const placeholders = merchantIds.map((_, i) => `$${i + 1}`).join(", ");
+      const result = await pool.query(
+        `SELECT * FROM billing_links WHERE merchant_id IN (${placeholders}) ORDER BY created_at DESC`,
+        merchantIds
+      );
+      res.json(result.rows);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/billing-links", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const {
+        merchantId, billerName, billType, description, amount, currency,
+        accountNumber, billingPeriod, dueDate, attachments, recipients,
+      } = req.body;
+
+      if (!merchantId || !billerName || !amount) {
+        return res.status(400).json({ error: "merchantId, billerName and amount are required" });
+      }
+
+      const merchant = await storage.getMerchant(merchantId);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if ((merchant as any).userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+
+      const result = await pool.query(
+        `INSERT INTO billing_links
+           (merchant_id, biller_name, bill_type, description, amount, currency, account_number,
+            billing_period, due_date, attachments, recipients, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active')
+         RETURNING *`,
+        [
+          merchantId, billerName, billType || "other", description || null,
+          parseFloat(amount), currency || "ZAR", accountNumber || null,
+          billingPeriod || null, dueDate || null,
+          JSON.stringify(attachments || []), JSON.stringify(recipients || []),
+        ]
+      );
+
+      const link = result.rows[0];
+      // Create a corresponding payment link
+      try {
+        const authHeaders = await storage.getUser(userId);
+        const plResult = await pool.query(
+          `INSERT INTO payment_links
+             (sender_id, amount, currency, description, remaining_balance, type, destination, business_name, link_type, status)
+           VALUES ($1,$2,$3,$4,$5,'business','wallet',$6,'billing','active')
+           RETURNING id`,
+          [userId, parseFloat(amount), currency || "ZAR", `${billerName} — ${billingPeriod || "Bill"}`, parseFloat(amount), merchant.businessName]
+        );
+        const plId = plResult.rows[0]?.id;
+        if (plId) {
+          await pool.query(`UPDATE billing_links SET payment_link_id = $1 WHERE id = $2`, [plId, link.id]);
+          link.payment_link_id = plId;
+          link.payUrl = `https://app.bukkapay.com/pay/${plId}`;
+        }
+      } catch (_) {}
+
+      res.status(201).json({ ...link, payUrl: link.payment_link_id ? `https://app.bukkapay.com/pay/${link.payment_link_id}` : null });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/billing-links/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const result = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
+      if (!result.rows.length) return res.status(404).json({ error: "Not found" });
+      const link = result.rows[0];
+      if (link.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      res.json({ ...link, payUrl: link.payment_link_id ? `https://app.bukkapay.com/pay/${link.payment_link_id}` : null });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/billing-links/:id/status", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { status } = req.body;
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const check = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ error: "Not found" });
+      if (check.rows[0].user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      await pool.query(`UPDATE billing_links SET status = $1 WHERE id = $2`, [status, req.params.id]);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/billing-links/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const check = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ error: "Not found" });
+      if (check.rows[0].user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      await pool.query(`DELETE FROM billing_links WHERE id = $1`, [req.params.id]);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Patch payment link with attachments ──────────────────────────────────
+  app.patch("/api/payment-links/:id/attachments", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { attachments } = req.body;
+      const pool = pool;
+      if (!pool) return res.status(500).json({ error: "DB unavailable" });
+      const check = await pool.query(`SELECT * FROM payment_links WHERE id = $1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ error: "Not found" });
+      if (check.rows[0].sender_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      await pool.query(`UPDATE payment_links SET attachments = $1 WHERE id = $2`, [JSON.stringify(attachments), req.params.id]);
+      res.json({ success: true, attachments });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Tag n Ride ──────────────────────────────────────────────────────────────
+
+  app.post("/api/tag-ride/driver/register", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { vehicleNumber, vehicleType } = req.body;
+      if (!vehicleNumber?.trim()) return res.status(400).json({ error: "Vehicle number is required" });
+      const existing = await pool.query(`SELECT * FROM tag_ride_drivers WHERE user_id = $1`, [userId]);
+      if (existing.rows.length > 0) {
+        const updated = await pool.query(
+          `UPDATE tag_ride_drivers SET vehicle_number = $1, vehicle_type = $2, is_active = true WHERE user_id = $3 RETURNING *`,
+          [vehicleNumber.trim(), vehicleType || "taxi", userId]
+        );
+        return res.json(updated.rows[0]);
+      }
+      const result = await pool.query(
+        `INSERT INTO tag_ride_drivers (user_id, vehicle_number, vehicle_type) VALUES ($1, $2, $3) RETURNING *`,
+        [userId, vehicleNumber.trim(), vehicleType || "taxi"]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/tag-ride/driver/me", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const result = await pool.query(
+        `SELECT d.*, u.name, u.username FROM tag_ride_drivers d JOIN users u ON d.user_id = u.id WHERE d.user_id = $1`,
+        [userId]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: "Not registered as driver" });
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/tag-ride/driver/:driverId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const result = await pool.query(
+        `SELECT d.id, d.vehicle_number, d.vehicle_type, d.is_active, u.name FROM tag_ride_drivers d JOIN users u ON d.user_id = u.id WHERE d.id = $1`,
+        [req.params.driverId]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: "Driver not found" });
+      if (!result.rows[0].is_active) return res.status(400).json({ error: "Driver is not active" });
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/tag-ride/pay", async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { driverId, amount } = req.body;
+    if (!driverId || !amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({ error: "Invalid payment details" });
+    }
+    const amountDecimal = parseFloat(amount).toFixed(2);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const driverResult = await client.query(
+        `SELECT d.*, u.id AS driver_user_id FROM tag_ride_drivers d JOIN users u ON d.user_id = u.id WHERE d.id = $1 FOR UPDATE`,
+        [driverId]
+      );
+      if (!driverResult.rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Driver not found" }); }
+      const driver = driverResult.rows[0];
+      if (!driver.is_active) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Driver is not active" }); }
+      if (driver.driver_user_id === userId) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Cannot pay yourself" }); }
+
+      const passengerCardResult = await client.query(
+        `SELECT * FROM wallet_cards WHERE user_id = $1 AND (frozen IS NULL OR frozen = false) ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+        [userId]
+      );
+      if (!passengerCardResult.rows.length) { await client.query("ROLLBACK"); return res.status(400).json({ error: "No active wallet card found" }); }
+      const passengerCard = passengerCardResult.rows[0];
+
+      if (parseFloat(passengerCard.balance) < parseFloat(amountDecimal)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: `Insufficient balance. Available: ${parseFloat(passengerCard.balance).toFixed(2)}` });
+      }
+
+      const driverCardResult = await client.query(
+        `SELECT * FROM wallet_cards WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+        [driver.driver_user_id]
+      );
+      if (!driverCardResult.rows.length) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Driver has no wallet" }); }
+      const driverCard = driverCardResult.rows[0];
+
+      await client.query(`UPDATE wallet_cards SET balance = balance - $1 WHERE id = $2`, [amountDecimal, passengerCard.id]);
+      await client.query(`UPDATE wallet_cards SET balance = balance + $1 WHERE id = $2`, [amountDecimal, driverCard.id]);
+      await client.query(`UPDATE tag_ride_drivers SET total_earnings = total_earnings + $1 WHERE id = $2`, [amountDecimal, driverId]);
+
+      const reference = `TRD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const rideResult = await client.query(
+        `INSERT INTO tag_ride_rides (passenger_id, driver_id, passenger_card_id, driver_card_id, amount, status, reference) VALUES ($1, $2, $3, $4, $5, 'completed', $6) RETURNING *`,
+        [userId, driverId, passengerCard.id, driverCard.id, amountDecimal, reference]
+      );
+
+      await client.query(
+        `INSERT INTO transactions (user_id, card_id, title, category, amount, type, icon) VALUES ($1, $2, $3, 'transport', $4, 'debit', 'car')`,
+        [userId, passengerCard.id, `Tag n Ride - ${driver.name}`, amountDecimal]
+      );
+      await client.query(
+        `INSERT INTO transactions (user_id, card_id, title, category, amount, type, icon) VALUES ($1, $2, $3, 'transport', $4, 'credit', 'cash')`,
+        [driver.driver_user_id, driverCard.id, `Tag n Ride Fare`, amountDecimal]
+      );
+
+      await client.query("COMMIT");
+      const newBalance = (parseFloat(passengerCard.balance) - parseFloat(amountDecimal)).toFixed(2);
+      res.json({ success: true, ride: rideResult.rows[0], reference, passengerNewBalance: newBalance });
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      res.status(500).json({ error: error.message });
+    } finally {
+      client.release();
+    }
+  });
+
+  app.get("/api/tag-ride/rides", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const role = (req.query.role as string) || "passenger";
+      if (role === "driver") {
+        const driverResult = await pool.query(`SELECT id FROM tag_ride_drivers WHERE user_id = $1`, [userId]);
+        if (!driverResult.rows.length) return res.json({ rides: [], todayTotal: "0.00" });
+        const driverId = driverResult.rows[0].id;
+        const ridesResult = await pool.query(
+          `SELECT r.*, u.name AS passenger_name FROM tag_ride_rides r JOIN users u ON r.passenger_id = u.id WHERE r.driver_id = $1 ORDER BY r.created_at DESC LIMIT 50`,
+          [driverId]
+        );
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const todayResult = await pool.query(
+          `SELECT COALESCE(SUM(amount), 0) AS today_total FROM tag_ride_rides WHERE driver_id = $1 AND created_at >= $2 AND status = 'completed'`,
+          [driverId, todayStart]
+        );
+        res.json({ rides: ridesResult.rows, todayTotal: parseFloat(todayResult.rows[0].today_total).toFixed(2) });
+      } else {
+        const result = await pool.query(
+          `SELECT r.*, d.vehicle_number, d.vehicle_type, u.name AS driver_name FROM tag_ride_rides r JOIN tag_ride_drivers d ON r.driver_id = d.id JOIN users u ON d.user_id = u.id WHERE r.passenger_id = $1 ORDER BY r.created_at DESC LIMIT 50`,
+          [userId]
+        );
+        res.json({ rides: result.rows });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

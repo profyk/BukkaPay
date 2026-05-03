@@ -1,12 +1,7 @@
 node_modules
 dist
-.env
-project.zip
-project.zip
-node_modules/
-assets/
-project.zip
-node_modules/
-assets/
-project.zip
-project.zip
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+.vercel

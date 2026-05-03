@@ -16,6 +16,8 @@ export const users = pgTable("users", {
   biometricEnabled: boolean("biometric_enabled").default(false),
   verified: boolean("verified").default(false),
   loyaltyPoints: integer("loyalty_points").default(0),
+  frozen: boolean("frozen").notNull().default(false),
+  role: text("role").notNull().default("user"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -288,6 +290,14 @@ export const insertMerchantSchema = z.object({
   isActive: z.boolean().optional(),
   dailyLimit: z.string().optional(),
   userId: z.string().optional(),
+  businessLogo: z.string().optional().nullable(),
+  businessEmail: z.string().optional().nullable(),
+  businessPhone: z.string().optional().nullable(),
+  businessAddress: z.string().optional().nullable(),
+  businessRegNumber: z.string().optional().nullable(),
+  vatNumber: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+  subscriptionPlan: z.string().optional().nullable(),
 });
 // @ts-ignore - drizzle-zod type compatibility
 export const insertMerchantTransactionSchema = (createInsertSchema(merchantTransactions) as any).omit({ id: true, createdAt: true });
@@ -599,3 +609,78 @@ export const insertClaimPaymentSchema = (createInsertSchema(claimPayments) as an
 
 export type ClaimPayment = typeof claimPayments.$inferSelect;
 export type InsertClaimPayment = z.infer<typeof insertClaimPaymentSchema>;
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull().default("info"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").notNull().default(false),
+  relatedId: varchar("related_id"),
+  relatedType: text("related_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
+
+// ─── Admin Users ──────────────────────────────────────────────────────────────
+export const adminUsers = pgTable("admin_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  password: text("password").notNull(),
+  role: text("role").notNull().default("admin"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AdminUser = typeof adminUsers.$inferSelect;
+export type InsertAdminUser = typeof adminUsers.$inferInsert;
+
+export const adminSessions = pgTable("admin_sessions", {
+  token: varchar("token", { length: 64 }).primaryKey(),
+  adminId: varchar("admin_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AdminSession = typeof adminSessions.$inferSelect;
+
+// ─── Saved / Received Payment Links ───────────────────────────────────────────
+export const savedPaymentLinks = pgTable("saved_payment_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  paymentLinkId: varchar("payment_link_id").notNull().references(() => paymentLinks.id, { onDelete: "cascade" }),
+  savedAt: timestamp("saved_at").defaultNow().notNull(),
+});
+
+// ─── Tag n Ride ───────────────────────────────────────────────────────────────
+
+export const tagRideDrivers = pgTable("tag_ride_drivers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  vehicleNumber: text("vehicle_number").notNull(),
+  vehicleType: text("vehicle_type").notNull().default("taxi"),
+  isActive: boolean("is_active").default(true),
+  totalEarnings: decimal("total_earnings", { precision: 12, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tagRideRides = pgTable("tag_ride_rides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  passengerId: varchar("passenger_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  driverId: varchar("driver_id").notNull().references(() => tagRideDrivers.id, { onDelete: "cascade" }),
+  passengerCardId: varchar("passenger_card_id").references(() => walletCards.id, { onDelete: "set null" }),
+  driverCardId: varchar("driver_card_id").references(() => walletCards.id, { onDelete: "set null" }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").notNull().default("completed"),
+  reference: text("reference").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type TagRideDriver = typeof tagRideDrivers.$inferSelect;
+export type TagRideRide = typeof tagRideRides.$inferSelect;
