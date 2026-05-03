@@ -846,6 +846,21 @@ export async function registerRoutes(
     }
   });
 
+  // DELETE /api/merchants/:id — delete a merchant business (owner only)
+  app.delete("/api/merchants/:id", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const merchant = await storage.getMerchant(req.params.id);
+      if (!merchant) return res.status(404).json({ error: "Merchant not found" });
+      if (merchant.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+      await storage.deleteMerchant(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // POST /api/merchants/:id/withdraw — request a payout to bank account
   app.post("/api/merchants/:id/withdraw", async (req, res) => {
     try {
