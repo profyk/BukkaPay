@@ -11,17 +11,15 @@ interface Feature {
 }
 
 const features: Feature[] = [
+  { iconName: "bus", label: "Tag n Ride", route: "/(screens)/tag-ride", color: "#0D9488" },
   { iconName: "link", label: "Payment Links", route: "/(screens)/payment-links", color: "#7C3AED" },
   { iconName: "bag-handle", label: "Purchases Hub", route: "/(screens)/purchases-hub", color: "#0891B2" },
-  { iconName: "card", label: "Gift Cards", route: "/(screens)/gift-cards", color: "#EC4899" },
   { iconName: "heart", label: "Contributions", route: "/(screens)/contributions", color: "#10B981" },
   { iconName: "airplane", label: "Travel Booking", route: "/(screens)/travel", color: "#0EA5E9" },
   { iconName: "gift", label: "Loyalty Rewards", route: "/(screens)/loyalty", color: "#6D28D9" },
   { iconName: "bar-chart", label: "Analytics", route: "/(screens)/analytics", color: "#2563EB" },
   { iconName: "people", label: "Referral Program", route: "#", color: "#059669", comingSoon: true },
-  { iconName: "flash", label: "Gamification", route: "/(screens)/gamification", color: "#F97316" },
   { iconName: "chatbubble", label: "Support Chat", route: "/(screens)/support-chat", color: "#EC4899" },
-  { iconName: "git-branch", label: "Bill Splitting", route: "/(screens)/bill-split", color: "#6366F1" },
   { iconName: "home", label: "Pay Rent", route: "/(screens)/tenant-dashboard", color: "#D97706" },
 ];
 

@@ -55,6 +55,9 @@ export default function Scan() {
     if (data.startsWith("bukkapay://pay/")) {
       const payId = data.replace("bukkapay://pay/", "");
       router.push(`/(screens)/qr-pay?walletId=${payId}` as any);
+    } else if (data.startsWith("bukkapay://tagride/")) {
+      const driverId = data.replace("bukkapay://tagride/", "");
+      router.push(`/(screens)/tag-ride-pay?driverId=${driverId}` as any);
     } else if (data.startsWith("bukkapay://")) {
       const walletTarget = data.replace("bukkapay://", "");
       router.push(`/(screens)/qr-pay?walletId=${walletTarget}` as any);
