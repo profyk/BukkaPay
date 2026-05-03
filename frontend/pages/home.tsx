@@ -73,8 +73,10 @@ export default function Home() {
         <View style={styles.section}>
         <View style={styles.currencyRow}>
           <TouchableOpacity style={[styles.currencyButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => setShowCurrencyModal(true)}>
-            <Text style={[styles.currencyText, { color: colors.textSecondary }]}>{currentCurrency.symbol} {currentCurrency.code}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+            <Ionicons name="globe-outline" size={14} color={colors.textSecondary} />
+            <Text style={[styles.currencyLabel, { color: colors.textSecondary }]}>Currency:</Text>
+            <Text style={[styles.currencyText, { color: colors.text }]}>{currentCurrency.symbol} {currentCurrency.code}</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -129,7 +131,8 @@ export default function Home() {
       <Modal visible={showCurrencyModal} transparent animationType="fade">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCurrencyModal(false)}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Currency</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>App Currency</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Applies to balances and amounts across the entire app</Text>
             {CURRENCIES.map((currency) => (
               <TouchableOpacity
                 key={currency.code}
@@ -179,14 +182,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     gap: 4,
   },
+  currencyLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
   currencyText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 13,
+    fontWeight: "700",
     color: "#1A1A2E",
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 16,
+    marginTop: -8,
   },
   skeleton: {
     height: 192,
