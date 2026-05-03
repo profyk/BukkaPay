@@ -75,13 +75,6 @@ const ALL_ITEMS: AppItem[] = [
     route: "/(screens)/tap-pay",
   },
   {
-    id: "bill-split", category: "Payments",
-    title: "Split a Bill", description: "Divide expenses equally among friends",
-    keywords: ["split", "bill", "share", "divide", "friends", "group"],
-    icon: "calculator-outline", iconBg: "#F0FDF4", iconColor: "#059669",
-    route: "/(screens)/bill-split",
-  },
-  {
     id: "pay-rent", category: "Payments",
     title: "Pay Rent", description: "Pay your rent directly through BukkaPay",
     keywords: ["rent", "landlord", "pay", "housing", "property"],
@@ -144,13 +137,6 @@ const ALL_ITEMS: AppItem[] = [
     route: "/(screens)/buy",
   },
   {
-    id: "gift-cards", category: "Shopping",
-    title: "Gift Cards", description: "Buy and send gift cards for Amazon, Netflix and more",
-    keywords: ["gift card", "voucher", "amazon", "netflix", "google play", "apple"],
-    icon: "gift-outline", iconBg: "#FFF1F2", iconColor: "#EC4899",
-    route: "/(screens)/gift-cards",
-  },
-  {
     id: "travel", category: "Shopping",
     title: "Travel Booking", description: "Book buses, flights and hotels",
     keywords: ["travel", "flight", "bus", "hotel", "booking", "trip"],
@@ -172,13 +158,6 @@ const ALL_ITEMS: AppItem[] = [
     keywords: ["contributions", "stokvel", "savings", "history"],
     icon: "wallet-outline", iconBg: "#F0FDF4", iconColor: "#059669",
     route: "/(screens)/contributions",
-  },
-  {
-    id: "gamification", category: "Community",
-    title: "Challenges & Achievements", description: "Complete challenges and earn BukkaPoints",
-    keywords: ["challenges", "achievements", "points", "rewards", "badges", "streak"],
-    icon: "trophy-outline", iconBg: "#FFFBEB", iconColor: "#D97706",
-    route: "/(screens)/gamification",
   },
   {
     id: "loyalty", category: "Community",

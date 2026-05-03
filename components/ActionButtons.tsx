@@ -7,9 +7,9 @@ export default function ActionButtons() {
 
   const actions: { icon: keyof typeof Ionicons.glyphMap; label: string; href: string; color: string }[] = [
     { icon: "send", label: "Send", href: "/(screens)/send-money", color: "#3B82F6" },
+    { icon: "bus", label: "Tag & Ride", href: "/(screens)/tag-ride", color: "#0D9488" },
     { icon: "link", label: "Request", href: "/(screens)/create-payment-link", color: "#8B5CF6" },
     { icon: "add", label: "Top Up", href: "/(screens)/topup", color: "#10B981" },
-    { icon: "bus", label: "Tag Ride", href: "/(screens)/tag-ride", color: "#0D9488" },
     { icon: "airplane", label: "Travel", href: "/(screens)/travel", color: "#0EA5E9" },
     { icon: "phone-portrait-outline", label: "Tap Pay", href: "/(screens)/tap-pay", color: "#6366F1" },
   ];

@@ -14,8 +14,22 @@ export const API_BASE =
   "https://api.bukkapay.com";
 
 /**
+ * APP_URL: The public URL where the frontend app is served.
+ * Used to construct shareable payment link URLs.
+ */
+export const APP_URL =
+  process.env.EXPO_PUBLIC_APP_URL ||
+  Constants.expoConfig?.extra?.appUrl ||
+  "https://app.bukkapay.com";
+
+/**
  * Helper function to construct full API endpoints
  * Usage:
  *   fetch(apiUrl("/auth/login"), {...})
  */
 export const apiUrl = (endpoint: string) => `${API_BASE}${endpoint}`;
+
+/**
+ * Helper function to construct shareable payment link URLs
+ */
+export const payUrl = (linkId: string) => `${APP_URL}/pay/${linkId}`;

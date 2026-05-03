@@ -1,481 +1,820 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet } from "react-native";
+import {
+  View, Text, TouchableOpacity, ScrollView, TextInput, Modal,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "../lib/queryClient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useToast } from "../hooks/use-toast";
 
-type TravelType = "bus" | "flight" | "hotel";
+const PRIMARY = "#7C3AED";
+const SURFACE = "#F8F9FA";
+const BORDER = "#E5E7EB";
+const TEXT = "#1A1A2E";
+const MUTED = "#6B7280";
 
-interface BusRoute {
-  id: string;
-  operator: string;
-  from: string;
-  to: string;
-  departure: string;
-  arrival: string;
-  duration: string;
-  price: number;
-  seats: number;
-  type: string;
-  rating: number;
-}
-
-interface Flight {
-  id: string;
-  airline: string;
-  from: string;
-  fromCode: string;
-  to: string;
-  toCode: string;
-  departure: string;
-  arrival: string;
-  duration: string;
-  price: number;
-  stops: number;
-  class: string;
-  rating: number;
-}
-
-interface HotelOption {
-  id: string;
-  name: string;
-  location: string;
-  rating: number;
-  reviews: number;
-  price: number;
-  amenities: string[];
-  image: string;
-  type: string;
-}
-
-const busRoutes: BusRoute[] = [
-  { id: "bus-1", operator: "Metro Express", from: "New York", to: "Boston", departure: "08:00 AM", arrival: "12:30 PM", duration: "4h 30m", price: 45, seats: 12, type: "Luxury", rating: 4.7 },
-  { id: "bus-2", operator: "Greyhound", from: "New York", to: "Washington DC", departure: "09:30 AM", arrival: "02:00 PM", duration: "4h 30m", price: 35, seats: 8, type: "Standard", rating: 4.3 },
-  { id: "bus-3", operator: "FlixBus", from: "Los Angeles", to: "San Francisco", departure: "07:00 AM", arrival: "02:00 PM", duration: "7h", price: 55, seats: 20, type: "Premium", rating: 4.5 },
-  { id: "bus-4", operator: "Megabus", from: "Chicago", to: "Detroit", departure: "10:00 AM", arrival: "02:30 PM", duration: "4h 30m", price: 25, seats: 15, type: "Economy", rating: 4.2 },
-  { id: "bus-5", operator: "Peter Pan", from: "Boston", to: "New York", departure: "06:00 AM", arrival: "10:30 AM", duration: "4h 30m", price: 40, seats: 5, type: "Luxury", rating: 4.6 },
+const SA_BUS_CITIES = [
+  "Johannesburg", "Cape Town", "Durban", "Pretoria",
+  "Port Elizabeth", "East London", "Bloemfontein",
+  "Nelspruit", "Polokwane", "Kimberley",
 ];
 
-const flights: Flight[] = [
-  { id: "fl-1", airline: "Delta Airlines", from: "New York", fromCode: "JFK", to: "Los Angeles", toCode: "LAX", departure: "08:00 AM", arrival: "11:30 AM", duration: "5h 30m", price: 299, stops: 0, class: "Economy", rating: 4.6 },
-  { id: "fl-2", airline: "United Airlines", from: "Chicago", fromCode: "ORD", to: "Miami", toCode: "MIA", departure: "10:15 AM", arrival: "03:45 PM", duration: "3h 30m", price: 189, stops: 0, class: "Economy", rating: 4.4 },
-  { id: "fl-3", airline: "American Airlines", from: "Los Angeles", fromCode: "LAX", to: "New York", toCode: "JFK", departure: "06:00 AM", arrival: "02:30 PM", duration: "5h 30m", price: 279, stops: 0, class: "Economy", rating: 4.5 },
-  { id: "fl-4", airline: "Southwest", from: "Dallas", fromCode: "DFW", to: "Denver", toCode: "DEN", departure: "11:00 AM", arrival: "12:30 PM", duration: "2h 30m", price: 149, stops: 0, class: "Economy", rating: 4.3 },
-  { id: "fl-5", airline: "JetBlue", from: "Boston", fromCode: "BOS", to: "San Francisco", toCode: "SFO", departure: "07:30 AM", arrival: "11:00 AM", duration: "6h 30m", price: 329, stops: 1, class: "Economy", rating: 4.7 },
+const SA_AIRPORTS = [
+  { city: "Johannesburg", code: "JNB" },
+  { city: "Cape Town", code: "CPT" },
+  { city: "Durban", code: "DUR" },
+  { city: "Port Elizabeth", code: "PLZ" },
+  { city: "East London", code: "ELS" },
+  { city: "George", code: "GRJ" },
+  { city: "Bloemfontein", code: "BFN" },
 ];
 
-const hotels: HotelOption[] = [
-  { id: "htl-1", name: "Grand Plaza Hotel", location: "Manhattan, New York", rating: 4.8, reviews: 2453, price: 189, amenities: ["WiFi", "Pool", "Gym", "Spa"], image: "", type: "Luxury" },
-  { id: "htl-2", name: "Comfort Inn Downtown", location: "Chicago, IL", rating: 4.3, reviews: 1876, price: 99, amenities: ["WiFi", "Breakfast", "Parking"], image: "", type: "Budget" },
-  { id: "htl-3", name: "Ocean View Resort", location: "Miami Beach, FL", rating: 4.9, reviews: 3241, price: 259, amenities: ["WiFi", "Beach Access", "Pool", "Restaurant"], image: "", type: "Resort" },
-  { id: "htl-4", name: "Business Suites", location: "San Francisco, CA", rating: 4.5, reviews: 1543, price: 159, amenities: ["WiFi", "Business Center", "Gym"], image: "", type: "Business" },
-  { id: "htl-5", name: "Mountain Lodge", location: "Denver, CO", rating: 4.7, reviews: 987, price: 129, amenities: ["WiFi", "Fireplace", "Restaurant", "Hiking"], image: "", type: "Lodge" },
+type BusRoute = {
+  id: string; operator: string; type: string; from: string; to: string;
+  departure: string; arrival: string; duration: string; price: number;
+  seats: number; rating: number; amenities: string[];
+};
+
+type FlightRoute = {
+  id: string; airline: string; from: string; fromCode: string;
+  to: string; toCode: string; departure: string; arrival: string;
+  duration: string; price: number; stops: number; class: string; rating: number;
+};
+
+const BUS_ROUTES: BusRoute[] = [
+  { id: "b1", operator: "Intercape", type: "Luxury Liner", from: "Johannesburg", to: "Cape Town", departure: "18:00", arrival: "10:00+1", duration: "16h", price: 450, seats: 14, rating: 4.7, amenities: ["WiFi", "AC", "Toilet", "USB"] },
+  { id: "b2", operator: "Greyhound SA", type: "Premium", from: "Johannesburg", to: "Durban", departure: "20:30", arrival: "05:30+1", duration: "9h", price: 280, seats: 8, rating: 4.5, amenities: ["AC", "Recliner", "USB"] },
+  { id: "b3", operator: "Translux", type: "Standard", from: "Johannesburg", to: "Cape Town", departure: "16:00", arrival: "08:30+1", duration: "16h 30m", price: 390, seats: 22, rating: 4.3, amenities: ["AC", "Toilet"] },
+  { id: "b4", operator: "City to City", type: "Economy", from: "Johannesburg", to: "Durban", departure: "07:00", arrival: "15:30", duration: "8h 30m", price: 220, seats: 30, rating: 4.1, amenities: ["AC"] },
+  { id: "b5", operator: "FlixBus SA", type: "Comfort", from: "Cape Town", to: "Port Elizabeth", departure: "08:00", arrival: "14:30", duration: "6h 30m", price: 310, seats: 18, rating: 4.6, amenities: ["WiFi", "AC", "USB"] },
+  { id: "b6", operator: "Intercape", type: "Luxury Liner", from: "Pretoria", to: "Cape Town", departure: "17:00", arrival: "09:00+1", duration: "16h", price: 480, seats: 10, rating: 4.8, amenities: ["WiFi", "AC", "Toilet", "USB"] },
+  { id: "b7", operator: "Greyhound SA", type: "Premium", from: "Durban", to: "Johannesburg", departure: "21:00", arrival: "06:00+1", duration: "9h", price: 290, seats: 5, rating: 4.5, amenities: ["AC", "Recliner", "USB"] },
+  { id: "b8", operator: "Translux", type: "Standard", from: "Cape Town", to: "Johannesburg", departure: "17:30", arrival: "10:30+1", duration: "17h", price: 400, seats: 15, rating: 4.2, amenities: ["AC", "Toilet"] },
+  { id: "b9", operator: "City to City", type: "Economy", from: "Johannesburg", to: "Bloemfontein", departure: "09:00", arrival: "13:00", duration: "4h", price: 180, seats: 25, rating: 4.0, amenities: ["AC"] },
+  { id: "b10", operator: "Intercape", type: "Comfort", from: "Durban", to: "Port Elizabeth", departure: "06:00", arrival: "17:00", duration: "11h", price: 350, seats: 12, rating: 4.4, amenities: ["AC", "Toilet", "USB"] },
+  { id: "b11", operator: "FlixBus SA", type: "Comfort", from: "Johannesburg", to: "Polokwane", departure: "10:00", arrival: "13:30", duration: "3h 30m", price: 160, seats: 20, rating: 4.3, amenities: ["WiFi", "AC", "USB"] },
+  { id: "b12", operator: "Translux", type: "Standard", from: "Johannesburg", to: "East London", departure: "15:00", arrival: "06:00+1", duration: "15h", price: 420, seats: 18, rating: 4.2, amenities: ["AC", "Toilet"] },
+  { id: "b13", operator: "Greyhound SA", type: "Premium", from: "Pretoria", to: "Durban", departure: "19:00", arrival: "04:00+1", duration: "9h", price: 300, seats: 9, rating: 4.6, amenities: ["AC", "Recliner", "USB"] },
+  { id: "b14", operator: "City to City", type: "Economy", from: "Cape Town", to: "Bloemfontein", departure: "12:00", arrival: "22:00", duration: "10h", price: 260, seats: 28, rating: 4.0, amenities: ["AC"] },
 ];
 
-function BusCard({ route, onBook }: { route: BusRoute; onBook: () => void }) {
-  return (
-    <View style={styles.travelCard}>
-      <View style={styles.cardTopRow}>
-        <View style={styles.cardTopLeft}>
-          <View style={[styles.iconCircle, { backgroundColor: "rgba(59,130,246,0.1)" }]}>
-            <Ionicons name="bus-outline" size={20} color="#3B82F6" />
-          </View>
-          <View>
-            <Text style={styles.operatorName}>{route.operator}</Text>
-            <Text style={styles.operatorType}>{route.type}</Text>
-          </View>
-        </View>
-        <View style={styles.ratingRow}>
-          <Ionicons name="star" size={14} color="#F59E0B" />
-          <Text style={styles.ratingText}>{route.rating}</Text>
-        </View>
-      </View>
+const FLIGHTS: FlightRoute[] = [
+  { id: "f1", airline: "FlySafair", from: "Johannesburg", fromCode: "JNB", to: "Cape Town", toCode: "CPT", departure: "07:30", arrival: "09:40", duration: "2h 10m", price: 1200, stops: 0, class: "Economy", rating: 4.7 },
+  { id: "f2", airline: "Kulula.com", from: "Johannesburg", fromCode: "JNB", to: "Cape Town", toCode: "CPT", departure: "10:15", arrival: "12:25", duration: "2h 10m", price: 1050, stops: 0, class: "Economy", rating: 4.5 },
+  { id: "f3", airline: "British Airways", from: "Johannesburg", fromCode: "JNB", to: "Durban", toCode: "DUR", departure: "08:00", arrival: "09:00", duration: "1h", price: 950, stops: 0, class: "Economy", rating: 4.6 },
+  { id: "f4", airline: "FlySafair", from: "Johannesburg", fromCode: "JNB", to: "Durban", toCode: "DUR", departure: "11:30", arrival: "12:35", duration: "1h 05m", price: 890, stops: 0, class: "Economy", rating: 4.7 },
+  { id: "f5", airline: "SAA", from: "Cape Town", fromCode: "CPT", to: "Johannesburg", toCode: "JNB", departure: "09:00", arrival: "11:10", duration: "2h 10m", price: 1350, stops: 0, class: "Economy", rating: 4.4 },
+  { id: "f6", airline: "Kulula.com", from: "Cape Town", fromCode: "CPT", to: "Durban", toCode: "DUR", departure: "13:00", arrival: "15:20", duration: "2h 20m", price: 1100, stops: 0, class: "Economy", rating: 4.5 },
+  { id: "f7", airline: "Cemair", from: "Durban", fromCode: "DUR", to: "Cape Town", toCode: "CPT", departure: "07:00", arrival: "09:20", duration: "2h 20m", price: 980, stops: 0, class: "Economy", rating: 4.3 },
+  { id: "f8", airline: "FlySafair", from: "Johannesburg", fromCode: "JNB", to: "Port Elizabeth", toCode: "PLZ", departure: "06:45", arrival: "08:30", duration: "1h 45m", price: 870, stops: 0, class: "Economy", rating: 4.6 },
+  { id: "f9", airline: "British Airways", from: "Cape Town", fromCode: "CPT", to: "Port Elizabeth", toCode: "PLZ", departure: "14:00", arrival: "15:30", duration: "1h 30m", price: 750, stops: 0, class: "Economy", rating: 4.5 },
+  { id: "f10", airline: "SAA", from: "Johannesburg", fromCode: "JNB", to: "East London", toCode: "ELS", departure: "10:00", arrival: "11:30", duration: "1h 30m", price: 820, stops: 0, class: "Economy", rating: 4.4 },
+  { id: "f11", airline: "Cemair", from: "Durban", fromCode: "DUR", to: "Johannesburg", toCode: "JNB", departure: "09:30", arrival: "10:35", duration: "1h 05m", price: 910, stops: 0, class: "Economy", rating: 4.3 },
+  { id: "f12", airline: "FlySafair", from: "Cape Town", fromCode: "CPT", to: "Johannesburg", toCode: "JNB", departure: "15:00", arrival: "17:10", duration: "2h 10m", price: 1150, stops: 0, class: "Economy", rating: 4.7 },
+  { id: "f13", airline: "Kulula.com", from: "Johannesburg", fromCode: "JNB", to: "George", toCode: "GRJ", departure: "08:30", arrival: "10:15", duration: "1h 45m", price: 980, stops: 0, class: "Economy", rating: 4.4 },
+  { id: "f14", airline: "SAA", from: "Johannesburg", fromCode: "JNB", to: "Bloemfontein", toCode: "BFN", departure: "12:00", arrival: "13:00", duration: "1h", price: 720, stops: 0, class: "Economy", rating: 4.5 },
+];
 
-      <View style={styles.routeRow}>
-        <View style={styles.routePoint}>
-          <Text style={styles.routeTime}>{route.departure}</Text>
-          <Text style={styles.routeCity}>{route.from}</Text>
-        </View>
-        <View style={styles.routeMiddle}>
-          <View style={styles.routeLine} />
-          <View style={styles.durationRow}>
-            <Ionicons name="time-outline" size={12} color="#6B7280" />
-            <Text style={styles.durationText}>{route.duration}</Text>
-          </View>
-          <View style={styles.routeLine} />
-        </View>
-        <View style={styles.routePoint}>
-          <Text style={styles.routeTime}>{route.arrival}</Text>
-          <Text style={styles.routeCity}>{route.to}</Text>
-        </View>
-      </View>
+type TravelTab = "bus" | "flight";
+type Stage = "search" | "results" | "checkout" | "pin" | "success";
 
-      <View style={styles.cardBottomRow}>
-        <Text style={styles.seatsText}>{route.seats} seats left</Text>
-        <View style={styles.priceBookRow}>
-          <Text style={styles.priceText}>${route.price}</Text>
-          <TouchableOpacity onPress={onBook} style={styles.bookButton}>
-            <Text style={styles.bookButtonText}>Book Now</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function FlightCard({ flight, onBook }: { flight: Flight; onBook: () => void }) {
-  return (
-    <View style={styles.travelCard}>
-      <View style={styles.cardTopRow}>
-        <View style={styles.cardTopLeft}>
-          <View style={[styles.iconCircle, { backgroundColor: "rgba(139,92,246,0.1)" }]}>
-            <Ionicons name="airplane-outline" size={20} color="#8B5CF6" />
-          </View>
-          <View>
-            <Text style={styles.operatorName}>{flight.airline}</Text>
-            <Text style={styles.operatorType}>{flight.class}</Text>
-          </View>
-        </View>
-        <View style={styles.ratingRow}>
-          <Ionicons name="star" size={14} color="#F59E0B" />
-          <Text style={styles.ratingText}>{flight.rating}</Text>
-        </View>
-      </View>
-
-      <View style={styles.routeRow}>
-        <View style={styles.routePoint}>
-          <Text style={styles.flightTime}>{flight.departure}</Text>
-          <Text style={styles.airportCode}>{flight.fromCode}</Text>
-          <Text style={styles.routeCity}>{flight.from}</Text>
-        </View>
-        <View style={styles.routeMiddle}>
-          <View style={styles.flightMiddleCol}>
-            <View style={styles.routeLineRow}>
-              <View style={styles.routeLine} />
-              <Ionicons name="airplane" size={16} color="#6B7280" />
-              <View style={styles.routeLine} />
-            </View>
-            <Text style={styles.durationText}>{flight.duration}</Text>
-            <Text style={styles.stopsText}>{flight.stops === 0 ? "Non-stop" : `${flight.stops} stop`}</Text>
-          </View>
-        </View>
-        <View style={styles.routePoint}>
-          <Text style={styles.flightTime}>{flight.arrival}</Text>
-          <Text style={styles.airportCode}>{flight.toCode}</Text>
-          <Text style={styles.routeCity}>{flight.to}</Text>
-        </View>
-      </View>
-
-      <View style={[styles.cardBottomRow, styles.borderTop]}>
-        <Text style={styles.flightPrice}>${flight.price}</Text>
-        <TouchableOpacity onPress={onBook} style={styles.bookButton}>
-          <Text style={styles.bookButtonText}>Book Flight</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-function HotelCard({ hotel, onBook }: { hotel: HotelOption; onBook: () => void }) {
-  return (
-    <View style={styles.travelCard}>
-      <View style={styles.hotelTopRow}>
-        <View style={styles.hotelImagePlaceholder}>
-          <Ionicons name="bed-outline" size={32} color="#F59E0B" />
-        </View>
-        <View style={styles.hotelInfo}>
-          <View style={styles.hotelNameRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.hotelName}>{hotel.name}</Text>
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={12} color="#6B7280" />
-                <Text style={styles.locationText}>{hotel.location}</Text>
-              </View>
-            </View>
-            <View style={styles.typeBadge}>
-              <Text style={styles.typeBadgeText}>{hotel.type}</Text>
-            </View>
-          </View>
-
-          <View style={styles.hotelRatingRow}>
-            <Ionicons name="star" size={14} color="#F59E0B" />
-            <Text style={styles.ratingText}>{hotel.rating}</Text>
-            <Text style={styles.reviewsText}>({hotel.reviews} reviews)</Text>
-          </View>
-
-          <View style={styles.amenitiesRow}>
-            {hotel.amenities.slice(0, 3).map((amenity) => (
-              <View key={amenity} style={styles.amenityChip}>
-                <Text style={styles.amenityText}>{amenity}</Text>
-              </View>
-            ))}
-            {hotel.amenities.length > 3 && (
-              <View style={styles.amenityChip}>
-                <Text style={styles.amenityText}>+{hotel.amenities.length - 3}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-
-      <View style={[styles.cardBottomRow, styles.borderTop, { marginTop: 16 }]}>
-        <View>
-          <Text style={styles.flightPrice}>${hotel.price}</Text>
-          <Text style={styles.perNightText}>per night</Text>
-        </View>
-        <TouchableOpacity onPress={onBook} style={styles.bookButton}>
-          <Text style={styles.bookButtonText}>Book Now</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
+interface PassengerInfo { name: string; idNumber: string; phone: string; }
 
 export default function Travel() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TravelType>("bus");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [bookingDialog, setBookingDialog] = useState<{ open: boolean; type: TravelType; item: any }>({
-    open: false,
-    type: "bus",
-    item: null,
-  });
-  const [passengers, setPassengers] = useState("1");
-  const [travelDate, setTravelDate] = useState("");
-  const [nights, setNights] = useState("1");
   const { toast } = useToast();
 
-  const handleBook = (type: TravelType, item: any) => {
-    setBookingDialog({ open: true, type, item });
-  };
+  const [activeTab, setActiveTab] = useState<TravelTab>("bus");
+  const [stage, setStage] = useState<Stage>("search");
 
-  const confirmBooking = () => {
-    const item = bookingDialog.item;
-    const type = bookingDialog.type;
+  const [fromCity, setFromCity] = useState("");
+  const [toCity, setToCity] = useState("");
+  const [travelDate, setTravelDate] = useState("");
+  const [passengerCount, setPassengerCount] = useState(1);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
 
-    let message = "";
-    if (type === "bus") {
-      message = `Bus ticket from ${item.from} to ${item.to} booked successfully!`;
-    } else if (type === "flight") {
-      message = `Flight from ${item.from} to ${item.to} booked successfully!`;
-    } else {
-      message = `${item.name} booked for ${nights} night(s) successfully!`;
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [passengerForms, setPassengerForms] = useState<PassengerInfo[]>([{ name: "", idNumber: "", phone: "" }]);
+
+  const [pin, setPin] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
+
+  const { data: cards = [] } = useQuery<any[]>({ queryKey: ["/api/wallet-cards"] });
+  const walletBalance = cards.reduce((s: number, c: any) => s + parseFloat(c.balance || "0"), 0);
+  const primaryCard = cards[0];
+
+  const deductBalance = useMutation({
+    mutationFn: async (amount: number) => {
+      if (!primaryCard) throw new Error("No wallet card found. Please add a card first.");
+      const newBal = (parseFloat(primaryCard.balance || "0") - amount).toFixed(2);
+      return apiRequest("PATCH", `/api/wallet-cards/${primaryCard.id}`, { balance: newBal });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/wallet-cards"] }),
+  });
+
+  const cityList = activeTab === "bus" ? SA_BUS_CITIES : SA_AIRPORTS.map(a => a.city);
+
+  const filteredResults = activeTab === "bus"
+    ? BUS_ROUTES.filter(r => (!fromCity || r.from === fromCity) && (!toCity || r.to === toCity))
+    : FLIGHTS.filter(f => (!fromCity || f.from === fromCity) && (!toCity || f.to === toCity));
+
+  const totalAmount = selectedItem ? selectedItem.price * passengerCount : 0;
+
+  const swapCities = () => { const t = fromCity; setFromCity(toCity); setToCity(t); };
+
+  const handleSearch = () => {
+    if (!fromCity || !toCity) {
+      toast({ title: "Select destinations", description: "Please choose both From and To", variant: "destructive" });
+      return;
     }
-
-    toast({ title: "Booking Confirmed!", description: message });
-    setBookingDialog({ open: false, type: "bus", item: null });
+    if (fromCity === toCity) {
+      toast({ title: "Same city", description: "From and To cannot be the same", variant: "destructive" });
+      return;
+    }
+    if (!travelDate.trim()) {
+      toast({ title: "Select date", description: "Please enter your travel date", variant: "destructive" });
+      return;
+    }
+    const results = activeTab === "bus"
+      ? BUS_ROUTES.filter(r => r.from === fromCity && r.to === toCity)
+      : FLIGHTS.filter(f => f.from === fromCity && f.to === toCity);
+    if (results.length === 0) {
+      toast({ title: "No results", description: `No ${activeTab === "bus" ? "buses" : "flights"} found for this route. Try swapping cities or a different route.`, variant: "destructive" });
+      return;
+    }
+    setStage("results");
   };
 
-  const tabs: { id: TravelType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { id: "bus", label: "Bus", icon: "bus-outline" },
-    { id: "flight", label: "Flights", icon: "airplane-outline" },
-    { id: "hotel", label: "Hotels", icon: "bed-outline" },
-  ];
+  const handleBook = (item: any) => {
+    setSelectedItem(item);
+    setPassengerForms(Array.from({ length: passengerCount }, () => ({ name: "", idNumber: "", phone: "" })));
+    setStage("checkout");
+  };
 
-  const filteredBuses = busRoutes.filter(
-    (r) =>
-      r.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.to.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.operator.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const updatePassenger = (i: number, field: keyof PassengerInfo, val: string) => {
+    const updated = [...passengerForms];
+    updated[i] = { ...updated[i], [field]: val };
+    setPassengerForms(updated);
+  };
 
-  const filteredFlights = flights.filter(
-    (f) =>
-      f.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.to.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.airline.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleProceedToPin = () => {
+    for (let i = 0; i < passengerForms.length; i++) {
+      if (!passengerForms[i].name.trim()) {
+        toast({ title: "Missing info", description: `Enter name for Passenger ${i + 1}`, variant: "destructive" });
+        return;
+      }
+      if (!passengerForms[i].phone.trim()) {
+        toast({ title: "Missing info", description: `Enter phone for Passenger ${i + 1}`, variant: "destructive" });
+        return;
+      }
+    }
+    if (totalAmount > walletBalance) {
+      toast({ title: "Insufficient balance", description: `You need R${totalAmount.toFixed(2)} but have R${walletBalance.toFixed(2)}`, variant: "destructive" });
+      return;
+    }
+    setStage("pin");
+  };
 
-  const filteredHotels = hotels.filter(
-    (h) =>
-      h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handlePinInput = (digit: string) => {
+    if (pin.length < 4) setPin(p => p + digit);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (pin.length < 4) {
+      toast({ title: "Enter PIN", description: "Please enter your 4-digit wallet PIN", variant: "destructive" });
+      return;
+    }
+    const storedPin = (await AsyncStorage.getItem("wallet_pin")) || "1234";
+    if (pin !== storedPin) {
+      toast({ title: "Wrong PIN", description: "Incorrect PIN. Please try again.", variant: "destructive" });
+      setPin("");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      await deductBalance.mutateAsync(totalAmount);
+      const ref = `BKP-${Date.now().toString(36).toUpperCase()}`;
+      const operatorName = activeTab === "bus" ? selectedItem.operator : selectedItem.airline;
+      try {
+        await apiRequest("POST", "/api/transactions", {
+          category: "travel",
+          merchantName: operatorName,
+          amount: totalAmount.toFixed(2),
+          currency: "ZAR",
+          status: "success",
+          metadata: {
+            ticketType: activeTab,
+            bookingRef: ref,
+            ticketStatus: "unused",
+            operator: activeTab === "bus" ? selectedItem.operator : undefined,
+            airline: activeTab === "flight" ? selectedItem.airline : undefined,
+            from: selectedItem.from,
+            to: selectedItem.to,
+            fromCode: selectedItem.fromCode || undefined,
+            toCode: selectedItem.toCode || undefined,
+            departure: selectedItem.departure,
+            arrival: selectedItem.arrival,
+            duration: selectedItem.duration,
+            seatClass: activeTab === "bus" ? selectedItem.type : selectedItem.class,
+            travelDate,
+            passengerCount,
+            passengers: passengerForms,
+            pricePerPerson: selectedItem.price,
+            totalAmount,
+          },
+        });
+      } catch (_) {}
+      setBookingRef(ref);
+      setStage("success");
+    } catch (e: any) {
+      toast({ title: "Payment failed", description: e.message || "Please try again", variant: "destructive" });
+    } finally {
+      setIsProcessing(false);
+      setPin("");
+    }
+  };
+
+  const handleNewSearch = () => {
+    setStage("search");
+    setSelectedItem(null);
+    setPin("");
+    setBookingRef("");
+    setPassengerForms([{ name: "", idNumber: "", phone: "" }]);
+  };
+
+  if (stage === "success") {
+    return (
+      <View style={s.successBg}>
+        <View style={s.successCard}>
+          <View style={s.successCircle}>
+            <Ionicons name="checkmark" size={44} color="#fff" />
+          </View>
+          <Text style={s.successTitle}>Booking Confirmed!</Text>
+          <Text style={s.successRef}>Ref: {bookingRef}</Text>
+
+          <View style={s.successInfoBox}>
+            <View style={s.successRow}>
+              <Ionicons name={activeTab === "bus" ? "bus-outline" : "airplane-outline"} size={16} color={MUTED} />
+              <Text style={s.successLabel}>{activeTab === "bus" ? selectedItem?.operator : selectedItem?.airline}</Text>
+            </View>
+            <View style={s.successRow}>
+              <Ionicons name="location-outline" size={16} color={MUTED} />
+              <Text style={s.successLabel}>
+                {activeTab === "bus"
+                  ? `${selectedItem?.from} → ${selectedItem?.to}`
+                  : `${selectedItem?.fromCode} → ${selectedItem?.toCode}`}
+              </Text>
+            </View>
+            <View style={s.successRow}>
+              <Ionicons name="calendar-outline" size={16} color={MUTED} />
+              <Text style={s.successLabel}>{travelDate}</Text>
+            </View>
+            <View style={s.successRow}>
+              <Ionicons name="people-outline" size={16} color={MUTED} />
+              <Text style={s.successLabel}>{passengerCount} passenger{passengerCount > 1 ? "s" : ""}</Text>
+            </View>
+            <View style={[s.successRow, { marginTop: 12, borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 12 }]}>
+              <Text style={{ fontWeight: "700", color: TEXT, fontSize: 15 }}>Total Paid</Text>
+              <Text style={{ fontWeight: "800", color: PRIMARY, fontSize: 18 }}>R{totalAmount.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          <Text style={s.successNote}>Your e-ticket details have been saved. Show this reference at boarding.</Text>
+
+          <TouchableOpacity style={s.successBtn} onPress={handleNewSearch}>
+            <Text style={s.successBtnText}>Book Another Trip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.successBtnOutline} onPress={() => router.push("/features-hub" as any)}>
+            <Text style={s.successBtnOutlineText}>Back to Features</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (stage === "pin") {
+    return (
+      <View style={s.pinBg}>
+        <View style={s.pinCard}>
+          <TouchableOpacity style={s.pinBack} onPress={() => setStage("checkout")}>
+            <Ionicons name="arrow-back" size={22} color={TEXT} />
+          </TouchableOpacity>
+          <View style={s.pinIconRow}>
+            <View style={s.pinIconCircle}>
+              <Ionicons name="lock-closed" size={28} color={PRIMARY} />
+            </View>
+          </View>
+          <Text style={s.pinTitle}>Enter Wallet PIN</Text>
+          <Text style={s.pinSub}>Confirm payment of <Text style={{ color: PRIMARY, fontWeight: "700" }}>R{totalAmount.toFixed(2)}</Text></Text>
+
+          <View style={s.pinDots}>
+            {[0, 1, 2, 3].map(i => (
+              <View key={i} style={[s.pinDot, pin.length > i && s.pinDotFilled]} />
+            ))}
+          </View>
+
+          <View style={s.pinGrid}>
+            {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[s.pinKey, d === "" && { opacity: 0 }]}
+                onPress={() => d === "⌫" ? setPin(p => p.slice(0, -1)) : d && handlePinInput(d)}
+                disabled={d === ""}
+              >
+                <Text style={s.pinKeyText}>{d}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={[s.confirmBtn, (pin.length < 4 || isProcessing) && s.disabledBtn]}
+            onPress={handleConfirmPayment}
+            disabled={pin.length < 4 || isProcessing}
+          >
+            {isProcessing
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={s.confirmBtnText}>Confirm & Pay</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (stage === "checkout" && selectedItem) {
+    const sufficient = walletBalance >= totalAmount;
+    return (
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView style={{ flex: 1, backgroundColor: "#fff" }} contentContainerStyle={{ paddingBottom: 100 }}>
+          <View style={s.checkoutHeader}>
+            <TouchableOpacity onPress={() => setStage("results")} style={s.backBtn}>
+              <Ionicons name="arrow-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <Text style={s.checkoutHeaderTitle}>Checkout</Text>
+            <View style={{ width: 36 }} />
+          </View>
+
+          <View style={s.checkoutBody}>
+            <View style={s.tripSummaryCard}>
+              <View style={s.tripSummaryTop}>
+                <View style={[s.tripIcon, { backgroundColor: activeTab === "bus" ? "rgba(59,130,246,0.1)" : "rgba(139,92,246,0.1)" }]}>
+                  <Ionicons name={activeTab === "bus" ? "bus" : "airplane"} size={22} color={activeTab === "bus" ? "#3B82F6" : PRIMARY} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.tripOpName}>{activeTab === "bus" ? selectedItem.operator : selectedItem.airline}</Text>
+                  <Text style={s.tripOpType}>{activeTab === "bus" ? selectedItem.type : selectedItem.class}</Text>
+                </View>
+                <View style={s.ratingPill}>
+                  <Ionicons name="star" size={12} color="#F59E0B" />
+                  <Text style={s.ratingPillText}>{selectedItem.rating}</Text>
+                </View>
+              </View>
+              <View style={s.tripRouteRow}>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={s.tripTime}>{selectedItem.departure}</Text>
+                  <Text style={s.tripCity}>{activeTab === "bus" ? selectedItem.from : selectedItem.fromCode}</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", width: "100%" }}>
+                    <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+                    <Ionicons name={activeTab === "bus" ? "bus-outline" : "airplane-outline"} size={16} color={MUTED} style={{ marginHorizontal: 6 }} />
+                    <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+                  </View>
+                  <Text style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>{selectedItem.duration}</Text>
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={s.tripTime}>{selectedItem.arrival}</Text>
+                  <Text style={s.tripCity}>{activeTab === "bus" ? selectedItem.to : selectedItem.toCode}</Text>
+                </View>
+              </View>
+              <View style={[s.tripDateRow, { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 10, marginTop: 4 }]}>
+                <View style={s.tripDateItem}>
+                  <Ionicons name="calendar-outline" size={14} color={MUTED} />
+                  <Text style={s.tripDateText}>{travelDate}</Text>
+                </View>
+                <View style={s.tripDateItem}>
+                  <Ionicons name="people-outline" size={14} color={MUTED} />
+                  <Text style={s.tripDateText}>{passengerCount} passenger{passengerCount > 1 ? "s" : ""}</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={s.sectionHeading}>Passenger Details</Text>
+            {passengerForms.map((pax, i) => (
+              <View key={i} style={s.paxCard}>
+                <Text style={s.paxTitle}>Passenger {i + 1}</Text>
+                <Text style={s.fieldLabel}>Full Name *</Text>
+                <TextInput
+                  style={s.fieldInput}
+                  placeholder="As on ID / Passport"
+                  placeholderTextColor={MUTED}
+                  value={pax.name}
+                  onChangeText={v => updatePassenger(i, "name", v)}
+                />
+                <Text style={s.fieldLabel}>ID / Passport Number</Text>
+                <TextInput
+                  style={s.fieldInput}
+                  placeholder="Optional"
+                  placeholderTextColor={MUTED}
+                  value={pax.idNumber}
+                  onChangeText={v => updatePassenger(i, "idNumber", v)}
+                />
+                <Text style={s.fieldLabel}>Phone Number *</Text>
+                <TextInput
+                  style={s.fieldInput}
+                  placeholder="+27 ..."
+                  placeholderTextColor={MUTED}
+                  keyboardType="phone-pad"
+                  value={pax.phone}
+                  onChangeText={v => updatePassenger(i, "phone", v)}
+                />
+              </View>
+            ))}
+
+            <View style={s.walletCard}>
+              <View style={s.walletCardLeft}>
+                <Ionicons name="wallet-outline" size={20} color={sufficient ? "#10B981" : "#EF4444"} />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={s.walletLabel}>Wallet Balance</Text>
+                  <Text style={[s.walletAmt, { color: sufficient ? "#10B981" : "#EF4444" }]}>
+                    R{walletBalance.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+              <View style={[s.walletBadge, { backgroundColor: sufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)" }]}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: sufficient ? "#10B981" : "#EF4444" }}>
+                  {sufficient ? "Sufficient" : "Low Balance"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={s.totalCard}>
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Price per person</Text>
+                <Text style={s.totalValue}>R{selectedItem.price.toFixed(2)}</Text>
+              </View>
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Passengers</Text>
+                <Text style={s.totalValue}>× {passengerCount}</Text>
+              </View>
+              <View style={[s.totalRow, { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 12, marginTop: 8 }]}>
+                <Text style={{ fontWeight: "700", fontSize: 16, color: TEXT }}>Total</Text>
+                <Text style={{ fontWeight: "800", fontSize: 20, color: PRIMARY }}>R{totalAmount.toFixed(2)}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[s.confirmBtn, !sufficient && s.disabledBtn]}
+              onPress={handleProceedToPin}
+              disabled={!sufficient}
+            >
+              <Ionicons name="lock-closed-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={s.confirmBtnText}>Pay with Wallet</Text>
+            </TouchableOpacity>
+            {!sufficient && (
+              <Text style={s.insufficientNote}>Top up your wallet to continue</Text>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  if (stage === "results") {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <View style={s.resultsHeader}>
+          <TouchableOpacity onPress={() => setStage("search")} style={s.backBtn}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={s.resultsHeaderTitle}>{fromCity} → {toCity}</Text>
+            <Text style={s.resultsHeaderSub}>{travelDate} · {passengerCount} passenger{passengerCount > 1 ? "s" : ""}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setStage("search")} style={s.editBtn}>
+            <Ionicons name="options-outline" size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.tabBar}>
+          {(["bus", "flight"] as TravelTab[]).map(tab => (
+            <TouchableOpacity
+              key={tab}
+              style={[s.tabBtn, activeTab === tab && s.tabBtnActive]}
+              onPress={() => {
+                setActiveTab(tab);
+                setFromCity("");
+                setToCity("");
+                setStage("search");
+              }}
+            >
+              <Ionicons
+                name={tab === "bus" ? "bus-outline" : "airplane-outline"}
+                size={16}
+                color={activeTab === tab ? PRIMARY : MUTED}
+              />
+              <Text style={[s.tabBtnText, activeTab === tab && s.tabBtnTextActive]}>
+                {tab === "bus" ? "Bus" : "Flights"}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 40, gap: 12 }}>
+          <Text style={s.resultsCount}>
+            {filteredResults.length} {activeTab === "bus" ? "bus routes" : "flights"} found
+          </Text>
+          {filteredResults.length === 0 ? (
+            <View style={s.emptyBox}>
+              <Ionicons name="search-outline" size={40} color={MUTED} />
+              <Text style={s.emptyTitle}>No results found</Text>
+              <Text style={s.emptySub}>Try a different route or travel date</Text>
+              <TouchableOpacity style={s.emptyBtn} onPress={() => setStage("search")}>
+                <Text style={s.emptyBtnText}>Edit Search</Text>
+              </TouchableOpacity>
+            </View>
+          ) : activeTab === "bus" ? (
+            (filteredResults as BusRoute[]).map(route => (
+              <View key={route.id} style={s.resultCard}>
+                <View style={s.rcTop}>
+                  <View style={s.rcTopLeft}>
+                    <View style={[s.rcIcon, { backgroundColor: "rgba(59,130,246,0.1)" }]}>
+                      <Ionicons name="bus" size={18} color="#3B82F6" />
+                    </View>
+                    <View>
+                      <Text style={s.rcOperator}>{route.operator}</Text>
+                      <Text style={s.rcType}>{route.type}</Text>
+                    </View>
+                  </View>
+                  <View style={s.ratingPill}>
+                    <Ionicons name="star" size={11} color="#F59E0B" />
+                    <Text style={s.ratingPillText}>{route.rating}</Text>
+                  </View>
+                </View>
+                <View style={s.rcRoute}>
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={s.rcTime}>{route.departure}</Text>
+                    <Text style={s.rcCity}>{route.from}</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: "center" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", width: "100%" }}>
+                      <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+                      <Ionicons name="bus-outline" size={14} color={MUTED} style={{ marginHorizontal: 4 }} />
+                      <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+                    </View>
+                    <Text style={s.rcDuration}>{route.duration}</Text>
+                  </View>
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={s.rcTime}>{route.arrival}</Text>
+                    <Text style={s.rcCity}>{route.to}</Text>
+                  </View>
+                </View>
+                <View style={s.rcAmenities}>
+                  {route.amenities.map(a => (
+                    <View key={a} style={s.amenityChip}>
+                      <Text style={s.amenityText}>{a}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={s.rcBottom}>
+                  <View>
+                    <Text style={s.rcSeats}>{route.seats} seats left</Text>
+                  </View>
+                  <View style={s.rcPriceRow}>
+                    <View>
+                      <Text style={s.rcPrice}>R{route.price}</Text>
+                      <Text style={s.rcPriceSub}>per person</Text>
+                    </View>
+                    <TouchableOpacity style={s.bookBtn} onPress={() => handleBook(route)}>
+                      <Text style={s.bookBtnText}>Book Now</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))
+          ) : (
+            (filteredResults as FlightRoute[]).map(flight => (
+              <View key={flight.id} style={s.resultCard}>
+                <View style={s.rcTop}>
+                  <View style={s.rcTopLeft}>
+                    <View style={[s.rcIcon, { backgroundColor: "rgba(139,92,246,0.1)" }]}>
+                      <Ionicons name="airplane" size={18} color={PRIMARY} />
+                    </View>
+                    <View>
+                      <Text style={s.rcOperator}>{flight.airline}</Text>
+                      <Text style={s.rcType}>{flight.stops === 0 ? "Non-stop" : `${flight.stops} stop`} · {flight.class}</Text>
+                    </View>
+                  </View>
+                  <View style={s.ratingPill}>
+                    <Ionicons name="star" size={11} color="#F59E0B" />
+                    <Text style={s.ratingPillText}>{flight.rating}</Text>
+                  </View>
+                </View>
+                <View style={s.rcRoute}>
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={s.rcTime}>{flight.departure}</Text>
+                    <Text style={[s.rcCity, { fontWeight: "700", color: TEXT }]}>{flight.fromCode}</Text>
+                    <Text style={s.rcCity}>{flight.from}</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: "center" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", width: "100%" }}>
+                      <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+                      <Ionicons name="airplane-outline" size={14} color={MUTED} style={{ marginHorizontal: 4 }} />
+                      <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+                    </View>
+                    <Text style={s.rcDuration}>{flight.duration}</Text>
+                  </View>
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={s.rcTime}>{flight.arrival}</Text>
+                    <Text style={[s.rcCity, { fontWeight: "700", color: TEXT }]}>{flight.toCode}</Text>
+                    <Text style={s.rcCity}>{flight.to}</Text>
+                  </View>
+                </View>
+                <View style={s.rcBottom}>
+                  <View>
+                    <Text style={{ fontSize: 12, color: "#10B981", fontWeight: "500" }}>✓ Available</Text>
+                  </View>
+                  <View style={s.rcPriceRow}>
+                    <View>
+                      <Text style={s.rcPrice}>R{flight.price}</Text>
+                      <Text style={s.rcPriceSub}>per person</Text>
+                    </View>
+                    <TouchableOpacity style={s.bookBtn} onPress={() => handleBook(flight)}>
+                      <Text style={s.bookBtnText}>Book Flight</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerBg}>
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity onPress={() => router.push("/features-hub")} style={styles.headerBackButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      <View style={s.searchHeader}>
+        <View style={s.searchHeaderTop}>
+          <TouchableOpacity onPress={() => router.push("/features-hub" as any)} style={s.backBtn}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Travel Booking</Text>
-          <View style={{ width: 40 }} />
+          <Text style={s.searchHeaderTitle}>Travel Booking</Text>
+          <View style={{ width: 36 }} />
         </View>
 
-        <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={20} color="rgba(196,181,253,1)" style={styles.searchIcon} />
-          <TextInput
-            placeholder="Search destinations, operators..."
-            placeholderTextColor="rgba(196,181,253,0.7)"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchInput}
-          />
-        </View>
-
-        <View style={styles.tabsRow}>
-          {tabs.map((tab) => (
+        <View style={s.searchTabs}>
+          {(["bus", "flight"] as TravelTab[]).map(tab => (
             <TouchableOpacity
-              key={tab.id}
-              onPress={() => setActiveTab(tab.id)}
-              style={[styles.tabButton, activeTab === tab.id ? styles.tabActive : styles.tabInactive]}
+              key={tab}
+              style={[s.searchTab, activeTab === tab && s.searchTabActive]}
+              onPress={() => { setActiveTab(tab); setFromCity(""); setToCity(""); }}
             >
-              <Ionicons name={tab.icon} size={18} color={activeTab === tab.id ? "#7C3AED" : "#FFFFFF"} />
-              <Text style={[styles.tabText, activeTab === tab.id ? styles.tabTextActive : styles.tabTextInactive]}>
-                {tab.label}
+              <Ionicons name={tab === "bus" ? "bus-outline" : "airplane-outline"} size={18} color={activeTab === tab ? PRIMARY : "#fff"} />
+              <Text style={[s.searchTabText, activeTab === tab && s.searchTabTextActive]}>
+                {tab === "bus" ? "Bus" : "Flights"}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      <ScrollView style={styles.listContainer} contentContainerStyle={{ paddingBottom: 100, gap: 16 }}>
-        {activeTab === "bus" && (
-          <View>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Available Bus Routes</Text>
-              <Text style={styles.sectionCount}>{filteredBuses.length} routes</Text>
-            </View>
-            {filteredBuses.map((route) => (
-              <BusCard key={route.id} route={route} onBook={() => handleBook("bus", route)} />
-            ))}
-          </View>
-        )}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+        <View style={s.searchCard}>
+          <Text style={s.searchCardTitle}>Where are you going?</Text>
 
-        {activeTab === "flight" && (
-          <View>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Available Flights</Text>
-              <Text style={styles.sectionCount}>{filteredFlights.length} flights</Text>
-            </View>
-            {filteredFlights.map((flight) => (
-              <FlightCard key={flight.id} flight={flight} onBook={() => handleBook("flight", flight)} />
-            ))}
-          </View>
-        )}
-
-        {activeTab === "hotel" && (
-          <View>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Featured Hotels</Text>
-              <Text style={styles.sectionCount}>{filteredHotels.length} hotels</Text>
-            </View>
-            {filteredHotels.map((hotel) => (
-              <HotelCard key={hotel.id} hotel={hotel} onBook={() => handleBook("hotel", hotel)} />
-            ))}
-          </View>
-        )}
-      </ScrollView>
-
-      <Modal visible={bookingDialog.open} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleRow}>
-                {bookingDialog.type === "bus" && <Ionicons name="bus-outline" size={20} color="#1A1A2E" />}
-                {bookingDialog.type === "flight" && <Ionicons name="airplane-outline" size={20} color="#1A1A2E" />}
-                {bookingDialog.type === "hotel" && <Ionicons name="bed-outline" size={20} color="#1A1A2E" />}
-                <Text style={styles.modalTitle}>Confirm Booking</Text>
-              </View>
-              <TouchableOpacity onPress={() => setBookingDialog({ ...bookingDialog, open: false })}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+          <View style={s.fromToRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.fromToLabel}>From</Text>
+              <TouchableOpacity style={s.fromToBtn} onPress={() => setShowFromPicker(true)}>
+                <Ionicons name="location-outline" size={16} color={fromCity ? PRIMARY : MUTED} />
+                <Text style={[s.fromToBtnText, fromCity ? { color: TEXT } : { color: MUTED }]}>
+                  {fromCity || "Select city"}
+                </Text>
               </TouchableOpacity>
             </View>
 
-            {bookingDialog.item && (
-              <ScrollView>
-                {bookingDialog.type === "bus" && (
-                  <View style={styles.bookingSummary}>
-                    <Text style={styles.summaryTitle}>{bookingDialog.item.operator}</Text>
-                    <Text style={styles.summarySubtext}>
-                      {bookingDialog.item.from} → {bookingDialog.item.to}
-                    </Text>
-                    <Text style={styles.summarySubtext}>{bookingDialog.item.departure}</Text>
-                    <Text style={styles.summaryPrice}>${bookingDialog.item.price}</Text>
-                  </View>
-                )}
+            <TouchableOpacity style={s.swapBtn} onPress={swapCities}>
+              <Ionicons name="swap-horizontal" size={20} color={PRIMARY} />
+            </TouchableOpacity>
 
-                {bookingDialog.type === "flight" && (
-                  <View style={styles.bookingSummary}>
-                    <Text style={styles.summaryTitle}>{bookingDialog.item.airline}</Text>
-                    <Text style={styles.summarySubtext}>
-                      {bookingDialog.item.from} ({bookingDialog.item.fromCode}) → {bookingDialog.item.to} ({bookingDialog.item.toCode})
-                    </Text>
-                    <Text style={styles.summarySubtext}>
-                      {bookingDialog.item.departure} - {bookingDialog.item.arrival}
-                    </Text>
-                    <Text style={styles.summaryPrice}>${bookingDialog.item.price}</Text>
-                  </View>
-                )}
+            <View style={{ flex: 1 }}>
+              <Text style={s.fromToLabel}>To</Text>
+              <TouchableOpacity style={s.fromToBtn} onPress={() => setShowToPicker(true)}>
+                <Ionicons name="location" size={16} color={toCity ? PRIMARY : MUTED} />
+                <Text style={[s.fromToBtnText, toCity ? { color: TEXT } : { color: MUTED }]}>
+                  {toCity || "Select city"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-                {bookingDialog.type === "hotel" && (
-                  <View style={styles.bookingSummary}>
-                    <Text style={styles.summaryTitle}>{bookingDialog.item.name}</Text>
-                    <Text style={styles.summarySubtext}>{bookingDialog.item.location}</Text>
-                    <Text style={styles.summaryPrice}>${bookingDialog.item.price}/night</Text>
-                  </View>
-                )}
+          <Text style={s.fromToLabel}>Travel Date</Text>
+          <TextInput
+            style={s.dateInput}
+            placeholder="e.g. 2025-08-15"
+            placeholderTextColor={MUTED}
+            value={travelDate}
+            onChangeText={setTravelDate}
+          />
 
-                <Text style={styles.formLabel}>Travel Date</Text>
-                <TextInput
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#6B7280"
-                  value={travelDate}
-                  onChangeText={setTravelDate}
-                  style={styles.formInput}
-                />
+          <Text style={s.fromToLabel}>Passengers</Text>
+          <View style={s.passengerRow}>
+            <TouchableOpacity
+              style={s.countBtn}
+              onPress={() => setPassengerCount(Math.max(1, passengerCount - 1))}
+            >
+              <Ionicons name="remove" size={20} color={PRIMARY} />
+            </TouchableOpacity>
+            <Text style={s.countText}>{passengerCount}</Text>
+            <TouchableOpacity
+              style={s.countBtn}
+              onPress={() => setPassengerCount(Math.min(9, passengerCount + 1))}
+            >
+              <Ionicons name="add" size={20} color={PRIMARY} />
+            </TouchableOpacity>
+            <Text style={s.countLabel}>{passengerCount === 1 ? "Adult" : "Adults"}</Text>
+          </View>
 
-                {bookingDialog.type !== "hotel" ? (
-                  <View>
-                    <Text style={styles.formLabel}>Passengers</Text>
-                    <View style={styles.pickerRow}>
-                      {[1, 2, 3, 4, 5, 6].map((n) => (
-                        <TouchableOpacity
-                          key={n}
-                          onPress={() => setPassengers(n.toString())}
-                          style={[styles.pickerOption, passengers === n.toString() && styles.pickerOptionActive]}
-                        >
-                          <Text style={[styles.pickerText, passengers === n.toString() && styles.pickerTextActive]}>
-                            {n}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                ) : (
-                  <View>
-                    <Text style={styles.formLabel}>Number of Nights</Text>
-                    <View style={styles.pickerRow}>
-                      {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                        <TouchableOpacity
-                          key={n}
-                          onPress={() => setNights(n.toString())}
-                          style={[styles.pickerOption, nights === n.toString() && styles.pickerOptionActive]}
-                        >
-                          <Text style={[styles.pickerText, nights === n.toString() && styles.pickerTextActive]}>
-                            {n}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                )}
+          <TouchableOpacity style={s.searchBtn} onPress={handleSearch}>
+            <Ionicons name="search" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={s.searchBtnText}>Search {activeTab === "bus" ? "Buses" : "Flights"}</Text>
+          </TouchableOpacity>
+        </View>
 
-                <View style={[styles.totalRow, styles.borderTop]}>
-                  <Text style={styles.totalLabel}>Total</Text>
-                  <Text style={styles.totalAmount}>
-                    ${bookingDialog.type === "hotel"
-                      ? bookingDialog.item.price * parseInt(nights)
-                      : bookingDialog.item.price * parseInt(passengers)}
-                  </Text>
-                </View>
+        <View style={s.popularBox}>
+          <Text style={s.popularTitle}>Popular Routes</Text>
+          {(activeTab === "bus"
+            ? [["Johannesburg", "Cape Town"], ["Johannesburg", "Durban"], ["Pretoria", "Cape Town"], ["Cape Town", "Port Elizabeth"]]
+            : [["Johannesburg", "Cape Town"], ["Johannesburg", "Durban"], ["Cape Town", "Port Elizabeth"], ["Durban", "Cape Town"]]
+          ).map(([from, to], i) => (
+            <TouchableOpacity
+              key={i}
+              style={s.popularRoute}
+              onPress={() => { setFromCity(from); setToCity(to); }}
+            >
+              <View style={s.popularRouteLeft}>
+                <Ionicons name={activeTab === "bus" ? "bus-outline" : "airplane-outline"} size={16} color={PRIMARY} />
+                <Text style={s.popularRouteText}>{from} → {to}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={MUTED} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
 
-                <TouchableOpacity onPress={confirmBooking} style={styles.confirmButton}>
-                  <Text style={styles.confirmButtonText}>Confirm & Pay</Text>
+      <Modal visible={showFromPicker} transparent animationType="slide">
+        <View style={s.pickerOverlay}>
+          <View style={s.pickerSheet}>
+            <View style={s.pickerHeader}>
+              <Text style={s.pickerTitle}>Select From City</Text>
+              <TouchableOpacity onPress={() => setShowFromPicker(false)}>
+                <Ionicons name="close" size={24} color={TEXT} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {cityList.map(city => (
+                <TouchableOpacity
+                  key={city}
+                  style={[s.pickerItem, fromCity === city && s.pickerItemActive]}
+                  onPress={() => { setFromCity(city); setShowFromPicker(false); }}
+                >
+                  <Ionicons name="location-outline" size={16} color={fromCity === city ? PRIMARY : MUTED} />
+                  <Text style={[s.pickerItemText, fromCity === city && { color: PRIMARY, fontWeight: "600" }]}>{city}</Text>
+                  {fromCity === city && <Ionicons name="checkmark" size={16} color={PRIMARY} style={{ marginLeft: "auto" }} />}
                 </TouchableOpacity>
-              </ScrollView>
-            )}
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showToPicker} transparent animationType="slide">
+        <View style={s.pickerOverlay}>
+          <View style={s.pickerSheet}>
+            <View style={s.pickerHeader}>
+              <Text style={s.pickerTitle}>Select To City</Text>
+              <TouchableOpacity onPress={() => setShowToPicker(false)}>
+                <Ionicons name="close" size={24} color={TEXT} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {cityList.filter(c => c !== fromCity).map(city => (
+                <TouchableOpacity
+                  key={city}
+                  style={[s.pickerItem, toCity === city && s.pickerItemActive]}
+                  onPress={() => { setToCity(city); setShowToPicker(false); }}
+                >
+                  <Ionicons name="location-outline" size={16} color={toCity === city ? PRIMARY : MUTED} />
+                  <Text style={[s.pickerItemText, toCity === city && { color: PRIMARY, fontWeight: "600" }]}>{city}</Text>
+                  {toCity === city && <Ionicons name="checkmark" size={16} color={PRIMARY} style={{ marginLeft: "auto" }} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -483,89 +822,149 @@ export default function Travel() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  headerBg: { backgroundColor: "#7C3AED", paddingHorizontal: 24, paddingTop: 48, paddingBottom: 24, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
-  headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
-  headerBackButton: { padding: 8, borderRadius: 20 },
-  headerTitle: { color: "#FFFFFF", fontWeight: "700", fontSize: 18 },
-  searchContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", paddingHorizontal: 16 },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, paddingVertical: 9, fontSize: 14, color: "#FFFFFF" },
-  tabsRow: { flexDirection: "row", gap: 8, marginTop: 16 },
-  tabButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 8, borderRadius: 10 },
-  tabActive: { backgroundColor: "#FFFFFF" },
-  tabInactive: { backgroundColor: "rgba(255,255,255,0.1)" },
-  tabText: { fontWeight: "500", fontSize: 14 },
-  tabTextActive: { color: "#7C3AED" },
-  tabTextInactive: { color: "#FFFFFF" },
-  listContainer: { flex: 1, paddingHorizontal: 24, paddingTop: 24 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  sectionTitle: { fontWeight: "600", fontSize: 16, color: "#1A1A2E" },
-  sectionCount: { fontSize: 14, color: "#6B7280" },
-  travelCard: { backgroundColor: "#F8F9FA", borderRadius: 12, padding: 16, marginBottom: 12 },
-  cardTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  cardTopLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconCircle: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center" },
-  operatorName: { fontWeight: "600", fontSize: 14, color: "#1A1A2E" },
-  operatorType: { fontSize: 12, color: "#6B7280" },
-  ratingRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  ratingText: { fontSize: 14, fontWeight: "500", color: "#1A1A2E" },
-  routeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  routePoint: { alignItems: "center" },
-  routeTime: { fontWeight: "700", fontSize: 15, color: "#1A1A2E" },
-  routeCity: { fontSize: 12, color: "#6B7280" },
-  routeMiddle: { flex: 1, paddingHorizontal: 16, alignItems: "center" },
-  routeLine: { height: 1, flex: 1, backgroundColor: "#E5E7EB" },
-  durationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginVertical: 4 },
-  durationText: { fontSize: 12, color: "#6B7280" },
-  cardBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  seatsText: { fontSize: 12, color: "#6B7280" },
-  priceBookRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  priceText: { fontSize: 20, fontWeight: "700", color: "#7C3AED" },
-  bookButton: { backgroundColor: "#7C3AED", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
-  bookButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 14 },
-  flightTime: { fontWeight: "700", fontSize: 17, color: "#1A1A2E" },
-  airportCode: { fontWeight: "500", fontSize: 14, color: "#1A1A2E" },
-  flightMiddleCol: { alignItems: "center", gap: 4, flex: 1 },
-  routeLineRow: { flexDirection: "row", alignItems: "center", width: "100%", gap: 4 },
-  stopsText: { fontSize: 12, color: "#6B7280" },
-  flightPrice: { fontSize: 22, fontWeight: "700", color: "#7C3AED" },
-  borderTop: { borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 12 },
-  hotelTopRow: { flexDirection: "row", gap: 16 },
-  hotelImagePlaceholder: { width: 80, height: 80, borderRadius: 12, backgroundColor: "rgba(245,158,11,0.1)", justifyContent: "center", alignItems: "center" },
-  hotelInfo: { flex: 1 },
-  hotelNameRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  hotelName: { fontWeight: "600", fontSize: 15, color: "#1A1A2E" },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  locationText: { fontSize: 12, color: "#6B7280" },
-  typeBadge: { backgroundColor: "#F8F9FA", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
-  typeBadgeText: { fontSize: 12, color: "#6B7280" },
-  hotelRatingRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
-  reviewsText: { fontSize: 12, color: "#6B7280" },
-  amenitiesRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
-  amenityChip: { backgroundColor: "#F8F9FA", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
-  amenityText: { fontSize: 11, color: "#6B7280" },
-  perNightText: { fontSize: 12, color: "#6B7280" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalContent: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: "80%" },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  modalTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#1A1A2E" },
-  bookingSummary: { backgroundColor: "#F8F9FA", borderRadius: 8, padding: 16, marginBottom: 16 },
-  summaryTitle: { fontWeight: "600", fontSize: 16, color: "#1A1A2E" },
-  summarySubtext: { fontSize: 14, color: "#6B7280", marginTop: 4 },
-  summaryPrice: { fontSize: 18, fontWeight: "700", color: "#7C3AED", marginTop: 8 },
-  formLabel: { fontSize: 14, fontWeight: "500", color: "#1A1A2E", marginBottom: 8, marginTop: 12 },
-  formInput: { backgroundColor: "#F8F9FA", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9, fontSize: 15, color: "#1A1A2E" },
-  pickerRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  pickerOption: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: "#F8F9FA", borderWidth: 1, borderColor: "#E5E7EB" },
-  pickerOptionActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  pickerText: { fontSize: 14, color: "#1A1A2E", fontWeight: "500" },
-  pickerTextActive: { color: "#FFFFFF" },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 16, marginBottom: 12 },
-  totalLabel: { color: "#6B7280", fontSize: 15 },
-  totalAmount: { fontSize: 24, fontWeight: "700", color: "#7C3AED" },
-  confirmButton: { backgroundColor: "#7C3AED", borderRadius: 8, height: 52, justifyContent: "center", alignItems: "center" },
-  confirmButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 16 },
+const s = StyleSheet.create({
+  searchHeader: { backgroundColor: PRIMARY, paddingHorizontal: 20, paddingTop: 48, paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  searchHeaderTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  searchHeaderTitle: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center" },
+  searchTabs: { flexDirection: "row", gap: 10 },
+  searchTab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.12)" },
+  searchTabActive: { backgroundColor: "#fff" },
+  searchTabText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  searchTabTextActive: { color: PRIMARY },
+
+  searchCard: { backgroundColor: SURFACE, borderRadius: 16, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: BORDER },
+  searchCardTitle: { fontWeight: "700", fontSize: 17, color: TEXT, marginBottom: 16 },
+  fromToRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 16 },
+  fromToLabel: { fontSize: 12, fontWeight: "600", color: MUTED, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  fromToBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: "#fff" },
+  fromToBtnText: { fontSize: 14, fontWeight: "500" },
+  swapBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(124,58,237,0.1)", justifyContent: "center", alignItems: "center", marginBottom: 2 },
+  dateInput: { borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, backgroundColor: "#fff", marginBottom: 16 },
+  passengerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+  countBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderColor: PRIMARY, justifyContent: "center", alignItems: "center" },
+  countText: { fontSize: 18, fontWeight: "700", color: TEXT, minWidth: 28, textAlign: "center" },
+  countLabel: { fontSize: 14, color: MUTED },
+  searchBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 14 },
+  searchBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  popularBox: { backgroundColor: SURFACE, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER },
+  popularTitle: { fontWeight: "700", fontSize: 15, color: TEXT, marginBottom: 12 },
+  popularRoute: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER },
+  popularRouteLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  popularRouteText: { fontSize: 14, color: TEXT, fontWeight: "500" },
+
+  resultsHeader: { backgroundColor: PRIMARY, paddingHorizontal: 20, paddingTop: 48, paddingBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 },
+  resultsHeaderTitle: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  resultsHeaderSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 2 },
+  editBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center" },
+  tabBar: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: BORDER },
+  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
+  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: PRIMARY },
+  tabBtnText: { fontSize: 14, fontWeight: "500", color: MUTED },
+  tabBtnTextActive: { color: PRIMARY, fontWeight: "700" },
+  resultsCount: { fontSize: 13, color: MUTED, marginBottom: 4 },
+
+  resultCard: { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  rcTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+  rcTopLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  rcIcon: { width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center" },
+  rcOperator: { fontWeight: "600", fontSize: 14, color: TEXT },
+  rcType: { fontSize: 12, color: MUTED },
+  ratingPill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(245,158,11,0.08)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+  ratingPillText: { fontSize: 12, fontWeight: "600", color: "#92400E" },
+  rcRoute: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  rcTime: { fontWeight: "700", fontSize: 16, color: TEXT },
+  rcCity: { fontSize: 11, color: MUTED, marginTop: 2 },
+  rcDuration: { fontSize: 11, color: MUTED, marginTop: 4 },
+  rcAmenities: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+  amenityChip: { backgroundColor: "rgba(124,58,237,0.06)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+  amenityText: { fontSize: 11, color: PRIMARY, fontWeight: "500" },
+  rcBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 12 },
+  rcSeats: { fontSize: 12, color: "#EF4444", fontWeight: "500" },
+  rcPriceRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  rcPrice: { fontSize: 20, fontWeight: "800", color: PRIMARY },
+  rcPriceSub: { fontSize: 11, color: MUTED },
+  bookBtn: { backgroundColor: PRIMARY, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  bookBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+
+  emptyBox: { alignItems: "center", paddingVertical: 40, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: TEXT },
+  emptySub: { fontSize: 14, color: MUTED },
+  emptyBtn: { marginTop: 8, backgroundColor: PRIMARY, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
+  emptyBtnText: { color: "#fff", fontWeight: "600" },
+
+  checkoutHeader: { backgroundColor: PRIMARY, paddingHorizontal: 20, paddingTop: 48, paddingBottom: 20, flexDirection: "row", alignItems: "center", gap: 12 },
+  checkoutHeaderTitle: { flex: 1, color: "#fff", fontWeight: "700", fontSize: 18 },
+  checkoutBody: { padding: 20, gap: 16 },
+
+  tripSummaryCard: { backgroundColor: SURFACE, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
+  tripSummaryTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  tripIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center" },
+  tripOpName: { fontWeight: "700", fontSize: 15, color: TEXT },
+  tripOpType: { fontSize: 12, color: MUTED },
+  tripRouteRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  tripTime: { fontWeight: "700", fontSize: 16, color: TEXT },
+  tripCity: { fontSize: 11, color: MUTED, marginTop: 2 },
+  tripDateRow: { flexDirection: "row", gap: 20 },
+  tripDateItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  tripDateText: { fontSize: 12, color: MUTED },
+
+  sectionHeading: { fontWeight: "700", fontSize: 15, color: TEXT },
+  paxCard: { backgroundColor: SURFACE, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
+  paxTitle: { fontWeight: "700", fontSize: 14, color: PRIMARY, marginBottom: 12 },
+  fieldLabel: { fontSize: 12, fontWeight: "600", color: MUTED, marginBottom: 6, marginTop: 10 },
+  fieldInput: { borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: TEXT, backgroundColor: "#fff" },
+
+  walletCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: SURFACE, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
+  walletCardLeft: { flexDirection: "row", alignItems: "center" },
+  walletLabel: { fontSize: 12, color: MUTED, fontWeight: "500" },
+  walletAmt: { fontSize: 20, fontWeight: "800" },
+  walletBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+
+  totalCard: { backgroundColor: SURFACE, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  totalLabel: { fontSize: 14, color: MUTED },
+  totalValue: { fontSize: 14, fontWeight: "600", color: TEXT },
+
+  confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 16 },
+  confirmBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  disabledBtn: { opacity: 0.5 },
+  insufficientNote: { textAlign: "center", fontSize: 13, color: "#EF4444", marginTop: 6 },
+
+  pinBg: { flex: 1, backgroundColor: "#F9FAFB", justifyContent: "center", alignItems: "center", padding: 20 },
+  pinCard: { backgroundColor: "#fff", borderRadius: 24, padding: 28, width: "100%", maxWidth: 380, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
+  pinBack: { marginBottom: 16 },
+  pinIconRow: { alignItems: "center", marginBottom: 16 },
+  pinIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(124,58,237,0.1)", justifyContent: "center", alignItems: "center" },
+  pinTitle: { fontSize: 22, fontWeight: "800", color: TEXT, textAlign: "center", marginBottom: 6 },
+  pinSub: { fontSize: 14, color: MUTED, textAlign: "center", marginBottom: 28 },
+  pinDots: { flexDirection: "row", justifyContent: "center", gap: 16, marginBottom: 32 },
+  pinDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: BORDER, backgroundColor: "#fff" },
+  pinDotFilled: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  pinGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center", marginBottom: 24 },
+  pinKey: { width: 80, height: 60, borderRadius: 12, backgroundColor: SURFACE, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: BORDER },
+  pinKeyText: { fontSize: 22, fontWeight: "700", color: TEXT },
+
+  successBg: { flex: 1, backgroundColor: "#F9FAFB", justifyContent: "center", alignItems: "center", padding: 20 },
+  successCard: { backgroundColor: "#fff", borderRadius: 24, padding: 28, width: "100%", maxWidth: 400, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
+  successCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#10B981", justifyContent: "center", alignItems: "center", marginBottom: 20 },
+  successTitle: { fontSize: 24, fontWeight: "800", color: TEXT, marginBottom: 4 },
+  successRef: { fontSize: 13, color: MUTED, marginBottom: 24, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
+  successInfoBox: { width: "100%", backgroundColor: SURFACE, borderRadius: 14, padding: 16, marginBottom: 20, gap: 10 },
+  successRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  successLabel: { fontSize: 14, color: TEXT },
+  successNote: { fontSize: 13, color: MUTED, textAlign: "center", marginBottom: 24, lineHeight: 20 },
+  successBtn: { width: "100%", backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 12 },
+  successBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  successBtnOutline: { width: "100%", borderWidth: 1.5, borderColor: PRIMARY, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  successBtnOutlineText: { color: PRIMARY, fontWeight: "700", fontSize: 16 },
+
+  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  pickerSheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "70%", paddingBottom: 40 },
+  pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: BORDER },
+  pickerTitle: { fontWeight: "700", fontSize: 17, color: TEXT },
+  pickerItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER },
+  pickerItemActive: { backgroundColor: "rgba(124,58,237,0.05)" },
+  pickerItemText: { fontSize: 15, color: TEXT },
 });

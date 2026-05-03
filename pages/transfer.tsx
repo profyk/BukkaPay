@@ -6,10 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { fetchCards } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
+import { useCurrency } from "../lib/CurrencyContext";
 
 export default function Transfer() {
   const router = useRouter();
   const { toast } = useToast();
+  const { currency } = useCurrency();
   const [step, setStep] = useState<"select" | "amount" | "confirm" | "success">("select");
   const [amount, setAmount] = useState("0");
   const [fromCardId, setFromCardId] = useState("");
@@ -257,7 +259,7 @@ export default function Transfer() {
 
           <View style={styles.confirmRow}>
             <Text style={styles.confirmLabel}>Amount</Text>
-            <Text style={styles.confirmAmount}>${amount}</Text>
+            <Text style={styles.confirmAmount}>{currency.symbol}{amount}</Text>
           </View>
 
           <View style={styles.warningBox}>
@@ -287,7 +289,7 @@ export default function Transfer() {
 
       <View style={styles.successCard}>
         <Text style={styles.successCardLabel}>Amount Transferred</Text>
-        <Text style={styles.successAmount}>${amount}</Text>
+        <Text style={styles.successAmount}>{currency.symbol}{amount}</Text>
         <View style={styles.confirmDivider} />
         <View style={styles.confirmRow}>
           <Text style={styles.confirmLabel}>From</Text>

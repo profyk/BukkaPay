@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   ActivityIndicator, RefreshControl, Share, Alert,
-  TextInput, Clipboard, Platform,
+  TextInput, Clipboard, Platform, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { API_BASE } from "../lib/config";
+import { API_BASE, APP_URL } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 
 const PRIMARY = "#7C3AED";
@@ -76,17 +76,34 @@ export default function PaymentLinks() {
 
   const onRefresh = () => { setRefreshing(true); fetchLinks(); };
 
+  const getLinkUrl = (link: PaymentLink) => `${APP_URL}/pay/${link.id}`;
+
   const shareLink = async (link: PaymentLink) => {
-    const url = `https://app.bukkapay.com/pay/${link.id}`;
+    const url = getLinkUrl(link);
     try {
-      await Share.share({ message: `Pay me ${link.currency} ${parseFloat(link.amount).toFixed(2)} via BukkaPay: ${url}` });
+      await Share.share({ message: `Pay me ${link.currency} ${parseFloat(link.amount).toFixed(2)} via BukkaPay: ${url}`, url });
     } catch {}
   };
 
+  const shareViaWhatsApp = async (link: PaymentLink) => {
+    const url = getLinkUrl(link);
+    const sym = link.currency === "ZAR" ? "R" : link.currency + " ";
+    const msg = `💳 *Payment Request*\n\nPlease pay me *${sym}${parseFloat(link.amount).toFixed(2)}*${link.description ? `\nFor: _${link.description}_` : ""}\n\nPay securely here 👇\n${url}\n\n_Powered by BukkaPay_`;
+    const encoded = encodeURIComponent(msg);
+    const waUrl = `whatsapp://send?text=${encoded}`;
+    const waWeb = `https://wa.me/?text=${encoded}`;
+    try {
+      const canOpen = await Linking.canOpenURL(waUrl);
+      await Linking.openURL(canOpen ? waUrl : waWeb);
+    } catch {
+      try { await Share.share({ message: msg }); } catch {}
+    }
+  };
+
   const copyLink = (link: PaymentLink) => {
-    const url = `https://app.bukkapay.com/pay/${link.id}`;
+    const url = getLinkUrl(link);
     if (Platform.OS === "web") {
-      navigator.clipboard?.writeText(url).catch(() => {});
+      (navigator as any).clipboard?.writeText(url).catch(() => {});
     } else {
       Clipboard.setString(url);
     }
@@ -173,13 +190,26 @@ export default function PaymentLinks() {
           <Ionicons name="arrow-back" size={22} color="#1A1A2E" />
         </TouchableOpacity>
         <Text style={s.topBarTitle}>Payment Links</Text>
-        <TouchableOpacity
-          style={s.newLinkBtn}
-          onPress={() => router.push("/(screens)/create-payment-link" as any)}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={s.newLinkBtnText}>New</Text>
-        </TouchableOpacity>
+        <View style={s.topBarActions}>
+          <TouchableOpacity
+            style={s.inboxBtn}
+            onPress={() => router.push("/(screens)/received-links" as any)}
+          >
+            <Ionicons name="inbox" size={17} color={PRIMARY} />
+            {receivedLinks.length > 0 && (
+              <View style={s.inboxBadge}>
+                <Text style={s.inboxBadgeText}>{receivedLinks.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.newLinkBtn}
+            onPress={() => router.push("/(screens)/create-payment-link" as any)}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={s.newLinkBtnText}>New</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -298,6 +328,7 @@ export default function PaymentLinks() {
                   link={link}
                   isDeleting={deletingId === link.id}
                   onShare={() => shareLink(link)}
+                  onWhatsApp={() => shareViaWhatsApp(link)}
                   onCopy={() => copyLink(link)}
                   onDelete={() => confirmDelete(link)}
                   onPayNow={() => router.push(`/pay/${link.id}` as any)}
@@ -337,11 +368,12 @@ function MetricCard({ icon, label, value, color, bg }: {
 }
 
 function PaymentLinkCard({
-  link, isDeleting, onShare, onCopy, onDelete, onPayNow, onViewDetails,
+  link, isDeleting, onShare, onWhatsApp, onCopy, onDelete, onPayNow, onViewDetails,
 }: {
   link: PaymentLink;
   isDeleting: boolean;
   onShare: () => void;
+  onWhatsApp: () => void;
   onCopy: () => void;
   onDelete: () => void;
   onPayNow: () => void;
@@ -405,11 +437,12 @@ function PaymentLinkCard({
             {!isPaid && (
               <ActionBtn icon="wallet" label="Pay Now" color="#fff" bg={GREEN} onPress={onPayNow} />
             )}
-            <ActionBtn icon="share-social-outline" label="Share" color={PRIMARY} onPress={onShare} />
+            <ActionBtn icon="logo-whatsapp" label="WhatsApp" color="#fff" bg="#25D366" onPress={onWhatsApp} />
             <ActionBtn icon="copy-outline" label="Copy" color="#6B7280" onPress={onCopy} />
           </>
         ) : (
           <>
+            <ActionBtn icon="logo-whatsapp" label="WhatsApp" color="#fff" bg="#25D366" onPress={onWhatsApp} />
             <ActionBtn icon="share-social-outline" label="Share" color={PRIMARY} onPress={onShare} />
             <ActionBtn icon="copy-outline" label="Copy" color="#6B7280" onPress={onCopy} />
             <ActionBtn
@@ -472,6 +505,17 @@ const s = StyleSheet.create({
   },
   backBtn: { padding: 6 },
   topBarTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A2E" },
+  topBarActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  inboxBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center",
+  },
+  inboxBadge: {
+    position: "absolute", top: -3, right: -3,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
+  },
+  inboxBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
   newLinkBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: PRIMARY, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,

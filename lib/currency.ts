@@ -10,8 +10,8 @@ export interface Currency {
 }
 
 export const CURRENCIES: Currency[] = [
-  { code: "USD", symbol: "$", name: "US Dollar", rate: 1 },
   { code: "ZAR", symbol: "R", name: "South African Rand", rate: 18.2 },
+  { code: "USD", symbol: "$", name: "US Dollar", rate: 1 },
   { code: "BWP", symbol: "P", name: "Botswana Pula", rate: 13.5 },
 ];
 
@@ -30,12 +30,25 @@ export function formatCurrency(amount: number, currencyCode: CurrencyCode): stri
   return `${currency.symbol}${convertedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const VALID_CODES: CurrencyCode[] = ["USD", "ZAR", "BWP"];
+const DEFAULT_CURRENCY: CurrencyCode = "ZAR";
+
+export function getInitialCurrency(): CurrencyCode {
+  if (typeof window !== "undefined" && window.localStorage) {
+    const stored = localStorage.getItem("displayCurrency");
+    if (stored && VALID_CODES.includes(stored as CurrencyCode)) {
+      return stored as CurrencyCode;
+    }
+  }
+  return DEFAULT_CURRENCY;
+}
+
 export async function getStoredCurrency(): Promise<CurrencyCode> {
   const stored = await AsyncStorage.getItem("displayCurrency");
-  if (stored && (stored === "USD" || stored === "ZAR" || stored === "BWP")) {
-    return stored;
+  if (stored && VALID_CODES.includes(stored as CurrencyCode)) {
+    return stored as CurrencyCode;
   }
-  return "USD";
+  return DEFAULT_CURRENCY;
 }
 
 export async function setStoredCurrency(code: CurrencyCode): Promise<void> {

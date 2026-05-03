@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { CURRENCIES, Currency, CurrencyCode, getStoredCurrency, setStoredCurrency, getCurrency } from "./currency";
+import { CURRENCIES, Currency, CurrencyCode, getStoredCurrency, setStoredCurrency, getCurrency, getInitialCurrency } from "./currency";
 
 interface CurrencyContextType {
   currency: Currency;
@@ -12,7 +12,7 @@ const CurrencyContext = createContext<CurrencyContextType>({
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [currencyCode, setCurrencyCode] = useState<CurrencyCode>("USD");
+  const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(getInitialCurrency);
 
   useEffect(() => {
     getStoredCurrency().then(setCurrencyCode);
