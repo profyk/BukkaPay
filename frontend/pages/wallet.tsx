@@ -7,11 +7,14 @@ import AddCardDialog from "../components/AddCardDialog";
 import { fetchCards } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import { getCurrentUser } from "../lib/auth";
+import { useCurrency } from "../lib/CurrencyContext";
+import { convertAmount } from "../lib/currency";
 
 const cardColors: Array<"blue" | "gold" | "black" | "purple"> = ["blue", "gold", "black", "purple"];
 
 export default function Wallet() {
   const [userName, setUserName] = useState("Card Holder");
+  const { currency } = useCurrency();
 
   useEffect(() => {
     (async () => {
@@ -43,8 +46,8 @@ export default function Wallet() {
           <PremiumCard
             cardNumber={card.cardNumber}
             holderName={userName}
-            balance={card.balance}
-            currency={card.currency}
+            balance={convertAmount(Number(card.balance), currency.code)}
+            currency={currency.symbol}
             color={cardColors[index % cardColors.length]}
           />
           <View style={styles.cardInfo}>
@@ -55,7 +58,7 @@ export default function Wallet() {
               <Text style={styles.cardTitle}>{card.title}</Text>
             </View>
             <Text style={styles.cardBalance}>
-              {card.currency}{Number(card.balance).toFixed(2)}
+              {currency.symbol}{convertAmount(Number(card.balance), currency.code).toFixed(2)}
             </Text>
           </View>
         </View>
