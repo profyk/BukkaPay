@@ -146,13 +146,6 @@ const ALL_ITEMS: AppItem[] = [
 
   // ── Community ──────────────────────────────────────────────
   {
-    id: "stokvel", category: "Community",
-    title: "Stokvel / Group Savings", description: "Start or join a community savings group",
-    keywords: ["stokvel", "savings", "group", "community", "pool", "rotating"],
-    icon: "people-outline", iconBg: "#F5F3FF", iconColor: "#8B5CF6",
-    route: "/(screens)/stokvel",
-  },
-  {
     id: "contributions", category: "Community",
     title: "My Contributions", description: "See all your stokvel and savings contributions",
     keywords: ["contributions", "stokvel", "savings", "history"],
@@ -274,7 +267,7 @@ const ALL_ITEMS: AppItem[] = [
 
 const QUICK_ACCESS: AppItem["id"][] = [
   "send-money", "topup", "qr-pay", "request",
-  "marketplace", "payment-links", "analytics", "stokvel",
+  "marketplace", "payment-links", "analytics", "contributions",
 ];
 
 export default function Search() {
