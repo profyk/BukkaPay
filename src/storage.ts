@@ -169,6 +169,7 @@ export interface IStorage {
 
   // Saved / received payment links
   savePaymentLink(userId: string, paymentLinkId: string): Promise<void>;
+  removeSavedPaymentLink(userId: string, paymentLinkId: string): Promise<void>;
   getSavedPaymentLinks(userId: string): Promise<any[]>;
 
   // Notifications
@@ -857,6 +858,11 @@ export class DatabaseStorage implements IStorage {
     if (existing.length === 0) {
       await db.insert(savedPaymentLinks).values({ userId, paymentLinkId });
     }
+  }
+
+  async removeSavedPaymentLink(userId: string, paymentLinkId: string): Promise<void> {
+    await db.delete(savedPaymentLinks)
+      .where(and(eq(savedPaymentLinks.userId, userId), eq(savedPaymentLinks.paymentLinkId, paymentLinkId)));
   }
 
   async getSavedPaymentLinks(userId: string): Promise<any[]> {

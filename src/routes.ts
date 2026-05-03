@@ -2237,7 +2237,7 @@ export async function registerRoutes(
     }
   });
 
-  // POST /api/payment-links/:linkId/save - Save a received payment link to wallet
+  // POST /api/payment-links/:linkId/save - Save a received payment link to inbox
   app.post("/api/payment-links/:linkId/save", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2245,6 +2245,18 @@ export async function registerRoutes(
       const link = await storage.getPaymentLink(req.params.linkId);
       if (!link) return res.status(404).json({ error: "Payment link not found" });
       await storage.savePaymentLink(userId, link.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/payment-links/:linkId/save - Remove a saved link from inbox
+  app.delete("/api/payment-links/:linkId/save", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await storage.removeSavedPaymentLink(userId, req.params.linkId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
