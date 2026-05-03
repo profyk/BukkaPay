@@ -3197,5 +3197,163 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Tag n Ride ──────────────────────────────────────────────────────────────
+
+  app.post("/api/tag-ride/driver/register", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { vehicleNumber, vehicleType } = req.body;
+      if (!vehicleNumber?.trim()) return res.status(400).json({ error: "Vehicle number is required" });
+      const existing = await pool.query(`SELECT * FROM tag_ride_drivers WHERE user_id = $1`, [userId]);
+      if (existing.rows.length > 0) {
+        const updated = await pool.query(
+          `UPDATE tag_ride_drivers SET vehicle_number = $1, vehicle_type = $2, is_active = true WHERE user_id = $3 RETURNING *`,
+          [vehicleNumber.trim(), vehicleType || "taxi", userId]
+        );
+        return res.json(updated.rows[0]);
+      }
+      const result = await pool.query(
+        `INSERT INTO tag_ride_drivers (user_id, vehicle_number, vehicle_type) VALUES ($1, $2, $3) RETURNING *`,
+        [userId, vehicleNumber.trim(), vehicleType || "taxi"]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/tag-ride/driver/me", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const result = await pool.query(
+        `SELECT d.*, u.name, u.username FROM tag_ride_drivers d JOIN users u ON d.user_id = u.id WHERE d.user_id = $1`,
+        [userId]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: "Not registered as driver" });
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/tag-ride/driver/:driverId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const result = await pool.query(
+        `SELECT d.id, d.vehicle_number, d.vehicle_type, d.is_active, u.name FROM tag_ride_drivers d JOIN users u ON d.user_id = u.id WHERE d.id = $1`,
+        [req.params.driverId]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: "Driver not found" });
+      if (!result.rows[0].is_active) return res.status(400).json({ error: "Driver is not active" });
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/tag-ride/pay", async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { driverId, amount } = req.body;
+    if (!driverId || !amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({ error: "Invalid payment details" });
+    }
+    const amountDecimal = parseFloat(amount).toFixed(2);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const driverResult = await client.query(
+        `SELECT d.*, u.id AS driver_user_id FROM tag_ride_drivers d JOIN users u ON d.user_id = u.id WHERE d.id = $1 FOR UPDATE`,
+        [driverId]
+      );
+      if (!driverResult.rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Driver not found" }); }
+      const driver = driverResult.rows[0];
+      if (!driver.is_active) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Driver is not active" }); }
+      if (driver.driver_user_id === userId) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Cannot pay yourself" }); }
+
+      const passengerCardResult = await client.query(
+        `SELECT * FROM wallet_cards WHERE user_id = $1 AND (frozen IS NULL OR frozen = false) ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+        [userId]
+      );
+      if (!passengerCardResult.rows.length) { await client.query("ROLLBACK"); return res.status(400).json({ error: "No active wallet card found" }); }
+      const passengerCard = passengerCardResult.rows[0];
+
+      if (parseFloat(passengerCard.balance) < parseFloat(amountDecimal)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: `Insufficient balance. Available: ${parseFloat(passengerCard.balance).toFixed(2)}` });
+      }
+
+      const driverCardResult = await client.query(
+        `SELECT * FROM wallet_cards WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+        [driver.driver_user_id]
+      );
+      if (!driverCardResult.rows.length) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Driver has no wallet" }); }
+      const driverCard = driverCardResult.rows[0];
+
+      await client.query(`UPDATE wallet_cards SET balance = balance - $1 WHERE id = $2`, [amountDecimal, passengerCard.id]);
+      await client.query(`UPDATE wallet_cards SET balance = balance + $1 WHERE id = $2`, [amountDecimal, driverCard.id]);
+      await client.query(`UPDATE tag_ride_drivers SET total_earnings = total_earnings + $1 WHERE id = $2`, [amountDecimal, driverId]);
+
+      const reference = `TRD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const rideResult = await client.query(
+        `INSERT INTO tag_ride_rides (passenger_id, driver_id, passenger_card_id, driver_card_id, amount, status, reference) VALUES ($1, $2, $3, $4, $5, 'completed', $6) RETURNING *`,
+        [userId, driverId, passengerCard.id, driverCard.id, amountDecimal, reference]
+      );
+
+      await client.query(
+        `INSERT INTO transactions (user_id, card_id, title, category, amount, type, icon) VALUES ($1, $2, $3, 'transport', $4, 'debit', 'car')`,
+        [userId, passengerCard.id, `Tag n Ride - ${driver.name}`, amountDecimal]
+      );
+      await client.query(
+        `INSERT INTO transactions (user_id, card_id, title, category, amount, type, icon) VALUES ($1, $2, $3, 'transport', $4, 'credit', 'cash')`,
+        [driver.driver_user_id, driverCard.id, `Tag n Ride Fare`, amountDecimal]
+      );
+
+      await client.query("COMMIT");
+      const newBalance = (parseFloat(passengerCard.balance) - parseFloat(amountDecimal)).toFixed(2);
+      res.json({ success: true, ride: rideResult.rows[0], reference, passengerNewBalance: newBalance });
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      res.status(500).json({ error: error.message });
+    } finally {
+      client.release();
+    }
+  });
+
+  app.get("/api/tag-ride/rides", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const role = (req.query.role as string) || "passenger";
+      if (role === "driver") {
+        const driverResult = await pool.query(`SELECT id FROM tag_ride_drivers WHERE user_id = $1`, [userId]);
+        if (!driverResult.rows.length) return res.json({ rides: [], todayTotal: "0.00" });
+        const driverId = driverResult.rows[0].id;
+        const ridesResult = await pool.query(
+          `SELECT r.*, u.name AS passenger_name FROM tag_ride_rides r JOIN users u ON r.passenger_id = u.id WHERE r.driver_id = $1 ORDER BY r.created_at DESC LIMIT 50`,
+          [driverId]
+        );
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const todayResult = await pool.query(
+          `SELECT COALESCE(SUM(amount), 0) AS today_total FROM tag_ride_rides WHERE driver_id = $1 AND created_at >= $2 AND status = 'completed'`,
+          [driverId, todayStart]
+        );
+        res.json({ rides: ridesResult.rows, todayTotal: parseFloat(todayResult.rows[0].today_total).toFixed(2) });
+      } else {
+        const result = await pool.query(
+          `SELECT r.*, d.vehicle_number, d.vehicle_type, u.name AS driver_name FROM tag_ride_rides r JOIN tag_ride_drivers d ON r.driver_id = d.id JOIN users u ON d.user_id = u.id WHERE r.passenger_id = $1 ORDER BY r.created_at DESC LIMIT 50`,
+          [userId]
+        );
+        res.json({ rides: result.rows });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

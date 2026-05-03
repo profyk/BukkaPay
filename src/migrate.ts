@@ -187,6 +187,32 @@ export async function runCoreMigrations(): Promise<void> {
     }
     await pool.query(`UPDATE payment_links SET remaining_balance = amount WHERE remaining_balance IS NULL`);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tag_ride_drivers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        user_id VARCHAR NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        vehicle_number TEXT NOT NULL,
+        vehicle_type TEXT NOT NULL DEFAULT 'taxi',
+        is_active BOOLEAN DEFAULT true,
+        total_earnings DECIMAL(12,2) DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tag_ride_rides (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        passenger_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        driver_id VARCHAR NOT NULL REFERENCES tag_ride_drivers(id) ON DELETE CASCADE,
+        passenger_card_id VARCHAR REFERENCES wallet_cards(id) ON DELETE SET NULL,
+        driver_card_id VARCHAR REFERENCES wallet_cards(id) ON DELETE SET NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        status TEXT NOT NULL DEFAULT 'completed',
+        reference TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     console.log("[db] Core tables ensured");
   } finally {
     await pool.end();

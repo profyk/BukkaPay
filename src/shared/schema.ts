@@ -657,3 +657,30 @@ export const savedPaymentLinks = pgTable("saved_payment_links", {
   paymentLinkId: varchar("payment_link_id").notNull().references(() => paymentLinks.id, { onDelete: "cascade" }),
   savedAt: timestamp("saved_at").defaultNow().notNull(),
 });
+
+// ─── Tag n Ride ───────────────────────────────────────────────────────────────
+
+export const tagRideDrivers = pgTable("tag_ride_drivers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  vehicleNumber: text("vehicle_number").notNull(),
+  vehicleType: text("vehicle_type").notNull().default("taxi"),
+  isActive: boolean("is_active").default(true),
+  totalEarnings: decimal("total_earnings", { precision: 12, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tagRideRides = pgTable("tag_ride_rides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  passengerId: varchar("passenger_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  driverId: varchar("driver_id").notNull().references(() => tagRideDrivers.id, { onDelete: "cascade" }),
+  passengerCardId: varchar("passenger_card_id").references(() => walletCards.id, { onDelete: "set null" }),
+  driverCardId: varchar("driver_card_id").references(() => walletCards.id, { onDelete: "set null" }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").notNull().default("completed"),
+  reference: text("reference").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type TagRideDriver = typeof tagRideDrivers.$inferSelect;
+export type TagRideRide = typeof tagRideRides.$inferSelect;
