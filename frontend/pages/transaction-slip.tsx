@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import * as Clipboard from "expo-clipboard";
+import { useCurrency } from "../lib/CurrencyContext";
 
 interface Transaction {
   id: string;
@@ -22,6 +23,7 @@ interface Transaction {
 export default function TransactionSlip() {
   const router = useRouter();
   const { toast } = useToast();
+  const { currency } = useCurrency();
   const [copied, setCopied] = useState(false);
 
   const transaction: Transaction = {
@@ -39,7 +41,7 @@ export default function TransactionSlip() {
   };
 
   const getSlipText = () => {
-    return `Transaction Receipt\nAmount: ${transaction.currency}${transaction.amount}\nRecipient: ${transaction.recipient}\nDate: ${transaction.date}\nTime: ${transaction.time}\nReference: ${transaction.reference}\nStatus: Completed`;
+    return `Transaction Receipt\nAmount: ${currency.symbol}${transaction.amount}\nRecipient: ${transaction.recipient}\nDate: ${transaction.date}\nTime: ${transaction.time}\nReference: ${transaction.reference}\nStatus: Completed`;
   };
 
   const handleShare = async () => {
@@ -87,7 +89,7 @@ export default function TransactionSlip() {
 
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Amount Transferred</Text>
-          <Text style={styles.amountValue}>{transaction.currency}{transaction.amount}</Text>
+          <Text style={styles.amountValue}>{currency.symbol}{transaction.amount}</Text>
           <Text style={styles.statusText}>Completed</Text>
         </View>
 
