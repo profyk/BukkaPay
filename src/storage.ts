@@ -71,6 +71,7 @@ export interface IStorage {
   getMerchantByPaymentLink(paymentLink: string): Promise<Merchant | undefined>;
   getMerchantsByUser(userId: string): Promise<Merchant[]>;
   updateMerchantBalance(id: string, balance: string): Promise<Merchant | undefined>;
+  deleteMerchant(id: string): Promise<void>;
   
   // Merchant transactions
   createMerchantTransaction(transaction: InsertMerchantTransaction): Promise<MerchantTransaction>;
@@ -445,6 +446,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(merchants.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteMerchant(id: string): Promise<void> {
+    await db.delete(merchants).where(eq(merchants.id, id));
   }
 
   async createMerchantTransaction(transaction: InsertMerchantTransaction): Promise<MerchantTransaction> {
