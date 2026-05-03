@@ -173,13 +173,26 @@ export default function PaymentLinks() {
           <Ionicons name="arrow-back" size={22} color="#1A1A2E" />
         </TouchableOpacity>
         <Text style={s.topBarTitle}>Payment Links</Text>
-        <TouchableOpacity
-          style={s.newLinkBtn}
-          onPress={() => router.push("/(screens)/create-payment-link" as any)}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={s.newLinkBtnText}>New</Text>
-        </TouchableOpacity>
+        <View style={s.topBarActions}>
+          <TouchableOpacity
+            style={s.inboxBtn}
+            onPress={() => router.push("/(screens)/received-links" as any)}
+          >
+            <Ionicons name="inbox" size={17} color={PRIMARY} />
+            {receivedLinks.length > 0 && (
+              <View style={s.inboxBadge}>
+                <Text style={s.inboxBadgeText}>{receivedLinks.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.newLinkBtn}
+            onPress={() => router.push("/(screens)/create-payment-link" as any)}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={s.newLinkBtnText}>New</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -472,6 +485,17 @@ const s = StyleSheet.create({
   },
   backBtn: { padding: 6 },
   topBarTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A2E" },
+  topBarActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  inboxBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center",
+  },
+  inboxBadge: {
+    position: "absolute", top: -3, right: -3,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
+  },
+  inboxBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
   newLinkBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: PRIMARY, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,

@@ -59,13 +59,10 @@ export default function PayLink() {
   const [payAmount, setPayAmount] = useState("");
   const [isFullPay, setIsFullPay] = useState(true);
 
-  // Card fields
+  // Card fields (Paystack collects the actual card number/expiry/CVC on their secure hosted page)
   const [cardEmail, setCardEmail] = useState("");
   const [cardName, setCardName] = useState("");
   const [cardPhone, setCardPhone] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvc, setCardCvc] = useState("");
 
   const [isPaying, setIsPaying] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -106,15 +103,6 @@ export default function PayLink() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatCardNumber = (val: string) =>
-    val.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
-
-  const formatExpiry = (val: string) => {
-    const digits = val.replace(/\D/g, "").slice(0, 4);
-    if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    return digits;
   };
 
   const handleWalletPay = async () => {
@@ -454,48 +442,15 @@ export default function PayLink() {
               Amount: {currSym} {payAmountValue.toFixed(2)}
             </Text>
 
-            <Text style={[s.cardTitle, { marginTop: 16 }]}>Card Details</Text>
-
-            <Text style={s.inputLabel}>Card Number *</Text>
-            <View style={s.cardInputRow}>
-              <Ionicons name="card-outline" size={18} color="#6B7280" style={s.inputIcon} />
-              <TextInput
-                style={[s.input, { flex: 1, marginBottom: 0, borderWidth: 0 }]}
-                value={cardNumber}
-                onChangeText={v => setCardNumber(formatCardNumber(v))}
-                placeholder="1234 5678 9012 3456"
-                keyboardType="numeric"
-                maxLength={19}
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-
-            <View style={s.cardRowFields}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.inputLabel}>Expiry *</Text>
-                <TextInput
-                  style={s.input}
-                  value={cardExpiry}
-                  onChangeText={v => setCardExpiry(formatExpiry(v))}
-                  placeholder="MM/YY"
-                  keyboardType="numeric"
-                  maxLength={5}
-                  placeholderTextColor="#9CA3AF"
-                />
+            {/* Paystack redirect notice */}
+            <View style={s.paystackNotice}>
+              <View style={s.paystackNoticeBadge}>
+                <Ionicons name="lock-closed" size={13} color="#2563EB" />
+                <Text style={s.paystackNoticeBadgeTxt}>Powered by Paystack</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.inputLabel}>CVC *</Text>
-                <TextInput
-                  style={s.input}
-                  value={cardCvc}
-                  onChangeText={v => setCardCvc(v.replace(/\D/g, "").slice(0, 4))}
-                  placeholder="123"
-                  keyboardType="numeric"
-                  secureTextEntry
-                  maxLength={4}
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
+              <Text style={s.paystackNoticeText}>
+                You'll be securely redirected to Paystack's checkout to enter your card details. We never see or store your card information.
+              </Text>
             </View>
 
             <Text style={[s.cardTitle, { marginTop: 16 }]}>Your Details</Text>
@@ -786,6 +741,18 @@ const s = StyleSheet.create({
   },
   secureNoteTxt: { flex: 1, fontSize: 12, color: "#6B7280", lineHeight: 18 },
 
+  paystackNotice: {
+    backgroundColor: "#EFF6FF", borderRadius: 14, padding: 14, marginBottom: 4,
+    borderWidth: 1, borderColor: "#BFDBFE",
+  },
+  paystackNoticeBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+    alignSelf: "flex-start", marginBottom: 8,
+    borderWidth: 1, borderColor: "#BFDBFE",
+  },
+  paystackNoticeBadgeTxt: { fontSize: 12, fontWeight: "700", color: "#2563EB" },
+  paystackNoticeText: { fontSize: 13, color: "#1E40AF", lineHeight: 19 },
   cardInputRow: {
     flexDirection: "row", alignItems: "center", borderWidth: 1.5,
     borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 12,
