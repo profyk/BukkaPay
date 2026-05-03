@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useCurrency } from "../lib/CurrencyContext";
+import { convertAmount } from "../lib/currency";
 
 const categories = [
   { id: "all", label: "All", icon: "filter-outline" as keyof typeof Ionicons.glyphMap },
@@ -48,6 +50,7 @@ const statusColors: Record<string, { bg: string; text: string }> = {
 
 export default function PurchasesHub() {
   const router = useRouter();
+  const { currency } = useCurrency();
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -151,7 +154,7 @@ export default function PurchasesHub() {
                       <View style={styles.transactionTopRow}>
                         <Text style={styles.merchantName} numberOfLines={1}>{transaction.merchantName}</Text>
                         <Text style={styles.amountText}>
-                          {transaction.currency}{Number(transaction.amount).toFixed(2)}
+                          {currency.symbol}{convertAmount(Number(transaction.amount), currency.code).toFixed(2)}
                         </Text>
                       </View>
                       <View style={styles.transactionBottomRow}>
