@@ -1058,14 +1058,40 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const { merchantId, name, address, propertyType, totalUnits } = req.body;
-      if (!merchantId || !name) {
-        return res.status(400).json({ error: "Merchant ID and name are required" });
+      const { merchantId: reqMerchantId, name, address, propertyType, totalUnits } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "Property name is required" });
       }
 
-      const merchant = await storage.getMerchant(merchantId);
-      if (!merchant || merchant.userId !== userId) {
-        return res.status(403).json({ error: "Forbidden" });
+      let merchantId = reqMerchantId;
+
+      if (merchantId) {
+        const merchant = await storage.getMerchant(merchantId);
+        if (!merchant || merchant.userId !== userId) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+      } else {
+        const existingMerchants = await storage.getMerchantsByUser(userId);
+        const propertyMerchant = existingMerchants.find(
+          (m) => m.businessType?.toLowerCase() === "property"
+        );
+        if (propertyMerchant) {
+          merchantId = propertyMerchant.id;
+        } else {
+          const user = await storage.getUser(userId);
+          const autoQr = `BKP-${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
+          const autoLink = `pay-${crypto.randomBytes(6).toString("hex")}`;
+          const displayName = user?.name?.split(" ")[0] || "My";
+          const autoMerchant = await storage.createMerchant({
+            userId,
+            businessName: `${displayName} Properties`,
+            businessType: "Property",
+            isActive: true,
+            qrCode: autoQr,
+            paymentLink: autoLink,
+          });
+          merchantId = autoMerchant.id;
+        }
       }
 
       const property = await storage.createProperty({
@@ -1311,16 +1337,42 @@ export async function registerRoutes(
   // Make a rent payment (for tenants)
   app.post("/api/rental/pay", async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
       const { tenantId, amount, paymentMethod, reference } = req.body;
       if (!tenantId || !amount) {
         return res.status(400).json({ error: "Tenant ID and amount are required" });
       }
 
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
       const tenant = await storage.getTenantByTenantId(tenantId);
       if (!tenant) return res.status(404).json({ error: "Tenant not found" });
 
+      if (tenant.userId !== userId) {
+        return res.status(403).json({ error: "You can only pay for your own tenant account" });
+      }
+
       const property = await storage.getProperty(tenant.propertyId);
       if (!property) return res.status(404).json({ error: "Property not found" });
+
+      const walletCards = await storage.getWalletCards(userId);
+      const primaryCard = walletCards[0];
+      if (!primaryCard) {
+        return res.status(400).json({ error: "No wallet found. Please top up your BukkaPay wallet first." });
+      }
+
+      const currentBalance = parseFloat(primaryCard.balance || "0");
+      if (currentBalance < amountNum) {
+        return res.status(400).json({ error: `Insufficient wallet balance. Available: R${currentBalance.toFixed(2)}` });
+      }
+
+      const newTenantBalance = (currentBalance - amountNum).toFixed(2);
+      await storage.updateWalletCardBalance(primaryCard.id, userId, newTenantBalance);
 
       const currentMonth = new Date().toISOString().slice(0, 7);
 
@@ -1329,7 +1381,7 @@ export async function registerRoutes(
         propertyId: tenant.propertyId,
         unitId: tenant.unitId,
         merchantId: property.merchantId,
-        amount: amount.toString(),
+        amount: amountNum.toString(),
         rentMonth: currentMonth,
         paymentMethod: paymentMethod || "wallet",
         status: "completed",
@@ -1338,11 +1390,12 @@ export async function registerRoutes(
 
       const merchant = await storage.getMerchant(property.merchantId);
       if (merchant) {
-        const newBalance = (parseFloat(merchant.walletBalance || "0") + parseFloat(amount)).toFixed(2);
-        await storage.updateMerchantBalance(merchant.id, newBalance);
+        const landlordBalance = parseFloat(merchant.walletBalance || "0");
+        const newLandlordBalance = (landlordBalance + amountNum).toFixed(2);
+        await storage.updateMerchantBalance(merchant.id, newLandlordBalance);
       }
 
-      res.status(201).json(payment);
+      res.status(201).json({ ...payment, newBalance: newTenantBalance });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
