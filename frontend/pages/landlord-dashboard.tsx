@@ -6,7 +6,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { apiRequest, queryClient } from "../lib/queryClient";
 import * as Clipboard from "expo-clipboard";
-import { API_BASE } from "../lib/config";
+import { APP_URL } from "../lib/config";
+import * as Linking from "expo-linking";
 
 interface Property {
   id: string;
@@ -160,7 +161,7 @@ export default function LandlordDashboard() {
     },
     onSuccess: async (response: any) => {
       const data = await response.json();
-      const fullLink = `${API_BASE}${data.shareableLink}`;
+      const fullLink = `${APP_URL}${data.shareableLink}`;
       setGeneratedPaymentLink(fullLink);
       toast({ title: "Payment link generated!" });
     },
@@ -199,10 +200,23 @@ export default function LandlordDashboard() {
     if (!generatedPaymentLink || !selectedTenantForPayment) return;
     try {
       await Share.share({
-        message: `Hi ${selectedTenantForPayment.name}, please pay your rent of $${(selectedTenantForPayment.monthlyRent - selectedTenantForPayment.amountPaid).toFixed(2)} via this link: ${generatedPaymentLink}`,
+        message: `Hi ${selectedTenantForPayment.name}, please pay your rent of R${(selectedTenantForPayment.monthlyRent - selectedTenantForPayment.amountPaid).toFixed(2)} via this link: ${generatedPaymentLink}`,
       });
     } catch {
       copyPaymentLink();
+    }
+  };
+
+  const shareViaWhatsApp = async () => {
+    if (!generatedPaymentLink || !selectedTenantForPayment) return;
+    const due = (selectedTenantForPayment.monthlyRent - selectedTenantForPayment.amountPaid).toFixed(2);
+    const msg = `Hi ${selectedTenantForPayment.name}, your rent payment of R${due} is due. Please pay via this secure link: ${generatedPaymentLink}`;
+    const url = `whatsapp://send?text=${encodeURIComponent(msg)}`;
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      sharePaymentLink();
     }
   };
 
@@ -514,25 +528,7 @@ export default function LandlordDashboard() {
           </View>
 
           <View style={styles.body}>
-            <Text style={styles.inputLabel}>Merchant Account</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-              {propertyMerchants.map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[styles.selectChip, newProperty.merchantId === m.id && styles.selectChipActive]}
-                  onPress={() => setNewProperty({ ...newProperty, merchantId: m.id })}
-                >
-                  <Text style={[styles.selectChipText, newProperty.merchantId === m.id && styles.selectChipTextActive]}>
-                    {m.businessName}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {propertyMerchants.length === 0 && (
-              <Text style={styles.hintText}>You need a Property type merchant account first</Text>
-            )}
-
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Property Name</Text>
+            <Text style={[styles.inputLabel, { marginTop: 0 }]}>Property Name</Text>
             <TextInput
               placeholder="e.g., Sunrise Apartments"
               placeholderTextColor="#6B7280"
@@ -566,9 +562,9 @@ export default function LandlordDashboard() {
             </View>
 
             <TouchableOpacity
-              style={[styles.primaryButton, (createPropertyMutation.isPending || !newProperty.merchantId) && { opacity: 0.5 }]}
+              style={[styles.primaryButton, createPropertyMutation.isPending && { opacity: 0.5 }]}
               onPress={() => createPropertyMutation.mutate(newProperty)}
-              disabled={createPropertyMutation.isPending || !newProperty.merchantId}
+              disabled={createPropertyMutation.isPending}
             >
               <Text style={styles.primaryButtonText}>
                 {createPropertyMutation.isPending ? "Creating..." : "Create Property"}
@@ -666,7 +662,11 @@ export default function LandlordDashboard() {
                   <View style={styles.linkButtonsRow}>
                     <TouchableOpacity style={styles.outlineButton} onPress={copyPaymentLink}>
                       <Ionicons name="copy" size={16} color="#7C3AED" />
-                      <Text style={styles.outlineButtonText}> Copy Link</Text>
+                      <Text style={styles.outlineButtonText}> Copy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.primaryButtonSmall, { backgroundColor: "#25D366" }]} onPress={shareViaWhatsApp}>
+                      <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
+                      <Text style={styles.primaryButtonSmallText}> WhatsApp</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.primaryButtonSmall} onPress={sharePaymentLink}>
                       <Ionicons name="share-social" size={16} color="#FFFFFF" />
@@ -675,7 +675,7 @@ export default function LandlordDashboard() {
                   </View>
 
                   <Text style={styles.hintText}>
-                    Send this link to your tenant via WhatsApp, SMS, or email. They can pay even if they don't have BukkaPay yet.
+                    Send this link to your tenant. They can pay securely even without a BukkaPay account.
                   </Text>
                 </View>
               )}
