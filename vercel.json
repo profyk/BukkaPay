@@ -8,9 +8,6 @@
     "CI": "1"
   },
   "rewrites": [
-    { "source": "/pay/:id", "destination": "/pay/[linkId].html" },
-    { "source": "/claim/:id", "destination": "/claim/[id].html" },
-    { "source": "/pay-rent/:linkCode", "destination": "/pay-rent/[linkCode].html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "cleanUrls": true,
