@@ -1,16 +1,14 @@
 {
-    "buildCommand": "npx expo export --platform web",
-    "outputDirectory": "dist",
-    "installCommand": "npm install --legacy-peer-deps",
-    "framework": null,
-    "env": {
-      "EXPO_NO_TELEMETRY": "1",
-      "CI": "1"
-    },
-    "rewrites": [
-      { "source": "/(.*)", "destination": "/index.html" }
-    ],
-    "cleanUrls": true,
-    "trailingSlash": false
-  }
-  
+  "buildCommand": "npx expo export --platform web && node -e \"const fs=require('fs');const p='.vercel/output/config.json';if(fs.existsSync(p)){const c=JSON.parse(fs.readFileSync(p,'utf8'));if(!c.routes)c.routes=[];const hasFs=c.routes.some(r=>r.handle==='filesystem');if(!hasFs)c.routes.push({handle:'filesystem'});if(!c.routes.find(r=>r.src&&r.src.startsWith('/(.*)'))){c.routes.push({src:'/(.*)',dest:'/index.html'});}fs.writeFileSync(p,JSON.stringify(c,null,2));console.log('Patched .vercel/output/config.json with catch-all route');}else{console.log('No .vercel/output/config.json found, vercel.json routes will be used.');}\"",
+  "outputDirectory": "dist",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": null,
+  "env": {
+    "EXPO_NO_TELEMETRY": "1",
+    "CI": "1"
+  },
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
