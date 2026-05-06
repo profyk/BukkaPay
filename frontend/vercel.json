@@ -1,16 +1,15 @@
 {
-    "buildCommand": "npx expo export --platform web",
-    "outputDirectory": "dist",
-    "installCommand": "npm install --legacy-peer-deps",
-    "framework": null,
-    "env": {
-      "EXPO_NO_TELEMETRY": "1",
-      "CI": "1"
-    },
-    "rewrites": [
-      { "source": "/pay/:id", "destination": "/pay/[linkId].html" },
-      { "source": "/claim/:id", "destination": "/claim/[id].html" }
-    ],
-    "cleanUrls": true,
-    "trailingSlash": false
-  }
+  "buildCommand": "npx expo export --platform web",
+  "outputDirectory": "dist",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": null,
+  "env": {
+    "EXPO_NO_TELEMETRY": "1",
+    "CI": "1"
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "cleanUrls": true,
+  "trailingSlash": false
+}
