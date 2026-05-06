@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx expo export --platform web && node scripts/patch-vercel-routing.js",
+  "buildCommand": "npx expo export --platform web && rm -rf .vercel",
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps",
   "framework": null,
@@ -9,7 +9,5 @@
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "cleanUrls": true,
-  "trailingSlash": false
+  ]
 }
