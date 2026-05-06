@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Modal, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { apiRequest, queryClient } from "../lib/queryClient";
@@ -38,6 +39,7 @@ interface TenantLookup {
 }
 
 export default function TenantDashboard() {
+  const router = useRouter();
   const { toast } = useToast();
   const [tenantIdInput, setTenantIdInput] = useState("");
   const [linkedTenant, setLinkedTenant] = useState<TenantLookup | null>(null);
@@ -130,6 +132,12 @@ export default function TenantDashboard() {
   if (!hasDashboard) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.centerContent}>
+        <View style={styles.pageHeader}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          </TouchableOpacity>
+          <Text style={styles.pageTitle}>My Rent</Text>
+        </View>
         <View style={styles.card}>
           <Text style={styles.cardTitleCenter}>Link Your Tenant Account</Text>
           <Text style={styles.descriptionText}>
@@ -187,7 +195,12 @@ export default function TenantDashboard() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollPadding}>
       <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>My Rent</Text>
+        <View style={styles.pageHeaderRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          </TouchableOpacity>
+          <Text style={styles.pageTitle}>My Rent</Text>
+        </View>
         <Text style={styles.welcomeText}>Welcome back, {dashboardData.name}</Text>
       </View>
 
@@ -330,6 +343,8 @@ const styles = StyleSheet.create({
   centerContent: { padding: 16, justifyContent: "center", flexGrow: 1 },
   scrollPadding: { padding: 16, paddingBottom: 32 },
   pageHeader: { marginBottom: 24 },
+  pageHeaderRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 },
+  backButton: { padding: 4 },
   pageTitle: { fontSize: 24, fontWeight: "700", color: "#1A1A2E" },
   welcomeText: { color: "#6B7280", fontSize: 14, marginTop: 4 },
   card: { backgroundColor: "#F8F9FA", borderRadius: 12, padding: 16, marginBottom: 16 },
