@@ -1,33 +1,182 @@
-import { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from "react-native";
+import { useState, useEffect } from "react";
+import {
+  View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet,
+  ActivityIndicator, Linking, Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { useCurrency } from "../lib/CurrencyContext";
+import { API_BASE } from "../lib/config";
+import { getAuthHeader } from "../lib/auth";
+
+const NAVY  = "#0F172A";
+const BLUE  = "#1D4ED8";
+const GREEN = "#16A34A";
+const MUTED = "#64748B";
+const BORDER = "#E2E8F0";
+
+type Section = "select" | "stitch" | "voucher" | "withdraw" | "pending";
+type AccountType = "savings" | "current" | "transmission";
+
+interface StitchBank { id: string; name: string; }
 
 export default function TopUp() {
   const router = useRouter();
   const { toast } = useToast();
   const { currency } = useCurrency();
-  const [section, setSection] = useState<"select" | "card" | "voucher">("select");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardHolderName, setCardHolderName] = useState("");
+
+  const [section, setSection] = useState<Section>("select");
   const [amount, setAmount] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [banks, setBanks] = useState<StitchBank[]>([]);
+  const [pendingPaymentId, setPendingPaymentId] = useState("");
+  const [pendingCardId, setPendingCardId] = useState("");
+  const [pendingAmount, setPendingAmount] = useState("");
 
-  const handleCardTopUp = async () => {
-    if (!cardNumber || !cardHolderName || !amount) {
-      toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
+  // Withdraw form state
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [selectedBank, setSelectedBank] = useState<StitchBank | null>(null);
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>("savings");
+  const [showBankList, setShowBankList] = useState(false);
+
+  useEffect(() => {
+    fetchBanks();
+  }, []);
+
+  const fetchBanks = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/stitch/banks`);
+      if (res.ok) {
+        const data = await res.json();
+        setBanks(data.banks || []);
+      }
+    } catch {}
+  };
+
+  const handleStitchTopUp = async () => {
+    if (!amount || parseFloat(amount) < 10) {
+      toast({ title: "Minimum R10", description: "Enter at least R10 to top up", variant: "destructive" });
       return;
     }
+    setIsLoading(true);
     try {
-      toast({ title: "Success", description: `${currency.symbol}${amount} added to your wallet!` });
-      setCardNumber("");
-      setCardHolderName("");
-      setAmount("");
+      const headers = await getAuthHeader();
+      const userRes = await fetch(`${API_BASE}/api/user/me`, { headers: headers as HeadersInit });
+      if (!userRes.ok) throw new Error("Please log in to top up");
+
+      const userData = await userRes.json();
+      const walletCards = userData.walletCards || [];
+      if (!walletCards.length) throw new Error("No wallet card found");
+      const cardId = walletCards[0].id;
+
+      const res = await fetch(`${API_BASE}/api/wallet/topup/stitch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(headers as object) },
+        body: JSON.stringify({ walletCardId: cardId, amount, currency: "ZAR" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to initiate payment");
+
+      setPendingPaymentId(data.paymentRequestId);
+      setPendingCardId(cardId);
+      setPendingAmount(amount);
+
+      if (Platform.OS === "web") {
+        window.location.href = data.paymentUrl;
+      } else {
+        await Linking.openURL(data.paymentUrl);
+        setSection("pending");
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyPayment = async () => {
+    setIsLoading(true);
+    try {
+      const headers = await getAuthHeader();
+      const res = await fetch(`${API_BASE}/api/wallet/topup/stitch/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(headers as object) },
+        body: JSON.stringify({
+          paymentRequestId: pendingPaymentId,
+          walletCardId: pendingCardId,
+          amount: pendingAmount,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed");
+
+      if (data.status === "pending") {
+        toast({ title: "Still Processing", description: "Payment is still pending. Try again in a moment.", variant: "destructive" });
+      } else if (data.status === "completed") {
+        toast({ title: "Top-Up Successful!", description: `R${parseFloat(pendingAmount).toFixed(2)} added to your wallet.` });
+        setSection("select");
+        setAmount("");
+        setPendingPaymentId("");
+      } else {
+        toast({ title: "Payment Failed", description: "Your payment was not completed.", variant: "destructive" });
+        setSection("select");
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || parseFloat(withdrawAmount) < 50) {
+      toast({ title: "Minimum R50", description: "Enter at least R50 to withdraw", variant: "destructive" });
+      return;
+    }
+    if (!selectedBank || !accountNumber || !accountName) {
+      toast({ title: "Missing Info", description: "Please fill in all bank details", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const headers = await getAuthHeader();
+      const userRes = await fetch(`${API_BASE}/api/user/me`, { headers: headers as HeadersInit });
+      if (!userRes.ok) throw new Error("Please log in to withdraw");
+      const userData = await userRes.json();
+      const walletCards = userData.walletCards || [];
+      if (!walletCards.length) throw new Error("No wallet card found");
+      const cardId = walletCards[0].id;
+
+      const res = await fetch(`${API_BASE}/api/wallet/withdraw/stitch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(headers as object) },
+        body: JSON.stringify({
+          walletCardId: cardId,
+          amount: withdrawAmount,
+          currency: "ZAR",
+          bankId: selectedBank.id,
+          accountNumber,
+          accountType,
+          accountName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Withdrawal failed");
+
+      toast({ title: "Withdrawal Submitted", description: data.message || "Funds arrive in 1–2 business days." });
       setSection("select");
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to process card top-up", variant: "destructive" });
+      setWithdrawAmount("");
+      setAccountNumber("");
+      setAccountName("");
+      setSelectedBank(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -36,428 +185,384 @@ export default function TopUp() {
       toast({ title: "Error", description: "Please enter a voucher code", variant: "destructive" });
       return;
     }
-    try {
-      toast({ title: "Success", description: "Voucher redeemed successfully!" });
-      setVoucherCode("");
-      setSection("select");
-    } catch (error) {
-      toast({ title: "Error", description: "Invalid or expired voucher", variant: "destructive" });
-    }
+    toast({ title: "Success", description: "Voucher redeemed successfully!" });
+    setVoucherCode("");
+    setSection("select");
   };
 
+  // ─── Select Screen ────────────────────────────────────────────────────────
   if (section === "select") {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+      <View style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={NAVY} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Top Up Wallet</Text>
+          <Text style={s.headerTitle}>Wallet</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.content}>
-          <Text style={styles.subtitle}>Choose how you'd like to add funds to your wallet</Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
+          <Text style={s.sectionLabel}>Add Money</Text>
 
-          <TouchableOpacity style={styles.optionCard} onPress={() => setSection("card")}>
-            <View style={[styles.optionIcon, { backgroundColor: "#2563EB" }]}>
-              <Ionicons name="card" size={24} color="#FFFFFF" />
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: "#EFF6FF" }]} onPress={() => setSection("stitch")}>
+            <View style={[s.optionIcon, { backgroundColor: BLUE }]}>
+              <Ionicons name="swap-horizontal" size={22} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.optionTitle}>Bank Card</Text>
-              <Text style={styles.optionSubtitle}>Top up with any bank card</Text>
+              <Text style={[s.optionTitle, { color: BLUE }]}>Instant Bank Pay</Text>
+              <Text style={s.optionSub}>Pay via your bank · Powered by Stitch</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
+            <View style={s.badge}>
+              <Text style={s.badgeText}>Instant</Text>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.optionCard, { backgroundColor: "#059669" }]} onPress={() => setSection("voucher")}>
-            <View style={[styles.optionIcon, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
-              <Ionicons name="ticket" size={24} color="#FFFFFF" />
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: "#F0FDF4" }]} onPress={() => setSection("voucher")}>
+            <View style={[s.optionIcon, { backgroundColor: GREEN }]}>
+              <Ionicons name="ticket" size={22} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.optionTitle}>Voucher</Text>
-              <Text style={[styles.optionSubtitle, { color: "rgba(255,255,255,0.8)" }]}>Redeem BukkaPay or other vouchers</Text>
+              <Text style={[s.optionTitle, { color: GREEN }]}>Redeem Voucher</Text>
+              <Text style={s.optionSub}>BukkaPay gift cards and vouchers</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={{ flex: 1 }} />
+          <View style={s.divider} />
 
-          <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={s.sectionLabel}>Withdraw Funds</Text>
+
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: "#FFF7ED" }]} onPress={() => setSection("withdraw")}>
+            <View style={[s.optionIcon, { backgroundColor: "#EA580C" }]}>
+              <Ionicons name="arrow-up-circle" size={22} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.optionTitle, { color: "#EA580C" }]}>Withdraw to Bank</Text>
+              <Text style={s.optionSub}>Send to your bank account via Stitch</Text>
+            </View>
+            <Text style={[s.optionSub, { color: MUTED }]}>1–2 days</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     );
   }
 
-  if (section === "card") {
+  // ─── Stitch Top-Up ────────────────────────────────────────────────────────
+  if (section === "stitch") {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setSection("select")}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+      <ScrollView style={s.container} contentContainerStyle={s.scrollContent}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => setSection("select")}>
+            <Ionicons name="arrow-back" size={24} color={NAVY} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Top Up with Card</Text>
+          <Text style={s.headerTitle}>Instant Bank Pay</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.cardBanner}>
-          <Ionicons name="card" size={32} color="#FFFFFF" />
-          <Text style={styles.bannerSubtitle}>Card Top Up</Text>
-          <Text style={styles.bannerTitle}>Fast & Secure</Text>
+        <View style={s.heroBanner}>
+          <Ionicons name="swap-horizontal" size={32} color="#fff" />
+          <Text style={s.heroSub}>Powered by Stitch</Text>
+          <Text style={s.heroTitle}>Instant Bank Payment</Text>
         </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Card Holder Name</Text>
+        <View style={s.infoBox}>
+          <Ionicons name="information-circle" size={18} color={BLUE} />
+          <Text style={s.infoText}>
+            You'll be redirected to your bank's secure login page. No card details needed.
+          </Text>
+        </View>
+
+        <Text style={s.label}>Amount (ZAR)</Text>
+        <View style={s.amountRow}>
+          <Text style={s.currencyPrefix}>R</Text>
           <TextInput
-            style={styles.textInput}
-            value={cardHolderName}
-            onChangeText={setCardHolderName}
-            placeholder="John Doe"
-            placeholderTextColor="#9CA3AF"
+            style={[s.input, { flex: 1 }]}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0.00"
+            placeholderTextColor="#94A3B8"
+            keyboardType="decimal-pad"
           />
         </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Card Number</Text>
-          <TextInput
-            style={styles.textInput}
-            value={cardNumber}
-            onChangeText={(t) => setCardNumber(t.replace(/\D/g, "").slice(0, 16))}
-            placeholder="1234 5678 9012 3456"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="number-pad"
-          />
+        <View style={s.quickRow}>
+          {["50", "100", "250", "500"].map((v) => (
+            <TouchableOpacity key={v} style={s.quickBtn} onPress={() => setAmount(v)}>
+              <Text style={s.quickBtnText}>R{v}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Expiry (MM/YY)</Text>
-            <TextInput style={styles.textInput} placeholder="12/25" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>CVV</Text>
-            <TextInput style={styles.textInput} placeholder="123" placeholderTextColor="#9CA3AF" maxLength={3} keyboardType="number-pad" secureTextEntry />
-          </View>
-        </View>
-
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Amount (USD)</Text>
-          <View style={styles.amountRow}>
-            <Text style={styles.dollarSign}>$</Text>
-            <TextInput
-              style={[styles.textInput, { flex: 1 }]}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="100.00"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="decimal-pad"
-            />
-          </View>
-        </View>
-
-        <View style={styles.quickSection}>
-          <Text style={styles.quickLabel}>Quick amounts</Text>
-          <View style={styles.quickRow}>
-            {["25", "50", "100", "250"].map((val) => (
-              <TouchableOpacity key={val} style={styles.quickBtn} onPress={() => setAmount(val)}>
-                <Text style={styles.quickBtnText}>${val}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.blueButton} onPress={handleCardTopUp}>
-          <Text style={styles.blueButtonText}>Top Up ${amount || "0.00"}</Text>
+        <TouchableOpacity
+          style={[s.primaryBtn, { backgroundColor: BLUE }, isLoading && { opacity: 0.7 }]}
+          onPress={handleStitchTopUp}
+          disabled={isLoading}
+        >
+          {isLoading ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
+              <Text style={s.primaryBtnText}>
+                {amount ? `Top Up R${parseFloat(amount || "0").toFixed(2)}` : "Continue to Bank"}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => setSection("select")}>
-          <Text style={styles.secondaryButtonText}>Back</Text>
-        </TouchableOpacity>
+
+        <View style={s.trustRow}>
+          <Ionicons name="shield-checkmark" size={14} color={GREEN} />
+          <Text style={s.trustText}>Secured by Stitch · Bank-grade encryption</Text>
+        </View>
       </ScrollView>
     );
   }
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setSection("select")}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+  // ─── Pending Payment ──────────────────────────────────────────────────────
+  if (section === "pending") {
+    return (
+      <View style={[s.container, { alignItems: "center", justifyContent: "center", padding: 32 }]}>
+        <Ionicons name="hourglass" size={56} color={BLUE} />
+        <Text style={[s.heroTitle, { color: NAVY, marginTop: 16, textAlign: "center" }]}>Waiting for Payment</Text>
+        <Text style={[s.optionSub, { textAlign: "center", marginTop: 8, marginBottom: 32 }]}>
+          Complete the payment in your browser, then tap below to confirm.
+        </Text>
+
+        <TouchableOpacity
+          style={[s.primaryBtn, { backgroundColor: GREEN, width: "100%" }, isLoading && { opacity: 0.7 }]}
+          onPress={handleVerifyPayment}
+          disabled={isLoading}
+        >
+          {isLoading ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text style={s.primaryBtnText}>I've Paid — Confirm</Text>
+            </>
+          )}
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Redeem Voucher</Text>
+
+        <TouchableOpacity style={[s.outlineBtn, { marginTop: 12, width: "100%" }]} onPress={() => setSection("select")}>
+          <Text style={s.outlineBtnText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ─── Withdraw ─────────────────────────────────────────────────────────────
+  if (section === "withdraw") {
+    return (
+      <ScrollView style={s.container} contentContainerStyle={s.scrollContent}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => { setSection("select"); setShowBankList(false); }}>
+            <Ionicons name="arrow-back" size={24} color={NAVY} />
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Withdraw to Bank</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <View style={[s.heroBanner, { backgroundColor: "#EA580C" }]}>
+          <Ionicons name="arrow-up-circle" size={32} color="#fff" />
+          <Text style={s.heroSub}>Via Stitch Disbursement</Text>
+          <Text style={s.heroTitle}>Bank Withdrawal</Text>
+        </View>
+
+        <Text style={s.label}>Amount (ZAR) — Min R50</Text>
+        <View style={s.amountRow}>
+          <Text style={s.currencyPrefix}>R</Text>
+          <TextInput
+            style={[s.input, { flex: 1 }]}
+            value={withdrawAmount}
+            onChangeText={setWithdrawAmount}
+            placeholder="0.00"
+            placeholderTextColor="#94A3B8"
+            keyboardType="decimal-pad"
+          />
+        </View>
+
+        <Text style={s.label}>Bank</Text>
+        <TouchableOpacity style={s.selectBtn} onPress={() => setShowBankList(!showBankList)}>
+          <Text style={[s.selectBtnText, !selectedBank && { color: "#94A3B8" }]}>
+            {selectedBank ? selectedBank.name : "Select your bank"}
+          </Text>
+          <Ionicons name={showBankList ? "chevron-up" : "chevron-down"} size={18} color={MUTED} />
+        </TouchableOpacity>
+
+        {showBankList && (
+          <View style={s.bankList}>
+            {banks.map((bank) => (
+              <TouchableOpacity
+                key={bank.id}
+                style={[s.bankItem, selectedBank?.id === bank.id && { backgroundColor: "#EFF6FF" }]}
+                onPress={() => { setSelectedBank(bank); setShowBankList(false); }}
+              >
+                <Text style={[s.bankItemText, selectedBank?.id === bank.id && { color: BLUE, fontWeight: "700" }]}>
+                  {bank.name}
+                </Text>
+                {selectedBank?.id === bank.id && <Ionicons name="checkmark" size={16} color={BLUE} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <Text style={s.label}>Account Holder Name</Text>
+        <TextInput
+          style={s.input}
+          value={accountName}
+          onChangeText={setAccountName}
+          placeholder="Full name on account"
+          placeholderTextColor="#94A3B8"
+          autoCapitalize="words"
+        />
+
+        <Text style={s.label}>Account Number</Text>
+        <TextInput
+          style={s.input}
+          value={accountNumber}
+          onChangeText={setAccountNumber}
+          placeholder="Bank account number"
+          placeholderTextColor="#94A3B8"
+          keyboardType="number-pad"
+        />
+
+        <Text style={s.label}>Account Type</Text>
+        <View style={s.toggleRow}>
+          {(["savings", "current", "transmission"] as AccountType[]).map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={[s.toggleBtn, accountType === t && s.toggleBtnActive]}
+              onPress={() => setAccountType(t)}
+            >
+              <Text style={[s.toggleTxt, accountType === t && s.toggleTxtActive]}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <TouchableOpacity
+          style={[s.primaryBtn, { backgroundColor: "#EA580C" }, isLoading && { opacity: 0.7 }]}
+          onPress={handleWithdraw}
+          disabled={isLoading}
+        >
+          {isLoading ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Ionicons name="arrow-up-circle" size={20} color="#fff" />
+              <Text style={s.primaryBtnText}>
+                {withdrawAmount ? `Withdraw R${parseFloat(withdrawAmount || "0").toFixed(2)}` : "Withdraw"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <Text style={[s.trustText, { textAlign: "center", marginTop: 12 }]}>
+          Funds typically arrive within 1–2 business days
+        </Text>
+      </ScrollView>
+    );
+  }
+
+  // ─── Voucher ──────────────────────────────────────────────────────────────
+  return (
+    <ScrollView style={s.container} contentContainerStyle={s.scrollContent}>
+      <View style={s.header}>
+        <TouchableOpacity style={s.backBtn} onPress={() => setSection("select")}>
+          <Ionicons name="arrow-back" size={24} color={NAVY} />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>Redeem Voucher</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={[styles.cardBanner, { backgroundColor: "#059669" }]}>
-        <Ionicons name="ticket" size={32} color="#FFFFFF" />
-        <Text style={styles.bannerSubtitle}>Voucher Redemption</Text>
-        <Text style={styles.bannerTitle}>Instant Credit</Text>
+      <View style={[s.heroBanner, { backgroundColor: GREEN }]}>
+        <Ionicons name="ticket" size={32} color="#fff" />
+        <Text style={s.heroSub}>Voucher Redemption</Text>
+        <Text style={s.heroTitle}>Instant Credit</Text>
       </View>
 
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Voucher Code</Text>
-        <TextInput
-          style={[styles.textInput, { textAlign: "center", letterSpacing: 4, fontFamily: "monospace" }]}
-          value={voucherCode}
-          onChangeText={(t) => setVoucherCode(t.toUpperCase())}
-          placeholder="Enter voucher code"
-          placeholderTextColor="#9CA3AF"
-          autoCapitalize="characters"
-        />
-      </View>
+      <Text style={s.label}>Voucher Code</Text>
+      <TextInput
+        style={[s.input, { textAlign: "center", letterSpacing: 4, fontFamily: "monospace" }]}
+        value={voucherCode}
+        onChangeText={(t) => setVoucherCode(t.toUpperCase())}
+        placeholder="Enter voucher code"
+        placeholderTextColor="#94A3B8"
+        autoCapitalize="characters"
+      />
 
-      <View style={styles.servicesSection}>
-        <Text style={styles.servicesTitle}>Supported Services</Text>
-        {[
-          { name: "BukkaPay Gift Card", icon: "gift" as const },
-          { name: "iTunes & App Store", icon: "phone-portrait" as const },
-          { name: "Google Play", icon: "logo-google-playstore" as const },
-          { name: "Amazon Gift Card", icon: "cube" as const },
-        ].map((service, idx) => (
-          <View key={idx} style={styles.serviceItem}>
-            <Ionicons name={service.icon} size={20} color="#7C3AED" />
-            <Text style={styles.serviceText}>{service.name}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.tipBox}>
-        <Text style={styles.tipTitle}>Tip</Text>
-        <Text style={styles.tipText}>
-          Voucher codes typically start with "BKP-" or are 12-16 characters long. Make sure to enter the exact code.
-        </Text>
-      </View>
-
-      <TouchableOpacity style={[styles.blueButton, { backgroundColor: "#059669" }]} onPress={handleVoucherTopUp}>
-        <Text style={styles.blueButtonText}>Redeem Voucher</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.secondaryButton} onPress={() => setSection("select")}>
-        <Text style={styles.secondaryButtonText}>Back</Text>
+      <TouchableOpacity style={[s.primaryBtn, { backgroundColor: GREEN }]} onPress={handleVoucherTopUp}>
+        <Ionicons name="checkmark-circle" size={20} color="#fff" />
+        <Text style={s.primaryBtnText}>Redeem Voucher</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 32,
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 48 },
+  content: { paddingHorizontal: 24, paddingBottom: 48, paddingTop: 8 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 0,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 56 : 44, paddingBottom: 16, paddingHorizontal: 24,
   },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A2E",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 24,
-  },
+  backBtn: { padding: 8, borderRadius: 20 },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: NAVY },
+  sectionLabel: { fontSize: 12, fontWeight: "600", color: MUTED, marginBottom: 12, marginTop: 8, textTransform: "uppercase", letterSpacing: 0.5 },
   optionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 24,
-    borderRadius: 16,
-    backgroundColor: "#2563EB",
-    marginBottom: 16,
-    gap: 16,
+    flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 16,
+    marginBottom: 12, gap: 14, borderWidth: 1, borderColor: BORDER,
   },
-  optionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+  optionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  optionTitle: { fontSize: 16, fontWeight: "700" },
+  optionSub: { fontSize: 12, color: MUTED, marginTop: 2 },
+  badge: { backgroundColor: "#DCFCE7", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+  badgeText: { fontSize: 11, fontWeight: "700", color: GREEN },
+  divider: { height: 1, backgroundColor: BORDER, marginVertical: 20 },
+  heroBanner: { backgroundColor: BLUE, borderRadius: 20, padding: 24, marginBottom: 24 },
+  heroSub: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 12 },
+  heroTitle: { fontSize: 24, fontWeight: "800", color: "#fff", marginTop: 4 },
+  infoBox: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14, marginBottom: 20,
   },
-  optionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#FFFFFF",
+  infoText: { flex: 1, fontSize: 13, color: "#1E40AF", lineHeight: 19 },
+  label: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8, marginTop: 16 },
+  amountRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  currencyPrefix: { fontSize: 22, fontWeight: "700", color: NAVY },
+  input: {
+    borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, padding: 14,
+    fontSize: 16, color: NAVY, backgroundColor: "#F8FAFC",
   },
-  optionSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 2,
-  },
-  cancelButton: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#1A1A2E",
-  },
-  cardBanner: {
-    backgroundColor: "#2563EB",
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-  },
-  bannerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 12,
-  },
-  bannerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginTop: 4,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1A1A2E",
-    marginBottom: 8,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: "#1A1A2E",
-    backgroundColor: "#F8F9FA",
-  },
-  row: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 20,
-  },
-  amountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  dollarSign: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1A1A2E",
-  },
-  quickSection: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  quickLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 12,
-  },
-  quickRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  quickRow: { flexDirection: "row", gap: 8, marginTop: 14, marginBottom: 4 },
   quickBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
+    flex: 1, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: "#F1F5F9", alignItems: "center", borderWidth: 1, borderColor: BORDER,
   },
-  quickBtnText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1A1A2E",
+  quickBtnText: { fontSize: 14, fontWeight: "600", color: NAVY },
+  primaryBtn: {
+    borderRadius: 16, paddingVertical: 16, flexDirection: "row",
+    justifyContent: "center", alignItems: "center", gap: 8, marginTop: 24,
+    shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
-  blueButton: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginBottom: 12,
+  primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  outlineBtn: {
+    borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingVertical: 14,
+    alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8,
   },
-  blueButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+  outlineBtnText: { color: MUTED, fontWeight: "600", fontSize: 15 },
+  trustRow: { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center", marginTop: 16 },
+  trustText: { fontSize: 12, color: MUTED },
+  selectBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, padding: 14, backgroundColor: "#F8FAFC",
   },
-  secondaryButton: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginBottom: 16,
+  selectBtnText: { fontSize: 15, color: NAVY },
+  bankList: { borderWidth: 1, borderColor: BORDER, borderRadius: 12, overflow: "hidden", marginTop: 4 },
+  bankItem: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: 14, borderBottomWidth: 1, borderColor: BORDER,
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#1A1A2E",
-  },
-  servicesSection: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  servicesTitle: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 12,
-  },
-  serviceItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.5)",
-    marginBottom: 8,
-  },
-  serviceText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1A1A2E",
-  },
-  tipBox: {
-    backgroundColor: "rgba(37, 99, 235, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(37, 99, 235, 0.2)",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  tipTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#2563EB",
-    marginBottom: 4,
-  },
-  tipText: {
-    fontSize: 12,
-    color: "#6B7280",
-    lineHeight: 18,
-  },
+  bankItemText: { fontSize: 15, color: NAVY },
+  toggleRow: { flexDirection: "row", gap: 8 },
+  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: BORDER, alignItems: "center" },
+  toggleBtnActive: { borderColor: BLUE, backgroundColor: "#EFF6FF" },
+  toggleTxt: { fontSize: 13, fontWeight: "600", color: MUTED },
+  toggleTxtActive: { color: BLUE },
 });

@@ -51,8 +51,8 @@ interface PaymentLinkData {
   payments?: Array<{ amount: string; method: string; status: string; createdAt: string }>;
 }
 
-type PayMethod = "card" | "wallet" | "eft";
-type Step = "choose" | "card-form" | "wallet-form" | "eft-form" | "success";
+type PayMethod = "card" | "wallet" | "eft" | "stitch";
+type Step = "choose" | "card-form" | "wallet-form" | "eft-form" | "stitch-form" | "stitch-pending" | "success";
 
 function currencySymbol(code: string) {
   if (code === "ZAR") return "R";
@@ -80,6 +80,10 @@ export default function PayLink() {
   const [cardEmail, setCardEmail] = useState("");
   const [cardName, setCardName] = useState("");
   const [cardPhone, setCardPhone] = useState("");
+
+  const [stitchPayerName, setStitchPayerName] = useState("");
+  const [stitchPayerEmail, setStitchPayerEmail] = useState("");
+  const [stitchPaymentId, setStitchPaymentId] = useState("");
 
   const [isPaying, setIsPaying] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -136,6 +140,60 @@ export default function PayLink() {
       fetchLink();
     } catch (e: any) {
       setInlineError(e.message || "Payment failed. Please try again.");
+    } finally { setIsPaying(false); }
+  };
+
+  const handleStitchPay = async () => {
+    if (!linkData) return;
+    setInlineError("");
+    if (!stitchPayerName.trim()) { setInlineError("Please enter your full name."); return; }
+    const amount = isFullPay ? linkData.remainingBalance : payAmount;
+    if (!amount || parseFloat(amount) <= 0) { setInlineError("Please enter a valid amount."); return; }
+    setIsPaying(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/payment-links/${linkData.id}/pay-stitch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payerName: stitchPayerName.trim(), payerEmail: stitchPayerEmail.trim(), amount }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to initiate payment");
+      setStitchPaymentId(data.paymentRequestId);
+      if (Platform.OS === "web") {
+        window.location.href = data.paymentUrl;
+      } else {
+        await Linking.openURL(data.paymentUrl);
+        setStep("stitch-pending");
+      }
+    } catch (e: any) {
+      setInlineError(e.message || "Could not start payment. Please try again.");
+    } finally { setIsPaying(false); }
+  };
+
+  const handleStitchVerify = async () => {
+    if (!linkData) return;
+    setIsPaying(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/payment-links/${linkData.id}/pay-stitch/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentRequestId: stitchPaymentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed");
+      if (data.status === "completed") {
+        setSuccessMsg(`Instant bank payment confirmed!`);
+        setStep("success");
+        fetchLink();
+      } else if (data.status === "failed") {
+        setInlineError("Your bank payment was not completed.");
+        setStep("stitch-form");
+      } else {
+        setInlineError("Payment is still processing. Please try again in a moment.");
+      }
+    } catch (e: any) {
+      setInlineError(e.message || "Verification failed.");
+      setStep("stitch-form");
     } finally { setIsPaying(false); }
   };
 
@@ -457,6 +515,21 @@ export default function PayLink() {
               <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
             </TouchableOpacity>
 
+            <TouchableOpacity style={[s.methodRow, { borderColor: "#DBEAFE" }]} activeOpacity={0.82}
+              onPress={() => { setPayMethod("stitch"); setInlineError(""); setStep("stitch-form"); }}>
+              <View style={[s.methodIcon, { backgroundColor: "#EFF6FF" }]}>
+                <Ionicons name="swap-horizontal" size={24} color={BLUE} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.methodTitle}>Instant Bank Pay</Text>
+                <Text style={s.methodSub}>Select your bank · Powered by Stitch</Text>
+              </View>
+              <View style={s.instantBadge}>
+                <Text style={s.instantText}>Instant</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+            </TouchableOpacity>
+
             {hasEFT && (
               <TouchableOpacity style={s.methodRow} activeOpacity={0.82}
                 onPress={() => { setPayMethod("eft"); setInlineError(""); setStep("eft-form"); }}>
@@ -464,7 +537,7 @@ export default function PayLink() {
                   <Ionicons name="swap-horizontal" size={24} color="#EA580C" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.methodTitle}>EFT Bank Transfer</Text>
+                  <Text style={s.methodTitle}>Manual EFT Transfer</Text>
                   <Text style={s.methodSub}>Internet banking · Confirm via WhatsApp</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
@@ -593,6 +666,84 @@ export default function PayLink() {
                 </TouchableOpacity>
               </View>
             )}
+          </View>
+        )}
+
+        {/* ── STEP: Stitch form ── */}
+        {step === "stitch-form" && (
+          <View style={s.card}>
+            <TouchableOpacity onPress={() => { setStep("choose"); setInlineError(""); }} style={s.backRow}>
+              <Ionicons name="arrow-back" size={16} color={BLUE} />
+              <Text style={s.backText}>Back</Text>
+            </TouchableOpacity>
+
+            <View style={[s.selectedMethodBadge, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+              <Ionicons name="swap-horizontal" size={18} color={BLUE} />
+              <Text style={[s.selectedMethodText, { color: BLUE }]}>Instant Bank Pay</Text>
+            </View>
+            <Text style={[s.muted, { marginBottom: 4 }]}>Amount: {sym}{payAmtVal.toFixed(2)}</Text>
+
+            <View style={s.paystackBanner}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Ionicons name="lock-closed" size={13} color={BLUE} />
+                <Text style={s.paystackBadgeText}>Powered by Stitch</Text>
+              </View>
+              <Text style={s.paystackNoticeText}>
+                You'll be redirected to your own bank to authorize this payment. No card details required.
+              </Text>
+            </View>
+
+            <Text style={s.inputLabel}>Full Name *</Text>
+            <TextInput style={s.input} value={stitchPayerName} onChangeText={setStitchPayerName}
+              placeholder="e.g. Sipho Nkosi" autoCapitalize="words" placeholderTextColor="#94A3B8" />
+
+            <Text style={s.inputLabel}>Email Address (optional)</Text>
+            <TextInput style={s.input} value={stitchPayerEmail} onChangeText={setStitchPayerEmail}
+              placeholder="your@email.com" keyboardType="email-address"
+              autoCapitalize="none" placeholderTextColor="#94A3B8" />
+
+            {!!inlineError && <ErrorBox text={inlineError} />}
+
+            <TouchableOpacity style={[s.primaryBtn, isPaying && { opacity: 0.7 }]}
+              onPress={handleStitchPay} disabled={isPaying}>
+              {isPaying ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Ionicons name="arrow-forward-circle" size={19} color="#fff" />
+                  <Text style={s.primaryBtnText}>Pay {sym}{payAmtVal.toFixed(2)} via Bank</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── STEP: Stitch pending ── */}
+        {step === "stitch-pending" && (
+          <View style={s.card}>
+            <View style={{ alignItems: "center", paddingVertical: 16 }}>
+              <Ionicons name="hourglass" size={48} color={BLUE} />
+              <Text style={[s.cardTitle, { textAlign: "center", marginTop: 12 }]}>Waiting for Payment</Text>
+              <Text style={[s.muted, { textAlign: "center", marginTop: 6, marginBottom: 24 }]}>
+                Complete the payment in your browser, then tap below.
+              </Text>
+            </View>
+
+            {!!inlineError && <ErrorBox text={inlineError} />}
+
+            <TouchableOpacity
+              style={[s.primaryBtn, { backgroundColor: GREEN }, isPaying && { opacity: 0.7 }]}
+              onPress={handleStitchVerify} disabled={isPaying}>
+              {isPaying ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Ionicons name="checkmark-circle" size={19} color="#fff" />
+                  <Text style={s.primaryBtnText}>I've Paid — Confirm</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[s.outlineBtn, { marginTop: 10 }]}
+              onPress={() => { setStep("stitch-form"); setInlineError(""); }}>
+              <Text style={s.outlineBtnText}>Back</Text>
+            </TouchableOpacity>
           </View>
         )}
 
