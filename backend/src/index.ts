@@ -3,9 +3,8 @@ import cors from "cors";
 import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { registerAdminRoutes } from "./admin-routes";
+import { registerStitchRoutes } from "./stitch-routes";
 import { createServer } from "http";
-import { runMigrations } from 'stripe-replit-sync';
-import { getStripeSync } from "./stripe-client";
 import { WebhookHandlers } from "./stripe-webhooks";
 import { runCoreMigrations } from "./migrate";
 
@@ -53,43 +52,6 @@ declare module "http" {
   }
 }
 
-// Initialize Stripe on startup
-async function initStripe() {
-  try {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      console.warn('[stripe] DATABASE_URL not set, skipping Stripe initialization');
-      return;
-    }
-
-    console.log('[stripe] Initializing schema...');
-    await runMigrations({ databaseUrl });
-    console.log('[stripe] Schema ready');
-
-    let stripeSync;
-    try {
-      stripeSync = await getStripeSync();
-    } catch (err: any) {
-      console.warn('[stripe] Stripe connection not configured, skipping sync:', err.message);
-      return;
-    }
-    
-    console.log('[stripe] Setting up managed webhook...');
-    const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost'}`;
-    const { webhook, uuid } = await stripeSync.findOrCreateManagedWebhook(
-      `${webhookBaseUrl}/api/stripe/webhook`,
-      { enabled_events: ['*'], description: 'BukkaPay Stripe sync' }
-    );
-    console.log(`[stripe] Webhook configured: ${webhook.url}`);
-
-    console.log('[stripe] Syncing data...');
-    stripeSync.syncBackfill()
-      .then(() => console.log('[stripe] Data synced'))
-      .catch((err: any) => console.error('[stripe] Sync error:', err));
-  } catch (error: any) {
-    console.warn('[stripe] Init error (non-fatal):', error.message);
-  }
-}
 
 // Register Stripe webhook BEFORE express.json()
 app.post(
@@ -182,8 +144,8 @@ async function ensureTables() {
 
 (async () => {
   await ensureTables();
-  await initStripe();
   await registerAdminRoutes(app);
+  registerStitchRoutes(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

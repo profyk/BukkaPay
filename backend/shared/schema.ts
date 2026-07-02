@@ -171,7 +171,6 @@ export const virtualCards = pgTable("virtual_cards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   cardNumber: varchar("card_number").notNull().unique(),
-  cvv: varchar("cvv").notNull(),
   expiryDate: varchar("expiry_date").notNull(),
   spendingLimit: decimal("spending_limit", { precision: 10, scale: 2 }),
   isActive: boolean("is_active").default(true),
