@@ -18,6 +18,7 @@
     "paths": {
       "@shared/*": ["shared/*"]
     },
+    "noEmitOnError": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noImplicitReturns": false,
