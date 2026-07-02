@@ -19,17 +19,28 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const admins = pgTable("admins", {
+// ─── Admin Users & Sessions ───────────────────────────────────────────────────
+
+export const adminUsers = pgTable("admin_users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
+  name: text("name").notNull(),
   password: text("password").notNull(),
-  role: text("role").default("admin"),
-  status: text("status").default("active"),
+  role: text("role").notNull().default("admin"), // "admin" | "super_admin"
+  isActive: boolean("is_active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type Admin = typeof admins.$inferSelect;
-export type InsertAdmin = typeof admins.$inferInsert;
+export const adminSessions = pgTable("admin_sessions", {
+  token: varchar("token", { length: 64 }).primaryKey(),
+  adminId: varchar("admin_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AdminUser = typeof adminUsers.$inferSelect;
+export type InsertAdminUser = typeof adminUsers.$inferInsert;
 export const walletCards = pgTable("wallet_cards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

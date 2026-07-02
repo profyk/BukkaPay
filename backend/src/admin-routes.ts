@@ -28,12 +28,18 @@ function safeUser(u: any) {
 
 // ─── Admin Origin Check ───────────────────────────────────────────────────────
 
-const ALLOWED_ADMIN_ORIGINS = ["https://admin.bukkapay.com", "http://admin.bukkapay.com"];
-
 function isAllowedAdminOrigin(req: Request): boolean {
+  // Always allow non-production
   if (process.env.NODE_ENV !== "production") return true;
-  const origin = req.headers.origin || req.headers.referer || "";
-  return ALLOWED_ADMIN_ORIGINS.some((o) => origin.startsWith(o));
+  // Always allow requests with no origin (server-to-server, Postman)
+  const origin = req.headers.origin || "";
+  if (!origin) return true;
+  // Allow configurable origins via env var (comma-separated)
+  const allowed = (process.env.ADMIN_ALLOWED_ORIGINS || "https://admin.bukkapay.com")
+    .split(",").map(o => o.trim()).filter(Boolean);
+  // Also allow any *.vercel.app origin for the admin panel
+  if (origin.endsWith(".vercel.app") || origin.endsWith(".netlify.app")) return true;
+  return allowed.some((o) => origin.startsWith(o));
 }
 
 // ─── In-memory admin session cache ───────────────────────────────────────────
@@ -118,9 +124,43 @@ function masterKeyOnly(req: Request & { isMasterKey?: boolean }, res: Response, 
 export async function registerAdminRoutes(app: Express) {
   await loadAdminSessions();
 
+  // ─── One-time Setup: Create First Super Admin ──────────────────────────────
+  // POST /api/admin/setup  — requires x-admin-token (master key), blocked once any admin exists
+  app.post("/api/admin/setup", async (req: any, res) => {
+    try {
+      const masterKey = process.env.ADMIN_API_KEY;
+      if (!masterKey) return res.status(503).json({ error: "ADMIN_API_KEY not configured" });
+
+      const xToken = req.headers["x-admin-token"] as string;
+      if (!xToken || xToken !== masterKey) return res.status(401).json({ error: "Invalid master key" });
+
+      const existing = await db.select().from(adminUsers).limit(1);
+      if (existing.length > 0) {
+        return res.status(409).json({ error: "Admin already exists. Use /api/admin/admins to add more." });
+      }
+
+      const { email, name, password } = req.body;
+      if (!email || !name || !password) return res.status(400).json({ error: "email, name, and password are required" });
+      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+
+      const hashed = await bcrypt.hash(password, 12);
+      const [created] = await db.insert(adminUsers).values({
+        email: email.toLowerCase().trim(),
+        name,
+        password: hashed,
+        role: "super_admin",
+        isActive: true,
+      }).returning();
+
+      res.status(201).json({ message: "Super admin created successfully", admin: safeAdmin(created) });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ─── Admin Auth ────────────────────────────────────────────────────────────
 
-  // POST /api/admin/auth/login — only works from admin.bukkapay.com
+  // POST /api/admin/auth/login
   app.post("/api/admin/auth/login", async (req: any, res) => {
     try {
       if (!isAllowedAdminOrigin(req)) {
