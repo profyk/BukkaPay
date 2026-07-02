@@ -7,6 +7,35 @@ export async function runCoreMigrations(): Promise<void> {
     connectionString: dbUrl,
     ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
   });
+
+  // Admin tables run first in their own block so they always exist
+  // even if later migrations fail (e.g. foreign-key ordering issues).
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        email TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        last_login_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        token VARCHAR(64) PRIMARY KEY,
+        admin_id VARCHAR NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log("[db] Admin tables ensured");
+  } catch (e: any) {
+    console.error("[db] Admin table migration failed:", e.message);
+  }
+
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS payment_links (

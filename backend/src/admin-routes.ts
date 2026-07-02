@@ -188,7 +188,9 @@ export async function registerAdminRoutes(app: Express) {
 
       res.json({ token, expiresAt, admin: safeAdmin(admin) });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      const cause = e.cause?.message ?? e.cause ?? undefined;
+      console.error("[admin/login] DB error:", e.message, cause ?? "");
+      res.status(500).json({ error: e.message, cause });
     }
   });
 
