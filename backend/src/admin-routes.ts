@@ -124,6 +124,15 @@ function superAdminOrMasterKey(req: Request & { isMasterKey?: boolean; adminUser
 }
 
 export async function registerAdminRoutes(app: Express) {
+  // Ensure wallet_cards has flagged/blocked columns (added post-launch)
+  try {
+    await db.execute(sql`ALTER TABLE wallet_cards ADD COLUMN IF NOT EXISTS flagged BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE wallet_cards ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT false`);
+    console.log("[admin] wallet_cards columns ensured");
+  } catch (e: any) {
+    console.warn("[admin] wallet_cards column migration skipped:", e.message);
+  }
+
   await loadAdminSessions();
 
   // ─── One-time Setup: Create First Super Admin ──────────────────────────────
