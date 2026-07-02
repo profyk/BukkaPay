@@ -5,12 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const SYMBOL_TO_CODE: Record<string, string> = {
+  "$": "USD", "R": "ZAR", "€": "EUR", "£": "GBP", "¥": "JPY",
+}
+
 export function formatCurrency(amount: number, currency = "ZAR") {
-  return new Intl.NumberFormat("en-ZA", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
+  const code = SYMBOL_TO_CODE[currency] ?? (currency?.length === 3 ? currency : "ZAR")
+  try {
+    return new Intl.NumberFormat("en-ZA", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+    }).format(Number(amount) || 0)
+  } catch {
+    return `R ${(Number(amount) || 0).toFixed(2)}`
+  }
 }
 
 export function formatDate(iso?: string | null, withTime = false) {
