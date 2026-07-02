@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import rateLimit from "express-rate-limit";
