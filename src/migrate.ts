@@ -157,8 +157,18 @@ export async function runCoreMigrations(): Promise<void> {
       );
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_config (
+        key VARCHAR PRIMARY KEY,
+        value JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     const alterStmts = [
       `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS frozen BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS flagged BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS remaining_balance DECIMAL(12,2)`,

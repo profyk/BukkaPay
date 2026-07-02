@@ -465,7 +465,16 @@ export async function registerAdminRoutes(app: Express) {
       ).orderBy(desc(walletCards.createdAt)).limit(limit).offset(offset);
 
       const [{ total }] = await db.select({ total: count() }).from(walletCards);
-      res.json({ wallets: rows.map((r: any) => ({ ...r.card, user: r.user })), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } });
+      res.json({
+        wallets: rows.map((r: any) => ({
+          ...r.card,
+          user_email: r.user?.email ?? r.user?.username ?? "",
+          user_name: r.user?.name ?? r.user?.username ?? "",
+          status: r.card.blocked ? "blocked" : r.card.frozen ? "frozen" : "active",
+          flagged: r.card.flagged ?? false,
+        })),
+        pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
+      });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -492,6 +501,73 @@ export async function registerAdminRoutes(app: Express) {
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
+  });
+
+  app.patch("/api/admin/wallets/:id/flag", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ flagged: true }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.patch("/api/admin/wallets/:id/unflag", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ flagged: false }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.patch("/api/admin/wallets/:id/block", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ blocked: true, frozen: true }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.patch("/api/admin/wallets/:id/unblock", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ blocked: false, frozen: false }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ─── Pricing config (stored in admin_config table) ─────────────────────────
+
+  const DEFAULT_PRICING = {
+    transfer:     { fee_percentage: 0.5,  fee_fixed: 2.00,  min_amount: 10,   max_amount: 50000  },
+    payment_link: { fee_percentage: 1.5,  fee_fixed: 0,     min_amount: 5,    max_amount: 100000 },
+    virtual_card: { issuance_fee: 25,     monthly_fee: 10,  transaction_fee_percentage: 0.3      },
+    withdrawal:   { fee_fixed: 15,        fee_percentage: 0, min_amount: 50,  max_amount: 25000  },
+    stokvel:      { management_fee_percentage: 0.2 },
+    loyalty:      { points_per_rand: 1,   redemption_rate: 100 },
+  };
+
+  app.get("/api/admin/pricing", adminAuth, async (_req, res) => {
+    try {
+      const rows = await db.execute(sql`SELECT value FROM admin_config WHERE key = 'pricing'`);
+      const row = (rows as any).rows?.[0] ?? (rows as any)[0];
+      res.json(row ? row.value : DEFAULT_PRICING);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.patch("/api/admin/pricing", adminAuth, async (req, res) => {
+    try {
+      const { category, values } = req.body;
+      if (!category || !values) return res.status(400).json({ error: "category and values required" });
+      const rows = await db.execute(sql`SELECT value FROM admin_config WHERE key = 'pricing'`);
+      const row = (rows as any).rows?.[0] ?? (rows as any)[0];
+      const current = row ? row.value : { ...DEFAULT_PRICING };
+      const updated = { ...current, [category]: { ...(current[category] ?? {}), ...values } };
+      await db.execute(sql`
+        INSERT INTO admin_config (key, value, updated_at) VALUES ('pricing', ${JSON.stringify(updated)}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+      `);
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   // ─── Payment Links ─────────────────────────────────────────────────────────

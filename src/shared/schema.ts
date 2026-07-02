@@ -31,6 +31,8 @@ export const walletCards = pgTable("wallet_cards", {
   color: text("color").notNull(),
   cardNumber: text("card_number").notNull(),
   frozen: boolean("frozen").default(false),
+  flagged: boolean("flagged").default(false),
+  blocked: boolean("blocked").default(false),
   spendingLimit: decimal("spending_limit", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
