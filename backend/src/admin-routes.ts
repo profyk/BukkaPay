@@ -116,10 +116,11 @@ async function adminAuth(req: Request & { adminUser?: any; isMasterKey?: boolean
   return res.status(401).json({ error: "Admin authentication required" });
 }
 
-// Master-key-only middleware (for managing admin accounts)
-function masterKeyOnly(req: Request & { isMasterKey?: boolean }, res: Response, next: NextFunction) {
-  if (!req.isMasterKey) return res.status(403).json({ error: "This action requires the master API key" });
-  next();
+// Master key OR super_admin session
+function superAdminOrMasterKey(req: Request & { isMasterKey?: boolean; adminUser?: any }, res: Response, next: NextFunction) {
+  if (req.isMasterKey) return next();
+  if (req.adminUser?.role === "super_admin") return next();
+  return res.status(403).json({ error: "Super admin or master key required" });
 }
 
 export async function registerAdminRoutes(app: Express) {
@@ -210,7 +211,7 @@ export async function registerAdminRoutes(app: Express) {
   // ─── Admin Account Management (master key only) ────────────────────────────
 
   // GET /api/admin/admins — list all admin users
-  app.get("/api/admin/admins", adminAuth, masterKeyOnly, async (_req, res) => {
+  app.get("/api/admin/admins", adminAuth, superAdminOrMasterKey, async (_req, res) => {
     try {
       const admins = await db.select().from(adminUsers).orderBy(desc(adminUsers.createdAt));
       res.json(admins.map(safeAdmin));
@@ -220,7 +221,7 @@ export async function registerAdminRoutes(app: Express) {
   });
 
   // POST /api/admin/admins — create a new admin user
-  app.post("/api/admin/admins", adminAuth, masterKeyOnly, async (req, res) => {
+  app.post("/api/admin/admins", adminAuth, superAdminOrMasterKey, async (req, res) => {
     try {
       const { email, name, password, role = "admin" } = req.body;
       if (!email || !name || !password) return res.status(400).json({ error: "email, name, and password are required" });
@@ -244,7 +245,7 @@ export async function registerAdminRoutes(app: Express) {
   });
 
   // PATCH /api/admin/admins/:id — update admin (name, email, password, role, isActive)
-  app.patch("/api/admin/admins/:id", adminAuth, masterKeyOnly, async (req, res) => {
+  app.patch("/api/admin/admins/:id", adminAuth, superAdminOrMasterKey, async (req, res) => {
     try {
       const { name, email, password, role, isActive } = req.body;
       const updates: Record<string, any> = {};
@@ -266,7 +267,7 @@ export async function registerAdminRoutes(app: Express) {
   });
 
   // DELETE /api/admin/admins/:id — delete admin user
-  app.delete("/api/admin/admins/:id", adminAuth, masterKeyOnly, async (req, res) => {
+  app.delete("/api/admin/admins/:id", adminAuth, superAdminOrMasterKey, async (req, res) => {
     try {
       const [deleted] = await db.delete(adminUsers).where(eq(adminUsers.id, String(req.params.id))).returning();
       if (!deleted) return res.status(404).json({ error: "Admin not found" });
@@ -367,7 +368,7 @@ export async function registerAdminRoutes(app: Express) {
       const rows = await (baseQuery as any).orderBy(desc(users.createdAt)).limit(limit).offset(offset);
 
       res.json({
-        users: rows.map(safeUser),
+        users: rows.map((u: any) => ({ ...safeUser(u), status: u.frozen ? "frozen" : "active" })),
         pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
       });
     } catch (e: any) {
@@ -698,6 +699,34 @@ export async function registerAdminRoutes(app: Express) {
       const rows = await db.select().from(stokvels).orderBy(desc(stokvels.createdAt)).limit(limit).offset(offset);
       const [{ total }] = await db.select({ total: count() }).from(stokvels);
       res.json({ stokvels: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ─── Pricing ───────────────────────────────────────────────────────────────
+
+  const defaultPricing = {
+    transfer:     { fee_percentage: 0.5, fee_fixed: 1.00, min_amount: 10, max_amount: 50000 },
+    payment_link: { fee_percentage: 1.5, fee_fixed: 0,    min_amount: 10, max_amount: 100000 },
+    virtual_card: { issuance_fee: 50,    monthly_fee: 15,  transaction_fee_percentage: 0.5 },
+    withdrawal:   { fee_fixed: 8.50,     fee_percentage: 0, min_amount: 50, max_amount: 25000 },
+    stokvel:      { management_fee_percentage: 0 },
+    loyalty:      { points_per_rand: 1,  redemption_rate: 100 },
+  };
+  let pricingConfig = { ...defaultPricing };
+
+  app.get("/api/admin/pricing", adminAuth, async (_req, res) => {
+    res.json(pricingConfig);
+  });
+
+  app.patch("/api/admin/pricing", adminAuth, superAdminOrMasterKey, async (req, res) => {
+    try {
+      const { category, values } = req.body;
+      if (!category || !values) return res.status(400).json({ error: "category and values are required" });
+      if (!(category in pricingConfig)) return res.status(400).json({ error: `Unknown category: ${category}` });
+      pricingConfig = { ...pricingConfig, [category]: { ...(pricingConfig as any)[category], ...values } };
+      res.json(pricingConfig);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
