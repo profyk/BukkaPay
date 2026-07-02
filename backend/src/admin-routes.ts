@@ -537,7 +537,7 @@ export async function registerAdminRoutes(app: Express) {
 
       const baseJoin = db.select({
         card: walletCards,
-        user: { id: users.id, name: users.name, username: users.username, walletId: users.walletId },
+        user: { id: users.id, name: users.name, email: users.email, username: users.username, walletId: users.walletId },
       }).from(walletCards).innerJoin(users, eq(walletCards.userId, users.id));
 
       const rows = await (userId
@@ -546,7 +546,17 @@ export async function registerAdminRoutes(app: Express) {
       ).orderBy(desc(walletCards.createdAt)).limit(limit).offset(offset);
 
       const [{ total }] = await db.select({ total: count() }).from(walletCards);
-      res.json({ wallets: rows.map((r: any) => ({ ...r.card, user: r.user })), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } });
+      res.json({
+        wallets: rows.map((r: any) => ({
+          ...r.card,
+          balance: parseFloat(r.card.balance ?? "0"),
+          status: r.card.blocked ? "blocked" : r.card.frozen ? "frozen" : "active",
+          user_email: r.user?.email ?? "",
+          user_name: r.user?.name ?? "",
+          user_id: r.user?.id ?? r.card.userId,
+        })),
+        pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
+      });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
