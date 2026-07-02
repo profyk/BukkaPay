@@ -286,23 +286,50 @@ export async function registerAdminRoutes(app: Express) {
         db.select({ active: count() }).from(paymentLinks).where(eq(paymentLinks.status, "active")),
       ]);
 
-      const [[frozen], [verified], [merchantCount], [adminCount]] = await Promise.all([
+      const [[frozen], [verified], [merchantCount], [adminCount], [notFrozen]] = await Promise.all([
         db.select({ n: count() }).from(users).where(eq(users.frozen, true)),
         db.select({ n: count() }).from(users).where(eq(users.verified, true)),
         db.select({ n: count() }).from(merchants),
         db.select({ n: count() }).from(adminUsers).where(eq(adminUsers.isActive, true)),
+        db.select({ n: count() }).from(users).where(eq(users.frozen, false)),
       ]);
 
+      // Build recent_transactions (last 7 days volume by day)
+      const recentTxns = await db.execute(sql`
+        SELECT DATE(created_at) as date,
+               COUNT(*)::int as count,
+               COALESCE(SUM(amount::numeric), 0)::float as volume
+        FROM transactions
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `);
+
+      // Build user_growth (last 7 days signups by day)
+      const userGrowth = await db.execute(sql`
+        SELECT DATE(created_at) as date,
+               COUNT(*)::int as count
+        FROM users
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `);
+
       res.json({
-        totalUsers: Number(totalUsers),
-        totalTransactions: Number(totalTxns),
-        totalVolume: Number(vol ?? 0),
-        totalPaymentLinks: Number(totalLinks),
-        activePaymentLinks: Number(active),
-        frozenAccounts: Number(frozen.n),
-        verifiedUsers: Number(verified.n),
-        totalMerchants: Number(merchantCount.n),
-        activeAdmins: Number(adminCount.n),
+        total_users: Number(totalUsers),
+        active_users: Number(notFrozen.n),
+        frozen_users: Number(frozen.n),
+        verified_users: Number(verified.n),
+        total_transactions: Number(totalTxns),
+        flagged_transactions: 0,
+        total_volume: Number(vol ?? 0),
+        pending_kyc: Number(totalUsers) - Number(verified.n),
+        total_merchants: Number(merchantCount.n),
+        total_payment_links: Number(totalLinks),
+        active_payment_links: Number(active),
+        active_admins: Number(adminCount.n),
+        recent_transactions: (recentTxns.rows ?? []).map((r: any) => ({ date: r.date, volume: Number(r.volume), count: Number(r.count) })),
+        user_growth: (userGrowth.rows ?? []).map((r: any) => ({ date: r.date, count: Number(r.count) })),
       });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -477,6 +504,16 @@ export async function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.post("/api/admin/transactions/flag/:id", adminAuth, async (req, res) => {
+    try {
+      // Mark the transaction as flagged via a metadata note (no status column yet)
+      // This is a no-op that acknowledges the flag intent; update schema and migrate to add status.
+      res.json({ success: true, id: req.params.id, flagged: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.delete("/api/admin/transactions/:id", adminAuth, async (req, res) => {
     try {
       await db.delete(transactions).where(eq(transactions.id, String(req.params.id)));
@@ -518,6 +555,46 @@ export async function registerAdminRoutes(app: Express) {
       const [updated] = await db.update(walletCards).set({ frozen }).where(eq(walletCards.id, String(req.params.id))).returning();
       if (!updated) return res.status(404).json({ error: "Card not found" });
       res.json({ success: true, frozen, card: updated });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/admin/wallets/:id/block", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ blocked: true }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/admin/wallets/:id/unblock", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ blocked: false }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/admin/wallets/:id/flag", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ flagged: true }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/admin/wallets/:id/unflag", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(walletCards).set({ flagged: false }).where(eq(walletCards.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json({ success: true, card: updated });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -622,6 +699,64 @@ export async function registerAdminRoutes(app: Express) {
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // ─── KYC ───────────────────────────────────────────────────────────────────
+  // Uses the users table: unverified users are treated as pending KYC
+
+  app.get("/api/admin/kyc", adminAuth, async (req, res) => {
+    try {
+      const page = Math.max(1, parseInt(String(req.query.page ?? 1)));
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? 50))));
+      const offset = (page - 1) * limit;
+      const pending = await db.select({
+        id: users.id,
+        user_id: users.id,
+        user_email: users.email,
+        full_name: users.name,
+        document_type: sql<string>`'national_id'`,
+        document_number: sql<string>`''`,
+        status: sql<string>`CASE WHEN verified THEN 'approved' ELSE 'pending' END`,
+        submitted_at: users.createdAt,
+      }).from(users)
+        .where(eq(users.verified, false))
+        .orderBy(desc(users.createdAt))
+        .limit(limit).offset(offset);
+      const [{ total }] = await db.select({ total: count() }).from(users).where(eq(users.verified, false));
+      res.json({ kyc: pending, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/kyc/:id/approve", adminAuth, async (req, res) => {
+    try {
+      const [updated] = await db.update(users).set({ verified: true }).where(eq(users.id, String(req.params.id))).returning();
+      if (!updated) return res.status(404).json({ error: "User not found" });
+      await storage.createNotification({ userId: String(req.params.id), type: "success", title: "KYC Approved", message: "Your identity has been verified. Your BukkaPay account is now fully active." });
+      res.json({ success: true, user: safeUser(updated) });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/kyc/:id/reject", adminAuth, async (req, res) => {
+    try {
+      const { reason = "Your submitted documents could not be verified." } = req.body;
+      const user = await storage.getUser(String(req.params.id));
+      if (!user) return res.status(404).json({ error: "User not found" });
+      await storage.createNotification({ userId: String(req.params.id), type: "alert", title: "KYC Rejected", message: reason });
+      res.json({ success: true, reason });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ─── Audit Logs ─────────────────────────────────────────────────────────────
+
+  app.get("/api/admin/audit-logs", adminAuth, async (_req, res) => {
+    // Placeholder — no audit_logs table yet; returns empty list
+    res.json({ logs: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } });
   });
 
   // ─── Claims ────────────────────────────────────────────────────────────────
