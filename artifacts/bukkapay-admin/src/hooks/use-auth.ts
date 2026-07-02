@@ -19,7 +19,7 @@ export function useAuth() {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginInput) => {
-      const response = await api.post("/admin/login", credentials);
+      const response = await api.post("/admin/auth/login", credentials);
       return response.data as { token: string };
     },
     onSuccess: (data) => {

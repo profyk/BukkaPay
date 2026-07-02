@@ -56,7 +56,7 @@ export function useUserActions() {
   const freezeUser = useMutation({
     mutationFn: async (id: string) => {
       if (isDemoMode()) return;
-      await api.post(`/admin/freeze/${id}`);
+      await api.patch(`/admin/users/${id}/freeze`, { frozen: true });
     },
     onSuccess: invalidate,
   });
@@ -64,7 +64,7 @@ export function useUserActions() {
   const activateUser = useMutation({
     mutationFn: async (id: string) => {
       if (isDemoMode()) return;
-      await api.post(`/admin/activate/${id}`);
+      await api.patch(`/admin/users/${id}/freeze`, { frozen: false });
     },
     onSuccess: invalidate,
   });
@@ -72,7 +72,7 @@ export function useUserActions() {
   const deleteUser = useMutation({
     mutationFn: async (id: string) => {
       if (isDemoMode()) return;
-      await api.delete(`/admin/delete/${id}`);
+      await api.delete(`/admin/users/${id}`);
     },
     onSuccess: invalidate,
   });
