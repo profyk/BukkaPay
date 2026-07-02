@@ -40,6 +40,8 @@ export const walletCards = pgTable("wallet_cards", {
   color: text("color").notNull(),
   cardNumber: text("card_number").notNull(),
   frozen: boolean("frozen").default(false),
+  flagged: boolean("flagged").default(false),
+  blocked: boolean("blocked").default(false),
   spendingLimit: decimal("spending_limit", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -495,4 +497,29 @@ export type Contribution = typeof contributions.$inferSelect;
 export type InsertContribution = z.infer<typeof insertContributionSchema>;
 export type PurchaseTransaction = typeof purchaseTransactions.$inferSelect;
 export type InsertPurchaseTransaction = z.infer<typeof insertPurchaseTransactionSchema>;
+
+// ─── Claim Payments (Send Money to Anyone) ───────────────────────────────────
+
+export const claimPayments = pgTable("claim_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  recipientName: text("recipient_name").notNull(),
+  recipientContact: text("recipient_contact").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("ZAR"),
+  note: text("note"),
+  pinHash: text("pin_hash").notNull(),
+  requirePin: boolean("require_pin").notNull().default(true),
+  status: text("status").notNull().default("pending"),
+  claimed: boolean("claimed").notNull().default(false),
+  claimMethod: text("claim_method"),
+  bankDetails: jsonb("bank_details"),
+  pickupCode: text("pickup_code"),
+  pickupStatus: text("pickup_status").default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ClaimPayment = typeof claimPayments.$inferSelect;
 
