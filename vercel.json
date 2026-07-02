@@ -5,8 +5,8 @@
   "framework": null,
   "rewrites": [
     {
-      "source": "/api/admin/:path*",
-      "destination": "https://api.bukkapay.com/admin/:path*"
+      "source": "/api/:path*",
+      "destination": "https://api.bukkapay.com/api/:path*"
     },
     {
       "source": "/(.*)",
