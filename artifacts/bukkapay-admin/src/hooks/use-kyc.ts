@@ -21,7 +21,7 @@ export function useKyc() {
     queryKey: KYC_QUERY_KEY,
     queryFn: async () => {
       const { data } = await api.get("/admin/kyc");
-      return data as KycSubmission[];
+      return ((data as any).kyc ?? data) as KycSubmission[];
     },
   });
 }

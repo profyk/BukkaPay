@@ -17,7 +17,7 @@ export function useAuditLogs() {
     queryKey: ["audit-logs"],
     queryFn: async () => {
       const { data } = await api.get("/admin/audit-logs");
-      return data as AuditLog[];
+      return ((data as any).logs ?? data) as AuditLog[];
     },
     refetchInterval: 30_000,
   });

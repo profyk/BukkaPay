@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
 function StatusBadge({ status }: { status: string }) {
-  switch (status.toLowerCase()) {
+  switch ((status ?? "active").toLowerCase()) {
     case "active":  return <Badge variant="success">Active</Badge>
     case "frozen":  return <Badge variant="warning">Frozen</Badge>
     case "deleted": return <Badge variant="destructive">Deleted</Badge>
