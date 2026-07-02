@@ -5,63 +5,60 @@ import { isDemoMode, DEMO_USERS } from "@/lib/demo";
 export interface User {
   id: string;
   email: string;
+  name: string;
+  username: string;
+  walletId: string;
+  phone: string;
   status: "active" | "frozen" | "deleted" | string;
   role: string;
+  verified: boolean;
+  createdAt: string | null;
+}
+
+export interface UserDetail {
+  user: any;
+  cards: any[];
+  recentTransactions: any[];
+  recentPaymentLinks: any[];
+  loyalty: any | null;
+  totalBalance: string;
 }
 
 export const USERS_QUERY_KEY = ["users"];
 
-export function useUsers() {
+export function useUsers(page = 1) {
   return useQuery({
-    queryKey: USERS_QUERY_KEY,
+    queryKey: [...USERS_QUERY_KEY, page],
     queryFn: async () => {
-      if (isDemoMode()) return DEMO_USERS;
-      const { data } = await api.get("/admin/users");
-      return data as User[];
+      if (isDemoMode()) return { users: DEMO_USERS as User[], pagination: { page: 1, limit: 50, total: DEMO_USERS.length, pages: 1 } };
+      const { data } = await api.get(`/admin/users?page=${page}&limit=50`);
+      return data as { users: User[]; pagination: { page: number; limit: number; total: number; pages: number } };
     },
+  });
+}
+
+export function useUserDetail(id: string | null) {
+  return useQuery({
+    queryKey: ["user-detail", id],
+    queryFn: async () => {
+      const { data } = await api.get(`/admin/users/${id}`);
+      return data as UserDetail;
+    },
+    enabled: !!id && !isDemoMode(),
   });
 }
 
 export function useUserActions() {
   const queryClient = useQueryClient();
 
-  const mutateUser = (updater: (users: User[], id: string) => User[]) =>
-    useMutation({
-      mutationFn: async (_id: string) => {},
-      onMutate: async (id: string) => {
-        if (isDemoMode()) {
-          await queryClient.cancelQueries({ queryKey: USERS_QUERY_KEY });
-          const prev = queryClient.getQueryData<User[]>(USERS_QUERY_KEY);
-          queryClient.setQueryData<User[]>(USERS_QUERY_KEY, (old) =>
-            updater(old ?? [], id)
-          );
-          return { prev };
-        }
-      },
-      onError: (_err, _id, ctx: any) => {
-        if (ctx?.prev) queryClient.setQueryData(USERS_QUERY_KEY, ctx.prev);
-      },
-      onSettled: () => queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY }),
-    });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
 
   const freezeUser = useMutation({
     mutationFn: async (id: string) => {
       if (isDemoMode()) return;
       await api.post(`/admin/freeze/${id}`);
     },
-    onMutate: async (id: string) => {
-      if (!isDemoMode()) return;
-      await queryClient.cancelQueries({ queryKey: USERS_QUERY_KEY });
-      const prev = queryClient.getQueryData<User[]>(USERS_QUERY_KEY);
-      queryClient.setQueryData<User[]>(USERS_QUERY_KEY, (old) =>
-        (old ?? []).map((u) => (u.id === id ? { ...u, status: "frozen" } : u))
-      );
-      return { prev };
-    },
-    onError: (_err, _id, ctx: any) => {
-      if (ctx?.prev) queryClient.setQueryData(USERS_QUERY_KEY, ctx.prev);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY }),
+    onSuccess: invalidate,
   });
 
   const activateUser = useMutation({
@@ -69,19 +66,7 @@ export function useUserActions() {
       if (isDemoMode()) return;
       await api.post(`/admin/activate/${id}`);
     },
-    onMutate: async (id: string) => {
-      if (!isDemoMode()) return;
-      await queryClient.cancelQueries({ queryKey: USERS_QUERY_KEY });
-      const prev = queryClient.getQueryData<User[]>(USERS_QUERY_KEY);
-      queryClient.setQueryData<User[]>(USERS_QUERY_KEY, (old) =>
-        (old ?? []).map((u) => (u.id === id ? { ...u, status: "active" } : u))
-      );
-      return { prev };
-    },
-    onError: (_err, _id, ctx: any) => {
-      if (ctx?.prev) queryClient.setQueryData(USERS_QUERY_KEY, ctx.prev);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY }),
+    onSuccess: invalidate,
   });
 
   const deleteUser = useMutation({
@@ -89,20 +74,22 @@ export function useUserActions() {
       if (isDemoMode()) return;
       await api.delete(`/admin/delete/${id}`);
     },
-    onMutate: async (id: string) => {
-      if (!isDemoMode()) return;
-      await queryClient.cancelQueries({ queryKey: USERS_QUERY_KEY });
-      const prev = queryClient.getQueryData<User[]>(USERS_QUERY_KEY);
-      queryClient.setQueryData<User[]>(USERS_QUERY_KEY, (old) =>
-        (old ?? []).map((u) => (u.id === id ? { ...u, status: "deleted" } : u))
-      );
-      return { prev };
-    },
-    onError: (_err, _id, ctx: any) => {
-      if (ctx?.prev) queryClient.setQueryData(USERS_QUERY_KEY, ctx.prev);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY }),
+    onSuccess: invalidate,
   });
 
-  return { freezeUser, activateUser, deleteUser };
+  const verifyUser = useMutation({
+    mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
+      if (isDemoMode()) return;
+      await api.patch(`/admin/users/${id}/verify`, { verified });
+    },
+    onSuccess: invalidate,
+  });
+
+  const notifyUser = useMutation({
+    mutationFn: async ({ id, type, title, message }: { id: string; type: string; title: string; message: string }) => {
+      await api.post(`/admin/users/${id}/notify`, { type, title, message });
+    },
+  });
+
+  return { freezeUser, activateUser, deleteUser, verifyUser, notifyUser };
 }

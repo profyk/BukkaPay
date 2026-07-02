@@ -5,48 +5,47 @@ import { isDemoMode, DEMO_TRANSACTIONS } from "@/lib/demo";
 export interface Transaction {
   id: string;
   user_email: string;
+  user_name: string;
   amount: number;
   status: "completed" | "pending" | "flagged" | "failed" | string;
-  currency?: string;
-  type?: string;
-  created_at?: string;
+  currency: string;
+  type: string;
+  description: string;
+  created_at: string | null;
 }
 
 export const TRANSACTIONS_QUERY_KEY = ["transactions"];
 
-export function useTransactions() {
+export function useTransactions(page = 1) {
   return useQuery({
-    queryKey: TRANSACTIONS_QUERY_KEY,
+    queryKey: [...TRANSACTIONS_QUERY_KEY, page],
     queryFn: async () => {
-      if (isDemoMode()) return DEMO_TRANSACTIONS;
-      const { data } = await api.get("/admin/transactions");
-      return data as Transaction[];
+      if (isDemoMode()) return { transactions: DEMO_TRANSACTIONS as Transaction[], pagination: { page: 1, limit: 50, total: DEMO_TRANSACTIONS.length, pages: 1 } };
+      const { data } = await api.get(`/admin/transactions?page=${page}&limit=50`);
+      return data as { transactions: Transaction[]; pagination: { page: number; limit: number; total: number; pages: number } };
     },
   });
 }
 
 export function useTransactionActions() {
   const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: TRANSACTIONS_QUERY_KEY });
 
   const flagTransaction = useMutation({
     mutationFn: async (id: string) => {
       if (isDemoMode()) return;
       await api.post(`/admin/transactions/flag/${id}`);
     },
-    onMutate: async (id: string) => {
-      if (!isDemoMode()) return;
-      await queryClient.cancelQueries({ queryKey: TRANSACTIONS_QUERY_KEY });
-      const prev = queryClient.getQueryData<Transaction[]>(TRANSACTIONS_QUERY_KEY);
-      queryClient.setQueryData<Transaction[]>(TRANSACTIONS_QUERY_KEY, (old) =>
-        (old ?? []).map((t) => (t.id === id ? { ...t, status: "flagged" } : t))
-      );
-      return { prev };
-    },
-    onError: (_err, _id, ctx: any) => {
-      if (ctx?.prev) queryClient.setQueryData(TRANSACTIONS_QUERY_KEY, ctx.prev);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TRANSACTIONS_QUERY_KEY }),
+    onSuccess: invalidate,
   });
 
-  return { flagTransaction };
+  const deleteTransaction = useMutation({
+    mutationFn: async (id: string) => {
+      if (isDemoMode()) return;
+      await api.delete(`/admin/transactions/${id}`);
+    },
+    onSuccess: invalidate,
+  });
+
+  return { flagTransaction, deleteTransaction };
 }

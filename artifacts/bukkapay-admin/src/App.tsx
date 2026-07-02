@@ -10,6 +10,11 @@ import TransactionsPage from "@/pages/transactions"
 import KycPage from "@/pages/kyc"
 import AuditLogsPage from "@/pages/audit-logs"
 import WalletsPage from "@/pages/wallets"
+import PaymentLinksPage from "@/pages/payment-links"
+import MerchantsPage from "@/pages/merchants"
+import BroadcastPage from "@/pages/broadcast"
+import AdminManagementPage from "@/pages/admin-management"
+import PricingPage from "@/pages/pricing"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -17,6 +22,7 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 30_000,
     },
   },
 })
@@ -24,13 +30,18 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/login"       component={Login} />
-      <Route path="/"            component={DashboardPage} />
-      <Route path="/users"       component={UsersPage} />
-      <Route path="/transactions" component={TransactionsPage} />
-      <Route path="/kyc"         component={KycPage} />
-      <Route path="/audit-logs"  component={AuditLogsPage} />
-      <Route path="/wallets"     component={WalletsPage} />
+      <Route path="/login"          component={Login} />
+      <Route path="/"               component={DashboardPage} />
+      <Route path="/users"          component={UsersPage} />
+      <Route path="/transactions"   component={TransactionsPage} />
+      <Route path="/kyc"            component={KycPage} />
+      <Route path="/audit-logs"     component={AuditLogsPage} />
+      <Route path="/wallets"        component={WalletsPage} />
+      <Route path="/payment-links"  component={PaymentLinksPage} />
+      <Route path="/merchants"      component={MerchantsPage} />
+      <Route path="/broadcast"         component={BroadcastPage} />
+      <Route path="/admin-management"  component={AdminManagementPage} />
+      <Route path="/pricing"           component={PricingPage} />
       <Route component={NotFound} />
     </Switch>
   )

@@ -2,6 +2,7 @@ import { motion } from "framer-motion"
 import {
   Users, ArrowRightLeft, AlertTriangle, Wallet,
   TrendingUp, Clock, Loader2, AlertCircle, RefreshCw,
+  Store, Link2,
 } from "lucide-react"
 import {
   AreaChart, Area, BarChart, Bar,
@@ -11,6 +12,7 @@ import {
 import { AppLayout } from "@/components/layout/AppLayout"
 import { useDashboard } from "@/hooks/use-dashboard"
 import { formatCurrency } from "@/lib/utils"
+import { Link } from "wouter"
 import { Button } from "@/components/ui/button"
 
 const CARD_VARIANTS = {
@@ -82,10 +84,10 @@ export default function DashboardPage() {
           <>
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard index={0} label="Total Users"         value={data!.total_users.toLocaleString()}        icon={Users}          color="bg-primary"         sub={`${data!.active_users} active`} />
-              <StatCard index={1} label="Total Transactions"  value={data!.total_transactions.toLocaleString()} icon={ArrowRightLeft}  color="bg-blue-500"        sub={`${data!.flagged_transactions} flagged`} />
-              <StatCard index={2} label="Total Volume"        value={formatCurrency(data!.total_volume)}        icon={Wallet}         color="bg-emerald-500"     sub="All time" />
-              <StatCard index={3} label="Pending KYC"         value={data!.pending_kyc}                         icon={Clock}          color="bg-amber-500"       sub="Awaiting review" />
+              <StatCard index={0} label="Total Users"         value={data!.total_users.toLocaleString()}        icon={Users}          color="bg-primary"         sub={`${data!.active_users} active · ${data!.frozen_users} frozen`} />
+              <StatCard index={1} label="Total Transactions"  value={data!.total_transactions.toLocaleString()} icon={ArrowRightLeft}  color="bg-blue-500"        sub="Platform-wide" />
+              <StatCard index={2} label="Total Volume"        value={formatCurrency(data!.total_volume)}        icon={Wallet}         color="bg-emerald-500"     sub="All time ZAR" />
+              <StatCard index={3} label="Pending KYC"         value={data!.pending_kyc}                         icon={Clock}          color="bg-amber-500"       sub="Awaiting verification" />
             </div>
 
             {/* Charts row */}
@@ -160,17 +162,19 @@ export default function DashboardPage() {
               className="grid grid-cols-1 sm:grid-cols-3 gap-4"
             >
               {[
-                { label: "Frozen Accounts",       value: data!.frozen_users,          icon: AlertTriangle, color: "text-amber-500" },
-                { label: "Flagged Transactions",  value: data!.flagged_transactions,  icon: AlertTriangle, color: "text-destructive" },
-                { label: "Active Users",          value: data!.active_users,          icon: Users,         color: "text-emerald-500" },
-              ].map(({ label, value, icon: Icon, color }) => (
-                <div key={label} className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 shadow-sm">
-                  <Icon className={`w-6 h-6 ${color}`} />
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium">{label}</p>
-                    <p className="text-xl font-bold">{value?.toLocaleString() ?? "—"}</p>
+                { label: "Frozen Accounts",      value: data!.frozen_users,           icon: AlertTriangle, color: "text-amber-500",    href: "/users" },
+                { label: "Merchants",             value: (data as any).total_merchants ?? 0, icon: Store, color: "text-violet-500",  href: "/merchants" },
+                { label: "Active Payment Links",  value: (data as any).active_payment_links ?? 0, icon: Link2, color: "text-emerald-500", href: "/payment-links" },
+              ].map(({ label, value, icon: Icon, color, href }) => (
+                <Link key={label} href={href} className="block">
+                  <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 shadow-sm hover:border-primary/40 transition-colors cursor-pointer">
+                    <Icon className={`w-6 h-6 ${color}`} />
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">{label}</p>
+                      <p className="text-xl font-bold">{value?.toLocaleString() ?? "—"}</p>
+                    </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </motion.div>
           </>

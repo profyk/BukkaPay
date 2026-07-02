@@ -9,15 +9,11 @@ export interface DashboardStats {
   flagged_transactions: number;
   total_volume: number;
   pending_kyc: number;
-  recent_transactions: Array<{
-    date: string;
-    volume: number;
-    count: number;
-  }>;
-  user_growth: Array<{
-    date: string;
-    count: number;
-  }>;
+  total_merchants: number;
+  total_payment_links: number;
+  active_payment_links: number;
+  recent_transactions: Array<{ date: string; volume: number; count: number }>;
+  user_growth: Array<{ date: string; count: number }>;
 }
 
 export function useDashboard() {
