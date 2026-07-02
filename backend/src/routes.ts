@@ -117,7 +117,7 @@ export async function registerRoutes(
 
   // One-time migration trigger endpoint (secret key protected, idempotent)
   app.post("/api/sys/migrate", async (req, res) => {
-    const key = req.headers["x-migrate-key"] || req.query.key;
+    const key = String(req.headers["x-migrate-key"] || req.query.key || "");
     if (key !== "bukkapay-migrate-2024") return res.status(403).json({ error: "Forbidden" });
     try {
       const { runCoreMigrations } = await import("./migrate");
@@ -407,7 +407,7 @@ export async function registerRoutes(
         userId,
         type: "success",
         title: "Card Added",
-        message: `Your card "${card.name}" has been added successfully`,
+        message: `Your card "${card.title}" has been added successfully`,
         relatedId: card.id,
         relatedType: "card",
       });
@@ -2608,7 +2608,7 @@ export async function registerRoutes(
       const paystackKey = process.env.PAYSTACK_SECRET_KEY;
       if (paystackKey) {
         const hash = crypto.createHmac("sha512", paystackKey).update(JSON.stringify(req.body)).digest("hex");
-        if (hash !== req.headers["x-paystack-signature"]) {
+        if (hash !== String(req.headers["x-paystack-signature"] ?? "")) {
           return res.status(400).json({ error: "Invalid signature" });
         }
       }
@@ -3191,7 +3191,6 @@ export async function registerRoutes(
       const expiresAt = new Date();
       expiresAt.setMonth(expiresAt.getMonth() + 1);
 
-      const pool = pool;
       if (pool) {
         await pool.query(
           `INSERT INTO merchant_subscriptions (merchant_id, plan, status, price, billing_cycle, expires_at)
@@ -3221,7 +3220,6 @@ export async function registerRoutes(
       if (!merchantsList.length) return res.json([]);
 
       const merchantIds = merchantsList.map(m => m.id);
-      const pool = pool;
       if (!pool) return res.json([]);
 
       const placeholders = merchantIds.map((_, i) => `$${i + 1}`).join(", ");
@@ -3252,7 +3250,6 @@ export async function registerRoutes(
       if (!merchant) return res.status(404).json({ error: "Merchant not found" });
       if ((merchant as any).userId !== userId) return res.status(403).json({ error: "Forbidden" });
 
-      const pool = pool;
       if (!pool) return res.status(500).json({ error: "DB unavailable" });
 
       const result = await pool.query(
@@ -3298,7 +3295,6 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const pool = pool;
       if (!pool) return res.status(500).json({ error: "DB unavailable" });
       const result = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
       if (!result.rows.length) return res.status(404).json({ error: "Not found" });
@@ -3315,7 +3311,6 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const { status } = req.body;
-      const pool = pool;
       if (!pool) return res.status(500).json({ error: "DB unavailable" });
       const check = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
       if (!check.rows.length) return res.status(404).json({ error: "Not found" });
@@ -3331,7 +3326,6 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const pool = pool;
       if (!pool) return res.status(500).json({ error: "DB unavailable" });
       const check = await pool.query(`SELECT bl.*, m.user_id FROM billing_links bl JOIN merchants m ON bl.merchant_id = m.id WHERE bl.id = $1`, [req.params.id]);
       if (!check.rows.length) return res.status(404).json({ error: "Not found" });
@@ -3349,7 +3343,6 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const { attachments } = req.body;
-      const pool = pool;
       if (!pool) return res.status(500).json({ error: "DB unavailable" });
       const check = await pool.query(`SELECT * FROM payment_links WHERE id = $1`, [req.params.id]);
       if (!check.rows.length) return res.status(404).json({ error: "Not found" });
