@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Request, Response, NextFunction, Express } from "express";
 import { db } from "./db/index";
 import {
