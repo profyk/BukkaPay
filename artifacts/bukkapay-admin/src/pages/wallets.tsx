@@ -43,7 +43,7 @@ export default function WalletsPage() {
 
   const wallets = data?.wallets ?? []
   const pagination = data?.pagination
-  const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
+  const totalBalance = wallets.reduce((s, w) => s + parseFloat(String(w.balance ?? "0")), 0)
 
   const filtered = useMemo(() => {
     let list = wallets
@@ -51,7 +51,7 @@ export default function WalletsPage() {
     else if (statusFilter !== "all") list = list.filter((w) => w.status === statusFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter((w) => w.user_email.toLowerCase().includes(q) || w.user_name.toLowerCase().includes(q))
+      list = list.filter((w) => (w.user_email ?? "").toLowerCase().includes(q) || (w.user_name ?? "").toLowerCase().includes(q))
     }
     return list
   }, [wallets, search, statusFilter])

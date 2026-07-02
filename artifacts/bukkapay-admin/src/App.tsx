@@ -1,7 +1,32 @@
+import { Component, type ReactNode } from "react"
 import { Switch, Route, Router as WouterRouter } from "wouter"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Toaster } from "@/components/ui/toaster"
 import { TooltipProvider } from "@/components/ui/tooltip"
+
+class PageErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  componentDidCatch() {}
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
+          <p className="text-4xl">⚠️</p>
+          <h2 className="text-xl font-bold">Something went wrong on this page</h2>
+          <p className="text-sm text-muted-foreground max-w-sm">{(this.state.error as any).message}</p>
+          <button
+            className="mt-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"
+            onClick={() => this.setState({ error: null })}
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
+    return this.state.error ? null : this.props.children
+  }
+}
 
 import Login from "@/pages/login"
 import DashboardPage from "@/pages/dashboard"
@@ -52,7 +77,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <PageErrorBoundary>
+            <Router />
+          </PageErrorBoundary>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
