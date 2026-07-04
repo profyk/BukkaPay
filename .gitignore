@@ -39,3 +39,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Web build output — Vercel builds this from source
+/dist
