@@ -34,6 +34,7 @@ export interface IStorage {
   getWalletCard(id: string, userId: string): Promise<WalletCard | undefined>;
   createWalletCard(card: InsertWalletCard): Promise<WalletCard>;
   updateWalletCardBalance(id: string, userId: string, balance: string): Promise<WalletCard | undefined>;
+  setDefaultCard(id: string, userId: string): Promise<WalletCard | undefined>;
   
   getTransactions(userId: string, limit?: number): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
@@ -227,6 +228,15 @@ export class DatabaseStorage implements IStorage {
   async updateWalletCardBalance(id: string, userId: string, balance: string): Promise<WalletCard | undefined> {
     const [updated] = await db.update(walletCards)
       .set({ balance })
+      .where(and(eq(walletCards.id, id), eq(walletCards.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async setDefaultCard(id: string, userId: string): Promise<WalletCard | undefined> {
+    await db.update(walletCards).set({ isDefault: false }).where(eq(walletCards.userId, userId));
+    const [updated] = await db.update(walletCards)
+      .set({ isDefault: true })
       .where(and(eq(walletCards.id, id), eq(walletCards.userId, userId)))
       .returning();
     return updated;

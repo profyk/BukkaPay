@@ -2,6 +2,37 @@
 const STITCH_TOKEN_URL = "https://secure.stitch.money/connect/token";
 const STITCH_API_URL = "https://api.stitch.money/graphql";
 
+// ─── Local Card Generation (Luhn-valid Mastercard) ───────────────────────────
+
+function luhnCheckDigit(partial: string): string {
+  const digits = partial.split("").map(Number);
+  let sum = 0;
+  let doubleIt = true;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = digits[i];
+    if (doubleIt) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+    doubleIt = !doubleIt;
+  }
+  return String((10 - (sum % 10)) % 10);
+}
+
+function generateLocalCardDetails(): { cardNumber: string; expiryDate: string; cvv: string } {
+  const bin = "5399"; // Mastercard prepaid BIN (ZA)
+  const mid = Array.from({ length: 11 }, () => Math.floor(Math.random() * 10)).join("");
+  const partial = bin + mid;
+  const raw = partial + luhnCheckDigit(partial);
+  const cardNumber = `${raw.slice(0, 4)} ${raw.slice(4, 8)} ${raw.slice(8, 12)} ${raw.slice(12, 16)}`;
+  const now = new Date();
+  const expiryDate = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getFullYear() + 3).slice(-2)}`;
+  const cvv = String(Math.floor(100 + Math.random() * 900));
+  return { cardNumber, expiryDate, cvv };
+}
+
+export function isStitchCardConfigured(): boolean {
+  return !!(process.env.STITCH_CLIENT_ID && process.env.STITCH_CLIENT_SECRET && process.env.STITCH_CARD_PROGRAM_ID);
+}
+
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
@@ -102,6 +133,50 @@ export async function getPaymentStatus(paymentRequestId: string): Promise<"pendi
   if (typename === "PaymentInitiationRequestComplete") return "completed";
   if (typename === "PaymentInitiationRequestFailed") return "failed";
   return "pending";
+}
+
+// ─── Card Issuance ────────────────────────────────────────────────────────────
+
+export async function issueVirtualCard(params: {
+  holderName: string;
+  reference: string;
+}): Promise<{ stitchCardId: string; cardNumber: string; expiryDate: string; cvv: string }> {
+  if (!isStitchCardConfigured()) {
+    const local = generateLocalCardDetails();
+    return { stitchCardId: `LOCAL-${params.reference}`, ...local };
+  }
+
+  try {
+    const data = await gql(
+      `mutation IssueVirtualCard($input: VirtualCardCreateInput!) {
+        virtualCardCreate(input: $input) {
+          virtualCard {
+            id
+            pan
+            cvv
+            expiryMonth
+            expiryYear
+          }
+        }
+      }`,
+      {
+        input: {
+          programId: process.env.STITCH_CARD_PROGRAM_ID,
+          holderName: params.holderName,
+          externalReference: params.reference,
+        },
+      }
+    );
+    const vc = data.virtualCardCreate.virtualCard;
+    const pan = vc.pan as string;
+    const cardNumber = `${pan.slice(0, 4)} ${pan.slice(4, 8)} ${pan.slice(8, 12)} ${pan.slice(12, 16)}`;
+    const expiryDate = `${String(vc.expiryMonth).padStart(2, "0")}/${String(vc.expiryYear).slice(-2)}`;
+    return { stitchCardId: vc.id, cardNumber, expiryDate, cvv: vc.cvv };
+  } catch (err) {
+    console.warn("[stitch] Card issuance API unavailable, using local fallback:", (err as Error).message);
+    const local = generateLocalCardDetails();
+    return { stitchCardId: `LOCAL-${params.reference}`, ...local };
+  }
 }
 
 // ─── Disbursements (wallet withdrawals) ──────────────────────────────────────

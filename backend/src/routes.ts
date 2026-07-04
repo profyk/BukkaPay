@@ -18,6 +18,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
+import { issueVirtualCard } from "./stitch";
 import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
@@ -149,16 +150,22 @@ export async function registerRoutes(
       }
 
       const user = await signup(validation.data);
-      
-      // Create single default card for new users
+
+      // Issue default card via Stitch (falls back to Luhn-valid local card)
+      const cardRef = `BUKKAPAY-${user.id.slice(0, 8).toUpperCase()}`;
+      const issued = await issueVirtualCard({ holderName: user.name, reference: cardRef });
       await storage.createWalletCard({
         userId: user.id,
         title: "💳 BukkaPay",
         balance: "0.00",
         currency: "$",
         icon: "credit-card",
-        color: "from-blue-900 to-blue-800",
-        cardNumber: "4532 **** **** 1234"
+        color: "blue",
+        cardNumber: issued.cardNumber,
+        expiryDate: issued.expiryDate,
+        cvv: issued.cvv,
+        stitchCardId: issued.stitchCardId,
+        isDefault: true,
       });
 
       const token = generateSessionToken();
@@ -409,26 +416,50 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const validation = insertWalletCardSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json({ error: fromZodError(validation.error as any).message });
-      }
+      const { title } = req.body;
+      if (!title?.trim()) return res.status(400).json({ error: "Card title is required" });
+
+      const user = await storage.getUser(userId);
+      const cardRef = `BUKKAPAY-${userId.slice(0, 8).toUpperCase()}-${Date.now()}`;
+      const issued = await issueVirtualCard({ holderName: user?.name || "Card Holder", reference: cardRef });
 
       const card = await storage.createWalletCard({
         userId,
-        ...validation.data,
+        title: title.trim(),
+        balance: "0.00",
+        currency: "$",
+        icon: "credit-card",
+        color: "blue",
+        cardNumber: issued.cardNumber,
+        expiryDate: issued.expiryDate,
+        cvv: issued.cvv,
+        stitchCardId: issued.stitchCardId,
+        isDefault: false,
       });
       await storage.createNotification({
         userId,
         type: "success",
-        title: "Card Added",
-        message: `Your card "${card.title}" has been added successfully`,
+        title: "Card Issued",
+        message: `Your "${card.title}" virtual card has been issued successfully`,
         relatedId: card.id,
         relatedType: "card",
       });
       res.status(201).json(card);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/cards/:id/set-default", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const updated = await storage.setDefaultCard(req.params.id, userId);
+      if (!updated) return res.status(404).json({ error: "Card not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

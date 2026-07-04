@@ -189,6 +189,10 @@ export async function runCoreMigrations(): Promise<void> {
     const alterStmts = [
       `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS flagged BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS expiry_date TEXT`,
+      `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS cvv TEXT`,
+      `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS stitch_card_id TEXT`,
+      `ALTER TABLE IF EXISTS wallet_cards ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS frozen BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`,
       `ALTER TABLE IF EXISTS payment_links ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0`,
