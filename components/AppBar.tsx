@@ -38,7 +38,6 @@ export default function AppBar() {
   const menuItems = [
     { label: "My BKP Code", icon: "qr-code-outline" as const, action: () => setShowQR(true) },
     { label: "Merchant Dashboard", icon: "business-outline" as const, action: () => router.push("/(screens)/merchant-dashboard" as any) },
-    { label: "Marketplace", icon: "storefront-outline" as const, action: () => router.push("/(screens)/buy" as any) },
     { label: "Explore Features", icon: "compass-outline" as const, action: () => router.push("/(screens)/features-hub" as any) },
     { label: "Purchases Hub", icon: "bag-handle-outline" as const, action: () => router.push("/(screens)/purchases-hub" as any) },
     { label: "My Payment Links", icon: "link-outline" as const, action: () => router.push("/(screens)/payment-links" as any) },
@@ -54,7 +53,7 @@ export default function AppBar() {
           <Image source={logoImage} style={styles.logo} resizeMode="contain" />
           <View>
             <Text style={[styles.title, { color: colors.text }]}>BukkaPay</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Smart Wallet</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Smart Wallet · v2</Text>
           </View>
         </View>
 
