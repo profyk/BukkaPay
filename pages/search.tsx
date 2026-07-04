@@ -130,13 +130,6 @@ const ALL_ITEMS: AppItem[] = [
 
   // ── Shopping & Services ────────────────────────────────────
   {
-    id: "marketplace", category: "Shopping",
-    title: "Marketplace", description: "Buy airtime, data, utilities, streaming and gift cards",
-    keywords: ["marketplace", "buy", "airtime", "data", "streaming", "gift", "shopping", "voucher"],
-    icon: "storefront-outline", iconBg: "#FFF7ED", iconColor: "#D97706",
-    route: "/(screens)/buy",
-  },
-  {
     id: "travel", category: "Shopping",
     title: "Travel Booking", description: "Book buses, flights and hotels",
     keywords: ["travel", "flight", "bus", "hotel", "booking", "trip"],

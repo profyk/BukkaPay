@@ -11,6 +11,9 @@ import * as Clipboard from "expo-clipboard";
 import QRCode from "react-native-qrcode-svg";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
+import { useCurrency } from "../lib/CurrencyContext";
+import { convertAmount } from "../lib/currency";
+import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -193,6 +196,8 @@ function getDayLabel(dateStr: string) {
 export default function MerchantDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors } = useTheme();
+  const { currency } = useCurrency();
   const [selectedMerchantId, setSelectedMerchantId] = useState<string | null>(null);
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -297,7 +302,10 @@ export default function MerchantDashboard() {
 
   const chartMax = analytics ? Math.max(...analytics.dailyChart.map(d => d.amount), 1) : 1;
   const balance = parseFloat(selectedMerchant?.walletBalance || "0");
-  const sym = currencySymbol("ZAR");
+  const sym = currency.symbol;
+
+  const fmtAmt = (zarAmount: number) =>
+    formatCurrency(convertAmount(zarAmount, currency.code), sym);
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
@@ -429,19 +437,19 @@ export default function MerchantDashboard() {
 
   if (isLoading) {
     return (
-      <View style={styles.loaderWrap}>
+      <View style={[styles.loaderWrap, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#7C3AED" />
-        <Text style={styles.loaderText}>Loading your dashboard…</Text>
+        <Text style={[styles.loaderText, { color: colors.textSecondary }]}>Loading your dashboard…</Text>
       </View>
     );
   }
 
   if (!selectedMerchant) {
     return (
-      <View style={styles.loaderWrap}>
-        <Ionicons name="storefront-outline" size={56} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>No Merchant Account</Text>
-        <Text style={styles.emptySubtitle}>Set up your merchant profile to start accepting payments.</Text>
+      <View style={[styles.loaderWrap, { backgroundColor: colors.background }]}>
+        <Ionicons name="storefront-outline" size={56} color={colors.textMuted} />
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>No Merchant Account</Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>Set up your merchant profile to start accepting payments.</Text>
         <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push("/(screens)/become-merchant")}>
           <Text style={styles.ctaBtnText}>Create Merchant Account</Text>
         </TouchableOpacity>
@@ -459,7 +467,7 @@ export default function MerchantDashboard() {
           <View style={styles.balanceTopRow}>
             <View>
               <Text style={styles.balanceCardLabel}>Available Balance</Text>
-              <Text style={styles.balanceCardValue}>{sym}{balance.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              <Text style={styles.balanceCardValue}>{sym}{convertAmount(balance, currency.code).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               <Text style={styles.balanceCardSub}>{selectedMerchant.businessName}</Text>
             </View>
             <View style={[styles.statusPill, { backgroundColor: selectedMerchant.isActive ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)" }]}>
@@ -538,18 +546,18 @@ export default function MerchantDashboard() {
 
       {/* ── Business Health Score ── */}
       {healthScore && (
-        <View style={styles.healthCard}>
+        <View style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.healthLeft}>
-            <Text style={styles.healthTitle}>Business Health Score</Text>
-            <Text style={styles.healthSub}>Based on success rate, growth & customer retention</Text>
-            <View style={styles.healthBar}>
+            <Text style={[styles.healthTitle, { color: colors.text }]}>Business Health Score</Text>
+            <Text style={[styles.healthSub, { color: colors.textMuted }]}>Based on success rate, growth & customer retention</Text>
+            <View style={[styles.healthBar, { backgroundColor: colors.divider }]}>
               <View style={[styles.healthBarFill, { width: `${healthScore.score}%`, backgroundColor: healthScore.color }]} />
             </View>
             <Text style={[styles.healthLabel, { color: healthScore.color }]}>{healthScore.label} — {healthScore.score}/100</Text>
           </View>
           <View style={[styles.healthScoreCircle, { borderColor: healthScore.color }]}>
             <Text style={[styles.healthScoreNum, { color: healthScore.color }]}>{healthScore.score}</Text>
-            <Text style={styles.healthScoreMax}>/100</Text>
+            <Text style={[styles.healthScoreMax, { color: colors.textMuted }]}>/100</Text>
           </View>
         </View>
       )}
@@ -559,78 +567,78 @@ export default function MerchantDashboard() {
         <>
           <View style={styles.statsGrid}>
             {[
-              { label: "Today", value: formatCurrency(analytics.summary.todayRevenue, sym), sub: `${analytics.summary.todayCount} txns`, icon: "today", color: "#7C3AED", bg: "rgba(124,58,237,0.08)" },
-              { label: "This Week", value: formatCurrency(analytics.summary.weekRevenue, sym), sub: `${analytics.summary.weekCount} txns`, icon: "calendar-outline", color: "#10B981", bg: "rgba(16,185,129,0.08)" },
-              { label: "This Month", value: formatCurrency(analytics.summary.monthRevenue, sym), sub: `${analytics.summary.monthCount} txns`, icon: "stats-chart", color: "#3B82F6", bg: "rgba(59,130,246,0.08)" },
-              { label: "All Time", value: formatCurrency(analytics.summary.totalRevenue, sym), sub: `${analytics.summary.totalCount} txns`, icon: "wallet", color: "#F59E0B", bg: "rgba(245,158,11,0.08)" },
+              { label: "Today", value: fmtAmt(analytics.summary.todayRevenue), sub: `${analytics.summary.todayCount} txns`, icon: "today", color: "#7C3AED", bg: "rgba(124,58,237,0.08)" },
+              { label: "This Week", value: fmtAmt(analytics.summary.weekRevenue), sub: `${analytics.summary.weekCount} txns`, icon: "calendar-outline", color: "#10B981", bg: "rgba(16,185,129,0.08)" },
+              { label: "This Month", value: fmtAmt(analytics.summary.monthRevenue), sub: `${analytics.summary.monthCount} txns`, icon: "stats-chart", color: "#3B82F6", bg: "rgba(59,130,246,0.08)" },
+              { label: "All Time", value: fmtAmt(analytics.summary.totalRevenue), sub: `${analytics.summary.totalCount} txns`, icon: "wallet", color: "#F59E0B", bg: "rgba(245,158,11,0.08)" },
             ].map((s, i) => (
-              <View key={i} style={styles.statCard}>
+              <View key={i} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 <View style={[styles.statIconBadge, { backgroundColor: s.bg }]}>
                   <Ionicons name={s.icon as any} size={18} color={s.color} />
                 </View>
-                <Text style={styles.statLabel}>{s.label}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{s.label}</Text>
                 <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-                <Text style={styles.statSub}>{s.sub}</Text>
+                <Text style={[styles.statSub, { color: colors.textMuted }]}>{s.sub}</Text>
               </View>
             ))}
           </View>
 
           {/* ── Key Metrics Row ── */}
-          <View style={styles.metricsRow}>
+          <View style={[styles.metricsRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.metricItem}>
               <Ionicons name="receipt" size={16} color="#7C3AED" />
-              <Text style={styles.metricValue}>{formatCurrency(analytics.summary.avgTransaction, sym)}</Text>
-              <Text style={styles.metricLabel}>Avg. Transaction</Text>
+              <Text style={[styles.metricValue, { color: colors.text }]}>{fmtAmt(analytics.summary.avgTransaction)}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Avg. Transaction</Text>
             </View>
-            <View style={styles.metricDivider} />
+            <View style={[styles.metricDivider, { backgroundColor: colors.divider }]} />
             <View style={styles.metricItem}>
               <Ionicons name="people" size={16} color="#3B82F6" />
-              <Text style={styles.metricValue}>{analytics.customers.total}</Text>
-              <Text style={styles.metricLabel}>Customers</Text>
+              <Text style={[styles.metricValue, { color: colors.text }]}>{analytics.customers.total}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Customers</Text>
             </View>
-            <View style={styles.metricDivider} />
+            <View style={[styles.metricDivider, { backgroundColor: colors.divider }]} />
             <View style={styles.metricItem}>
               <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.metricValue}>
+              <Text style={[styles.metricValue, { color: colors.text }]}>
                 {(() => {
                   const total = analytics.statusBreakdown.completed + analytics.statusBreakdown.pending + analytics.statusBreakdown.failed;
                   return total > 0 ? `${Math.round((analytics.statusBreakdown.completed / total) * 100)}%` : "100%";
                 })()}
               </Text>
-              <Text style={styles.metricLabel}>Success Rate</Text>
+              <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Success Rate</Text>
             </View>
-            <View style={styles.metricDivider} />
+            <View style={[styles.metricDivider, { backgroundColor: colors.divider }]} />
             <View style={styles.metricItem}>
               <Ionicons name="person-add" size={16} color="#F59E0B" />
-              <Text style={styles.metricValue}>{analytics.customers.thisMonth}</Text>
-              <Text style={styles.metricLabel}>New / Month</Text>
+              <Text style={[styles.metricValue, { color: colors.text }]}>{analytics.customers.thisMonth}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textMuted }]}>New / Month</Text>
             </View>
           </View>
 
           {/* ── Revenue Chart ── */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>REVENUE — LAST 7 DAYS</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>REVENUE — LAST 7 DAYS</Text>
               <Ionicons name="bar-chart" size={14} color="#7C3AED" />
             </View>
-            <View style={styles.chartCard}>
+            <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               {analytics.dailyChart.map((day, i) => {
                 const barH = chartMax > 0 ? (day.amount / chartMax) * 72 : 0;
                 const isHighest = day.amount === Math.max(...analytics.dailyChart.map(d => d.amount));
                 return (
                   <View key={i} style={styles.chartBar}>
                     {day.amount > 0 && (
-                      <Text style={[styles.chartBarAmt, isHighest && { color: "#7C3AED", fontWeight: "700" }]}>
-                        {formatCurrency(day.amount, sym)}
+                      <Text style={[styles.chartBarAmt, { color: colors.textMuted }, isHighest && { color: "#7C3AED", fontWeight: "700" }]}>
+                        {fmtAmt(day.amount)}
                       </Text>
                     )}
-                    <View style={styles.chartBarTrack}>
+                    <View style={[styles.chartBarTrack, { backgroundColor: colors.divider }]}>
                       <View style={[
                         styles.chartBarFill,
                         { height: Math.max(barH, day.amount > 0 ? 4 : 2), backgroundColor: isHighest ? "#7C3AED" : "#C4B5FD" },
                       ]} />
                     </View>
-                    <Text style={[styles.chartBarDay, isHighest && { color: "#7C3AED", fontWeight: "700" }]}>
+                    <Text style={[styles.chartBarDay, { color: colors.textMuted }, isHighest && { color: "#7C3AED", fontWeight: "700" }]}>
                       {getDayLabel(day.date)}
                     </Text>
                   </View>
@@ -643,24 +651,24 @@ export default function MerchantDashboard() {
           {topLinks.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>TOP PAYMENT LINKS</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>TOP PAYMENT LINKS</Text>
                 <TouchableOpacity onPress={() => router.push("/(screens)/payment-links")}>
                   <Text style={styles.sectionAction}>View all</Text>
                 </TouchableOpacity>
               </View>
               {topLinks.map((link, i) => (
-                <View key={link.id} style={styles.linkRow}>
+                <View key={link.id} style={[styles.linkRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <View style={[styles.linkRank, { backgroundColor: i === 0 ? "#7C3AED" : i === 1 ? "#3B82F6" : "#10B981" }]}>
                     <Text style={styles.linkRankText}>#{i + 1}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.linkDesc} numberOfLines={1}>{link.description || "Payment Link"}</Text>
-                    <Text style={styles.linkMeta}>
-                      {link.currency} {parseFloat(link.amount).toFixed(2)} · {link.paymentCount ?? 0} payment{link.paymentCount !== 1 ? "s" : ""}
+                    <Text style={[styles.linkDesc, { color: colors.text }]} numberOfLines={1}>{link.description || "Payment Link"}</Text>
+                    <Text style={[styles.linkMeta, { color: colors.textSecondary }]}>
+                      {currencySymbol(link.currency)}{parseFloat(link.amount).toFixed(2)} · {link.paymentCount ?? 0} payment{link.paymentCount !== 1 ? "s" : ""}
                     </Text>
                   </View>
-                  <View style={styles.linkBadge}>
-                    <Text style={[styles.linkBadgeText, { color: link.status === "active" ? "#10B981" : "#6B7280" }]}>
+                  <View style={[styles.linkBadge, { backgroundColor: colors.divider }]}>
+                    <Text style={[styles.linkBadgeText, { color: link.status === "active" ? "#10B981" : colors.textMuted }]}>
                       {link.status}
                     </Text>
                   </View>
@@ -672,9 +680,9 @@ export default function MerchantDashboard() {
           {/* ── Transaction Status Breakdown ── */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>PAYMENT BREAKDOWN</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>PAYMENT BREAKDOWN</Text>
             </View>
-            <View style={styles.breakdownCard}>
+            <View style={[styles.breakdownCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               {(() => {
                 const total = analytics.statusBreakdown.completed + analytics.statusBreakdown.pending + analytics.statusBreakdown.failed;
                 const items = [
@@ -687,16 +695,16 @@ export default function MerchantDashboard() {
                     <View style={styles.breakdownRow}>
                       <View style={styles.breakdownLeft}>
                         <View style={[styles.breakdownDot, { backgroundColor: item.color }]} />
-                        <Text style={styles.breakdownLabel}>{item.label}</Text>
+                        <Text style={[styles.breakdownLabel, { color: colors.text }]}>{item.label}</Text>
                       </View>
                       <View style={styles.breakdownRight}>
                         <Text style={[styles.breakdownCount, { color: item.color }]}>{item.count}</Text>
-                        <Text style={styles.breakdownPct}>
+                        <Text style={[styles.breakdownPct, { color: colors.textMuted }]}>
                           {total > 0 ? `${Math.round((item.count / total) * 100)}%` : "0%"}
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.breakdownBarTrack}>
+                    <View style={[styles.breakdownBarTrack, { backgroundColor: colors.divider }]}>
                       <View style={[styles.breakdownBarFill, {
                         width: total > 0 ? `${(item.count / total) * 100}%` : "0%",
                         backgroundColor: item.color,
@@ -711,20 +719,20 @@ export default function MerchantDashboard() {
           {/* ── Daily Limit ── */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>DAILY TRANSACTION LIMIT</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>DAILY TRANSACTION LIMIT</Text>
             </View>
-            <View style={styles.limitCard}>
+            <View style={[styles.limitCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <View style={styles.limitRow}>
-                <Text style={styles.limitLabel}>Used Today</Text>
-                <Text style={styles.limitVal}>{formatCurrency(analytics.dailyLimit.used, sym)} / {formatCurrency(analytics.dailyLimit.limit, sym)}</Text>
+                <Text style={[styles.limitLabel, { color: colors.textSecondary }]}>Used Today</Text>
+                <Text style={[styles.limitVal, { color: colors.text }]}>{fmtAmt(analytics.dailyLimit.used)} / {fmtAmt(analytics.dailyLimit.limit)}</Text>
               </View>
-              <View style={styles.limitBarTrack}>
+              <View style={[styles.limitBarTrack, { backgroundColor: colors.divider }]}>
                 <View style={[styles.limitBarFill, {
                   width: `${Math.min(analytics.dailyLimit.percentUsed, 100)}%`,
                   backgroundColor: analytics.dailyLimit.percentUsed > 80 ? "#EF4444" : analytics.dailyLimit.percentUsed > 50 ? "#F59E0B" : "#10B981",
                 }]} />
               </View>
-              <Text style={styles.limitRemaining}>{formatCurrency(analytics.dailyLimit.remaining, sym)} remaining today</Text>
+              <Text style={[styles.limitRemaining, { color: colors.textMuted }]}>{fmtAmt(analytics.dailyLimit.remaining)} remaining today</Text>
             </View>
           </View>
         </>
@@ -732,24 +740,24 @@ export default function MerchantDashboard() {
 
       {/* ── Merchant Info ── */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>MERCHANT PROFILE</Text>
-        <View style={styles.infoCard}>
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>MERCHANT PROFILE</Text>
+        <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           {[
             { label: "Business Type", value: selectedMerchant.businessType.replace(/_/g, " ") },
             ...(selectedMerchant.businessCategory ? [{ label: "Category", value: selectedMerchant.businessCategory }] : []),
             { label: "QR Code", value: selectedMerchant.qrCode, mono: true },
             { label: "Member Since", value: new Date(selectedMerchant.createdAt).toLocaleDateString("en", { month: "long", year: "numeric" }) },
           ].map((row, i, arr) => (
-            <View key={i} style={[styles.infoRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
-              <Text style={styles.infoLabel}>{row.label}</Text>
-              <Text style={row.mono ? styles.infoMono : styles.infoValue}>{row.value}</Text>
+            <View key={i} style={[styles.infoRow, { borderBottomColor: colors.divider }, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+              <Text style={[row.mono ? styles.infoMono : styles.infoValue, { color: colors.text }]}>{row.value}</Text>
             </View>
           ))}
         </View>
       </View>
 
       {selectedMerchant.businessType.toLowerCase() === "property" && (
-        <TouchableOpacity style={styles.landlordBtn} onPress={() => router.push("/(screens)/landlord-dashboard")}>
+        <TouchableOpacity style={[styles.landlordBtn, { backgroundColor: colors.primaryLight }]} onPress={() => router.push("/(screens)/landlord-dashboard")}>
           <Ionicons name="business" size={16} color="#7C3AED" />
           <Text style={styles.landlordBtnText}>Manage Properties & Tenants</Text>
         </TouchableOpacity>
@@ -761,21 +769,21 @@ export default function MerchantDashboard() {
     <View>
       {transactions.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>No transactions yet</Text>
-          <Text style={styles.emptySubtitle}>Share your QR code or payment link to start receiving payments.</Text>
+          <Ionicons name="receipt-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No transactions yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>Share your QR code or payment link to start receiving payments.</Text>
         </View>
       ) : (
         <>
-          <Text style={styles.txSectionHeader}>{transactions.length} transaction{transactions.length !== 1 ? "s" : ""}</Text>
+          <Text style={[styles.txSectionHeader, { color: colors.textSecondary }]}>{transactions.length} transaction{transactions.length !== 1 ? "s" : ""}</Text>
           {transactions.map((tx) => (
-            <View key={tx.id} style={styles.txItem}>
+            <View key={tx.id} style={[styles.txItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <View style={[styles.txIcon, { backgroundColor: `${getStatusColor(tx.status)}15` }]}>
                 <Ionicons name={getStatusIcon(tx.status)} size={20} color={getStatusColor(tx.status)} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.txName}>{tx.payerName || "Anonymous"}</Text>
-                <Text style={styles.txDate}>
+                <Text style={[styles.txName, { color: colors.text }]}>{tx.payerName || "Anonymous"}</Text>
+                <Text style={[styles.txDate, { color: colors.textMuted }]}>
                   {new Date(tx.createdAt).toLocaleDateString("en", { month: "short", day: "numeric" })} · {new Date(tx.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </Text>
                 {tx.reference && <Text style={styles.txRef}>Ref: {tx.reference}</Text>}
@@ -800,21 +808,21 @@ export default function MerchantDashboard() {
       {analytics && analytics.customers.topCustomers.length > 0 ? (
         <>
           <View style={styles.customerSummaryRow}>
-            <View style={styles.customerSummaryCard}>
+            <View style={[styles.customerSummaryCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <Ionicons name="people" size={28} color="#7C3AED" />
-              <Text style={styles.customerSummaryNum}>{analytics.customers.total}</Text>
-              <Text style={styles.customerSummaryLbl}>Total Customers</Text>
+              <Text style={[styles.customerSummaryNum, { color: colors.text }]}>{analytics.customers.total}</Text>
+              <Text style={[styles.customerSummaryLbl, { color: colors.textSecondary }]}>Total Customers</Text>
             </View>
-            <View style={styles.customerSummaryCard}>
+            <View style={[styles.customerSummaryCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <Ionicons name="person-add" size={28} color="#10B981" />
-              <Text style={styles.customerSummaryNum}>{analytics.customers.thisMonth}</Text>
-              <Text style={styles.customerSummaryLbl}>New This Month</Text>
+              <Text style={[styles.customerSummaryNum, { color: colors.text }]}>{analytics.customers.thisMonth}</Text>
+              <Text style={[styles.customerSummaryLbl, { color: colors.textSecondary }]}>New This Month</Text>
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>TOP CUSTOMERS</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>TOP CUSTOMERS</Text>
           {analytics.customers.topCustomers.map((c, i) => (
-            <View key={i} style={styles.customerRow}>
+            <View key={i} style={[styles.customerRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <View style={[styles.customerRankBadge, { backgroundColor: i === 0 ? "#7C3AED" : i === 1 ? "#3B82F6" : "#10B981" }]}>
                 <Text style={styles.customerRankText}>{i + 1}</Text>
               </View>
@@ -824,18 +832,18 @@ export default function MerchantDashboard() {
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.customerName}>{c.name}</Text>
-                <Text style={styles.customerMeta}>{c.count} payment{c.count !== 1 ? "s" : ""}</Text>
+                <Text style={[styles.customerName, { color: colors.text }]}>{c.name}</Text>
+                <Text style={[styles.customerMeta, { color: colors.textMuted }]}>{c.count} payment{c.count !== 1 ? "s" : ""}</Text>
               </View>
-              <Text style={styles.customerTotal}>{formatCurrency(c.total, sym)}</Text>
+              <Text style={[styles.customerTotal, { color: colors.text }]}>{fmtAmt(c.total)}</Text>
             </View>
           ))}
         </>
       ) : (
         <View style={styles.emptyState}>
-          <Ionicons name="people-outline" size={48} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>No customers yet</Text>
-          <Text style={styles.emptySubtitle}>Customers appear here once they make payments through your links or QR code.</Text>
+          <Ionicons name="people-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No customers yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>Customers appear here once they make payments through your links or QR code.</Text>
         </View>
       )}
     </View>
@@ -847,12 +855,12 @@ export default function MerchantDashboard() {
 
   const renderWithdrawForm = () => (
     <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-      <Text style={styles.withdrawSubtitle}>
+      <Text style={[styles.withdrawSubtitle, { color: colors.textSecondary }]}>
         Funds will be transferred from your merchant wallet to your bank account within 1–3 business days.
       </Text>
 
       {/* Amount + Currency */}
-      <Text style={styles.wLabel}>Withdrawal Amount *</Text>
+      <Text style={[styles.wLabel, { color: colors.textSecondary }]}>Withdrawal Amount *</Text>
       <View style={styles.wAmountRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 0, maxHeight: 44 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
@@ -865,27 +873,28 @@ export default function MerchantDashboard() {
         </ScrollView>
       </View>
       <TextInput
-        style={styles.wInput} value={wAmount} onChangeText={setWAmount}
-        placeholder={`0.00 ${wCurrency}`} keyboardType="decimal-pad" placeholderTextColor="#9CA3AF"
+        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+        value={wAmount} onChangeText={setWAmount}
+        placeholder={`0.00 ${wCurrency}`} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
       />
       <Text style={styles.wBalanceHint}>Available: {sym}{balance.toFixed(2)}</Text>
 
       {/* Country Selector */}
-      <Text style={[styles.wLabel, { marginTop: 14 }]}>Country *</Text>
-      <TouchableOpacity style={styles.wCountryBtn} onPress={() => setShowCountryPicker(!showCountryPicker)}>
-        <Text style={styles.wCountryBtnText}>{bankCfg.flag} {bankCfg.name}</Text>
-        <Ionicons name={showCountryPicker ? "chevron-up" : "chevron-down"} size={16} color="#6B7280" />
+      <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Country *</Text>
+      <TouchableOpacity style={[styles.wCountryBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]} onPress={() => setShowCountryPicker(!showCountryPicker)}>
+        <Text style={[styles.wCountryBtnText, { color: colors.text }]}>{bankCfg.flag} {bankCfg.name}</Text>
+        <Ionicons name={showCountryPicker ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
       </TouchableOpacity>
       {showCountryPicker && (
-        <View style={styles.countryPickerList}>
+        <View style={[styles.countryPickerList, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {Object.entries(COUNTRY_BANK_CONFIG).map(([code, cfg]) => (
             <TouchableOpacity
               key={code}
-              style={[styles.countryPickerItem, wCountry === code && styles.countryPickerItemActive]}
+              style={[styles.countryPickerItem, { borderBottomColor: colors.divider }, wCountry === code && { backgroundColor: colors.primaryLight }]}
               onPress={() => { setWCountry(code); setShowCountryPicker(false); }}
             >
               <Text style={styles.countryPickerFlag}>{cfg.flag}</Text>
-              <Text style={[styles.countryPickerName, wCountry === code && { color: "#7C3AED", fontWeight: "700" }]}>{cfg.name}</Text>
+              <Text style={[styles.countryPickerName, { color: colors.text }, wCountry === code && { color: "#7C3AED", fontWeight: "700" }]}>{cfg.name}</Text>
               {wCountry === code && <Ionicons name="checkmark" size={16} color="#7C3AED" />}
             </TouchableOpacity>
           ))}
@@ -893,75 +902,77 @@ export default function MerchantDashboard() {
       )}
 
       {/* Account Holder */}
-      <Text style={[styles.wLabel, { marginTop: 14 }]}>Account Holder Name *</Text>
+      <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Account Holder Name *</Text>
       <TextInput
-        style={styles.wInput} value={wAccountHolder} onChangeText={setWAccountHolder}
-        placeholder="Full name as on bank account" placeholderTextColor="#9CA3AF"
+        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+        value={wAccountHolder} onChangeText={setWAccountHolder}
+        placeholder="Full name as on bank account" placeholderTextColor={colors.textMuted}
       />
 
       {/* Bank Name (conditional) */}
       {bankCfg.fields.includes("bank_name") && (
         <>
-          <Text style={styles.wLabel}>Bank Name *</Text>
-          <TextInput style={styles.wInput} value={wBankName} onChangeText={setWBankName} placeholder="e.g. Standard Bank, FNB, GTBank" placeholderTextColor="#9CA3AF" />
+          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>Bank Name *</Text>
+          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBankName} onChangeText={setWBankName} placeholder="e.g. Standard Bank, FNB, GTBank" placeholderTextColor={colors.textMuted} />
         </>
       )}
 
       {/* Account Number */}
-      <Text style={styles.wLabel}>{bankCfg.accountNumberLabel} *</Text>
+      <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.accountNumberLabel} *</Text>
       <TextInput
-        style={styles.wInput} value={wAccountNumber} onChangeText={setWAccountNumber}
-        placeholder={bankCfg.accountNumberPlaceholder} keyboardType="default" placeholderTextColor="#9CA3AF"
+        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+        value={wAccountNumber} onChangeText={setWAccountNumber}
+        placeholder={bankCfg.accountNumberPlaceholder} keyboardType="default" placeholderTextColor={colors.textMuted}
       />
 
       {/* Country-specific fields */}
       {bankCfg.fields.includes("branch_code") && (
         <>
-          <Text style={styles.wLabel}>{bankCfg.extraLabel?.branch_code ?? "Branch Code"} *</Text>
-          <TextInput style={styles.wInput} value={wBranchCode} onChangeText={setWBranchCode} placeholder="e.g. 051001" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
+          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.branch_code ?? "Branch Code"} *</Text>
+          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBranchCode} onChangeText={setWBranchCode} placeholder="e.g. 051001" keyboardType="number-pad" placeholderTextColor={colors.textMuted} />
         </>
       )}
       {bankCfg.fields.includes("sort_code") && (
         <>
-          <Text style={styles.wLabel}>{bankCfg.extraLabel?.sort_code ?? "Sort Code"} *</Text>
-          <TextInput style={styles.wInput} value={wSortCode} onChangeText={setWSortCode} placeholder="xx-xx-xx" placeholderTextColor="#9CA3AF" />
+          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.sort_code ?? "Sort Code"} *</Text>
+          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wSortCode} onChangeText={setWSortCode} placeholder="xx-xx-xx" placeholderTextColor={colors.textMuted} />
         </>
       )}
       {bankCfg.fields.includes("routing_number") && (
         <>
-          <Text style={styles.wLabel}>{bankCfg.extraLabel?.routing_number ?? "Routing Number"} *</Text>
-          <TextInput style={styles.wInput} value={wRoutingNumber} onChangeText={setWRoutingNumber} placeholder="9-digit ABA routing number" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
+          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.routing_number ?? "Routing Number"} *</Text>
+          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wRoutingNumber} onChangeText={setWRoutingNumber} placeholder="9-digit ABA routing number" keyboardType="number-pad" placeholderTextColor={colors.textMuted} />
         </>
       )}
       {bankCfg.fields.includes("iban") && (
         <>
-          <Text style={styles.wLabel}>{bankCfg.extraLabel?.iban ?? "IBAN"}</Text>
-          <TextInput style={styles.wInput} value={wIban} onChangeText={setWIban} placeholder="e.g. GB29 NWBK 6016 1331 9268 19" placeholderTextColor="#9CA3AF" autoCapitalize="characters" />
+          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.iban ?? "IBAN"}</Text>
+          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wIban} onChangeText={setWIban} placeholder="e.g. GB29 NWBK 6016 1331 9268 19" placeholderTextColor={colors.textMuted} autoCapitalize="characters" />
         </>
       )}
       {bankCfg.fields.includes("bic") && (
         <>
-          <Text style={styles.wLabel}>{bankCfg.extraLabel?.bic ?? "BIC / SWIFT"}</Text>
-          <TextInput style={styles.wInput} value={wBic} onChangeText={setWBic} placeholder="e.g. HBUKGB4B" placeholderTextColor="#9CA3AF" autoCapitalize="characters" />
+          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.bic ?? "BIC / SWIFT"}</Text>
+          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBic} onChangeText={setWBic} placeholder="e.g. HBUKGB4B" placeholderTextColor={colors.textMuted} autoCapitalize="characters" />
         </>
       )}
       {bankCfg.fields.includes("bank_code") && (
         <>
-          <Text style={styles.wLabel}>{bankCfg.extraLabel?.bank_code ?? "Bank Code"}</Text>
-          <TextInput style={styles.wInput} value={wBankCode} onChangeText={setWBankCode} placeholder="3-digit bank code" keyboardType="number-pad" placeholderTextColor="#9CA3AF" />
+          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.bank_code ?? "Bank Code"}</Text>
+          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBankCode} onChangeText={setWBankCode} placeholder="3-digit bank code" keyboardType="number-pad" placeholderTextColor={colors.textMuted} />
         </>
       )}
 
       {/* Account Type */}
-      <Text style={[styles.wLabel, { marginTop: 4 }]}>Account Type</Text>
+      <Text style={[styles.wLabel, { marginTop: 4, color: colors.textSecondary }]}>Account Type</Text>
       <View style={styles.accountTypeRow}>
         {(["current", "savings", "checking"] as const).map(t => (
           <TouchableOpacity
             key={t}
-            style={[styles.accountTypeBtn, wAccountType === t && styles.accountTypeBtnActive]}
+            style={[styles.accountTypeBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }, wAccountType === t && styles.accountTypeBtnActive]}
             onPress={() => setWAccountType(t)}
           >
-            <Text style={[styles.accountTypeBtnText, wAccountType === t && styles.accountTypeBtnTextActive]}>
+            <Text style={[styles.accountTypeBtnText, { color: colors.textSecondary }, wAccountType === t && styles.accountTypeBtnTextActive]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
           </TouchableOpacity>
@@ -969,10 +980,11 @@ export default function MerchantDashboard() {
       </View>
 
       {/* Reference */}
-      <Text style={[styles.wLabel, { marginTop: 8 }]}>Reference / Note (optional)</Text>
+      <Text style={[styles.wLabel, { marginTop: 8, color: colors.textSecondary }]}>Reference / Note (optional)</Text>
       <TextInput
-        style={styles.wInput} value={wReference} onChangeText={setWReference}
-        placeholder="e.g. Business withdrawal March 2026" placeholderTextColor="#9CA3AF"
+        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+        value={wReference} onChangeText={setWReference}
+        placeholder="e.g. Business withdrawal March 2026" placeholderTextColor={colors.textMuted}
       />
 
       <TouchableOpacity
@@ -1009,17 +1021,17 @@ export default function MerchantDashboard() {
         { label: "Account Type", value: wAccountType.charAt(0).toUpperCase() + wAccountType.slice(1) },
         ...(wReference ? [{ label: "Reference", value: wReference }] : []),
       ].map((row, i) => (
-        <View key={i} style={styles.confirmRow}>
-          <Text style={styles.confirmRowLabel}>{row.label}</Text>
-          <Text style={[styles.confirmRowValue, (row as any).highlight && { color: "#10B981", fontWeight: "800", fontSize: 17 }]}>
+        <View key={i} style={[styles.confirmRow, { borderBottomColor: colors.divider }]}>
+          <Text style={[styles.confirmRowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+          <Text style={[styles.confirmRowValue, { color: colors.text }, (row as any).highlight && { color: "#10B981", fontWeight: "800", fontSize: 17 }]}>
             {row.value}
           </Text>
         </View>
       ))}
 
       <View style={styles.confirmNote}>
-        <Ionicons name="time-outline" size={14} color="#6B7280" />
-        <Text style={styles.confirmNoteText}>Funds arrive within 1–3 business days.</Text>
+        <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+        <Text style={[styles.confirmNoteText, { color: colors.textSecondary }]}>Funds arrive within 1–3 business days.</Text>
       </View>
 
       <TouchableOpacity style={styles.wSubmitBtn} onPress={submitWithdrawal} disabled={wLoading}>
@@ -1038,15 +1050,15 @@ export default function MerchantDashboard() {
       <View style={styles.successIconWrap}>
         <Ionicons name="checkmark-circle" size={64} color="#10B981" />
       </View>
-      <Text style={styles.successTitle}>Withdrawal Submitted!</Text>
-      <Text style={styles.successSubtitle}>
+      <Text style={[styles.successTitle, { color: colors.text }]}>Withdrawal Submitted!</Text>
+      <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
         Your withdrawal of {wCurrency} {parseFloat(wAmount || "0").toFixed(2)} to {wAccountHolder} has been received.
         Funds arrive within 1–3 business days.
       </Text>
-      <View style={styles.successRefBox}>
-        <Text style={styles.successRefLabel}>To Account</Text>
-        <Text style={styles.successRefValue}>{wAccountNumber}</Text>
-        {wBankName && <Text style={styles.successRefMeta}>{wBankName}</Text>}
+      <View style={[styles.successRefBox, { backgroundColor: colors.inputBg }]}>
+        <Text style={[styles.successRefLabel, { color: colors.textMuted }]}>To Account</Text>
+        <Text style={[styles.successRefValue, { color: colors.text }]}>{wAccountNumber}</Text>
+        {wBankName && <Text style={[styles.successRefMeta, { color: colors.textSecondary }]}>{wBankName}</Text>}
       </View>
       <TouchableOpacity style={styles.wSubmitBtn} onPress={() => { setShowWithdraw(false); resetWithdraw(); }}>
         <Ionicons name="checkmark" size={18} color="#fff" />
@@ -1061,18 +1073,18 @@ export default function MerchantDashboard() {
   // ─── Main Render ───────────────────────────────────────────────────────────
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity style={styles.headerBack} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerCenter} onPress={() => setShowSwitcher(!showSwitcher)}>
-          <View style={styles.headerStorefront}>
+          <View style={[styles.headerStorefront, { backgroundColor: colors.primaryLight }]}>
             <Ionicons name="storefront" size={16} color="#7C3AED" />
           </View>
-          <Text style={styles.headerTitle} numberOfLines={1}>{selectedMerchant.businessName}</Text>
-          <Ionicons name={showSwitcher ? "chevron-up" : "chevron-down"} size={16} color="#6B7280" />
+          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>{selectedMerchant.businessName}</Text>
+          <Ionicons name={showSwitcher ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerBack} onPress={() => router.push("/(screens)/become-merchant")}>
           <Ionicons name="add-circle-outline" size={24} color="#7C3AED" />
@@ -1080,11 +1092,11 @@ export default function MerchantDashboard() {
       </View>
 
       {showSwitcher && (
-        <View style={styles.switcherDropdown}>
+        <View style={[styles.switcherDropdown, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           {merchants.map((m) => (
             <View
               key={m.id}
-              style={[styles.switcherItem, m.id === selectedMerchantId && styles.switcherItemActive]}
+              style={[styles.switcherItem, { borderBottomColor: colors.divider }, m.id === selectedMerchantId && { backgroundColor: colors.primaryLight }]}
             >
               <TouchableOpacity
                 style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
@@ -1092,8 +1104,8 @@ export default function MerchantDashboard() {
               >
                 <Ionicons name="storefront" size={16} color="#7C3AED" />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.switcherName}>{m.businessName}</Text>
-                  <Text style={styles.switcherType}>{m.businessType.replace(/_/g, " ")}</Text>
+                  <Text style={[styles.switcherName, { color: colors.text }]}>{m.businessName}</Text>
+                  <Text style={[styles.switcherType, { color: colors.textMuted }]}>{m.businessType.replace(/_/g, " ")}</Text>
                 </View>
                 {m.id === selectedMerchantId && <Ionicons name="checkmark-circle" size={18} color="#7C3AED" />}
               </TouchableOpacity>
@@ -1106,7 +1118,7 @@ export default function MerchantDashboard() {
             </View>
           ))}
           <TouchableOpacity
-            style={styles.switcherAddBtn}
+            style={[styles.switcherAddBtn, { borderTopColor: colors.border }]}
             onPress={() => { setShowSwitcher(false); router.push("/(screens)/become-merchant"); }}
           >
             <Ionicons name="add-circle-outline" size={18} color="#7C3AED" />
@@ -1116,7 +1128,7 @@ export default function MerchantDashboard() {
       )}
 
       {/* Tab Bar */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         {([
           { key: "overview" as TabKey, label: "Overview", icon: "analytics" as const },
           { key: "transactions" as TabKey, label: "Transactions", icon: "receipt" as const },
@@ -1127,14 +1139,14 @@ export default function MerchantDashboard() {
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Ionicons name={tab.icon} size={15} color={activeTab === tab.key ? "#7C3AED" : "#9CA3AF"} />
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
+            <Ionicons name={tab.icon} size={15} color={activeTab === tab.key ? "#7C3AED" : colors.textMuted} />
+            <Text style={[styles.tabText, { color: activeTab === tab.key ? "#7C3AED" : colors.textMuted }, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <ScrollView
-        style={styles.body}
+        style={[styles.body, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.bodyContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7C3AED" />}
         showsVerticalScrollIndicator={false}
@@ -1148,20 +1160,20 @@ export default function MerchantDashboard() {
       {/* ── QR Modal ── */}
       <Modal visible={showQRDialog} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Merchant QR Code</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Merchant QR Code</Text>
               <TouchableOpacity onPress={() => setShowQRDialog(false)}>
-                <Ionicons name="close-circle" size={26} color="#D1D5DB" />
+                <Ionicons name="close-circle" size={26} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <View style={styles.qrCard}>
+            <View style={[styles.qrCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.qrBrandRow}>
                 <Image source={logoImage} style={styles.qrLogo} />
                 <View>
-                  <Text style={styles.qrBrandName}>BukkaPay</Text>
-                  <Text style={styles.qrBrandTag}>Merchant Payment QR</Text>
+                  <Text style={[styles.qrBrandName, { color: colors.text }]}>BukkaPay</Text>
+                  <Text style={[styles.qrBrandTag, { color: colors.textSecondary }]}>Merchant Payment QR</Text>
                 </View>
               </View>
               <View style={styles.qrCodeWrap}>
@@ -1171,7 +1183,7 @@ export default function MerchantDashboard() {
                   logoSize={30} logoBackgroundColor="#FFFFFF"
                 />
               </View>
-              <Text style={styles.qrMerchantName}>{selectedMerchant.businessName}</Text>
+              <Text style={[styles.qrMerchantName, { color: colors.text }]}>{selectedMerchant.businessName}</Text>
               <View style={styles.qrBadge}>
                 <Ionicons name="shield-checkmark" size={12} color="#7C3AED" />
                 <Text style={styles.qrBadgeText}>{selectedMerchant.qrCode}</Text>
@@ -1188,20 +1200,20 @@ export default function MerchantDashboard() {
       {/* ── Generate Link Modal ── */}
       <Modal visible={showGenerateLink} animationType="slide" transparent onRequestClose={() => setShowGenerateLink(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { paddingBottom: Platform.OS === "ios" ? 40 : 24 }]}>
-            <View style={styles.modalHandle} />
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface, paddingBottom: Platform.OS === "ios" ? 40 : 24 }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Generate Payment Link</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Generate Payment Link</Text>
               <TouchableOpacity onPress={() => setShowGenerateLink(false)}>
-                <Ionicons name="close-circle" size={26} color="#D1D5DB" />
+                <Ionicons name="close-circle" size={26} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
             {!generatedLink ? (
               <>
-                <Text style={styles.genSubtitle}>Create a shareable link — payments go directly to your merchant wallet.</Text>
+                <Text style={[styles.genSubtitle, { color: colors.textSecondary }]}>Create a shareable link — payments go directly to your merchant wallet.</Text>
 
-                <Text style={styles.genLabel}>Currency</Text>
+                <Text style={[styles.genLabel, { color: colors.textSecondary }]}>Currency</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
                   <View style={{ flexDirection: "row", gap: 8 }}>
                     {CURRENCIES.map(c => (
@@ -1212,17 +1224,18 @@ export default function MerchantDashboard() {
                   </View>
                 </ScrollView>
 
-                <Text style={styles.genLabel}>Amount *</Text>
+                <Text style={[styles.genLabel, { color: colors.textSecondary }]}>Amount *</Text>
                 <TextInput
-                  style={styles.genInput} value={genAmount} onChangeText={setGenAmount}
-                  placeholder={`0.00 ${genCurrency}`} keyboardType="decimal-pad" placeholderTextColor="#9CA3AF"
+                  style={[styles.genInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                  value={genAmount} onChangeText={setGenAmount}
+                  placeholder={`0.00 ${genCurrency}`} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
                 />
 
-                <Text style={styles.genLabel}>Description (optional)</Text>
+                <Text style={[styles.genLabel, { color: colors.textSecondary }]}>Description (optional)</Text>
                 <TextInput
-                  style={[styles.genInput, { height: 70, textAlignVertical: "top" }]}
+                  style={[styles.genInput, { height: 70, textAlignVertical: "top", backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
                   value={genDesc} onChangeText={setGenDesc}
-                  placeholder="What is this payment for?" multiline numberOfLines={3} placeholderTextColor="#9CA3AF"
+                  placeholder="What is this payment for?" multiline numberOfLines={3} placeholderTextColor={colors.textMuted}
                 />
 
                 <TouchableOpacity
@@ -1237,7 +1250,7 @@ export default function MerchantDashboard() {
               <>
                 <View style={styles.genSuccess}>
                   <Ionicons name="checkmark-circle" size={52} color="#10B981" />
-                  <Text style={styles.genSuccessTitle}>Link Created!</Text>
+                  <Text style={[styles.genSuccessTitle, { color: colors.text }]}>Link Created!</Text>
                   <Text style={styles.genSuccessAmount}>{generatedLink.currency} {parseFloat(generatedLink.amount).toFixed(2)}</Text>
                   {generatedLink.description && <Text style={styles.genSuccessDesc}>{generatedLink.description}</Text>}
                   <View style={styles.genUrlBox}>
@@ -1271,15 +1284,15 @@ export default function MerchantDashboard() {
       {/* ── Withdraw Modal ── */}
       <Modal visible={showWithdraw} animationType="slide" transparent onRequestClose={() => { if (withdrawStep !== "success") setShowWithdraw(false); }}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, styles.withdrawSheet]}>
-            <View style={styles.modalHandle} />
+          <View style={[styles.modalSheet, styles.withdrawSheet, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {withdrawStep === "form" ? "Withdraw Funds" : withdrawStep === "confirm" ? "Confirm Details" : "Withdrawal Sent"}
               </Text>
               {withdrawStep !== "success" && (
                 <TouchableOpacity onPress={() => setShowWithdraw(false)}>
-                  <Ionicons name="close-circle" size={26} color="#D1D5DB" />
+                  <Ionicons name="close-circle" size={26} color={colors.textMuted} />
                 </TouchableOpacity>
               )}
             </View>

@@ -2,12 +2,16 @@ import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   ActivityIndicator, RefreshControl, Share, Alert,
-  TextInput, Clipboard, Platform, Linking,
+  TextInput, Platform, Linking,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { API_BASE, APP_URL } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
+import { useTheme } from "../lib/ThemeContext";
+import { useCurrency } from "../lib/CurrencyContext";
+import { convertAmount } from "../lib/currency";
 
 const PRIMARY = "#7C3AED";
 const PRIMARY_DARK = "#5B21B6";
@@ -49,6 +53,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function PaymentLinks() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const { currency } = useCurrency();
   const [links, setLinks] = useState<PaymentLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,13 +106,9 @@ export default function PaymentLinks() {
     }
   };
 
-  const copyLink = (link: PaymentLink) => {
+  const copyLink = async (link: PaymentLink) => {
     const url = getLinkUrl(link);
-    if (Platform.OS === "web") {
-      (navigator as any).clipboard?.writeText(url).catch(() => {});
-    } else {
-      Clipboard.setString(url);
-    }
+    await Clipboard.setStringAsync(url);
     Alert.alert("Copied!", "Payment link copied to clipboard.");
   };
 
@@ -168,28 +170,29 @@ export default function PaymentLinks() {
     : 0;
   const mainCurrency = sentLinks[0]?.currency || "ZAR";
 
-  const fmt = (n: number) => {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-    return n.toFixed(2);
+  const fmtAmt = (zarAmount: number) => {
+    const converted = convertAmount(zarAmount, currency.code);
+    if (converted >= 1000000) return `${currency.symbol}${(converted / 1000000).toFixed(1)}M`;
+    if (converted >= 1000) return `${currency.symbol}${(converted / 1000).toFixed(1)}K`;
+    return `${currency.symbol}${converted.toFixed(2)}`;
   };
 
   if (isLoading) {
     return (
-      <View style={s.centered}>
+      <View style={[s.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={PRIMARY} />
       </View>
     );
   }
 
   return (
-    <View style={s.container}>
+    <View style={[s.container, { backgroundColor: colors.background }]}>
       {/* ── Top Bar ── */}
-      <View style={s.topBar}>
+      <View style={[s.topBar, { backgroundColor: colors.headerBg, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.topBarTitle}>Payment Links</Text>
+        <Text style={[s.topBarTitle, { color: colors.text }]}>Payment Links</Text>
         <View style={s.topBarActions}>
           <TouchableOpacity
             style={s.inboxBtn}
@@ -229,17 +232,17 @@ export default function PaymentLinks() {
               <Text style={s.conversionBadgeText}>{conversionRate}% conversion</Text>
             </View>
           </View>
-          <Text style={s.heroAmount}>{mainCurrency} {fmt(totalRevenue + totalPartial)}</Text>
+          <Text style={s.heroAmount}>{fmtAmt(totalRevenue + totalPartial)}</Text>
           <Text style={s.heroSub}>Total collected across {sentLinks.length} link{sentLinks.length !== 1 ? "s" : ""}</Text>
 
           <View style={s.heroStatsRow}>
             <View style={s.heroStat}>
-              <Text style={s.heroStatValue}>{mainCurrency} {fmt(totalRevenue)}</Text>
+              <Text style={s.heroStatValue}>{fmtAmt(totalRevenue)}</Text>
               <Text style={s.heroStatLabel}>Fully Paid</Text>
             </View>
             <View style={s.heroStatDivider} />
             <View style={s.heroStat}>
-              <Text style={[s.heroStatValue, { color: "#FDE68A" }]}>{mainCurrency} {fmt(totalPending)}</Text>
+              <Text style={[s.heroStatValue, { color: "#FDE68A" }]}>{fmtAmt(totalPending)}</Text>
               <Text style={s.heroStatLabel}>Outstanding</Text>
             </View>
             <View style={s.heroStatDivider} />
@@ -259,19 +262,19 @@ export default function PaymentLinks() {
         </ScrollView>
 
         {/* ── Search Bar ── */}
-        <View style={s.searchWrap}>
-          <Ionicons name="search-outline" size={18} color="#9CA3AF" style={s.searchIcon} />
+        <View style={[s.searchWrap, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="search-outline" size={18} color={colors.textMuted} style={s.searchIcon} />
           <TextInput
-            style={s.searchInput}
+            style={[s.searchInput, { color: colors.text }]}
             value={search}
             onChangeText={setSearch}
             placeholder="Search by description or currency…"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             clearButtonMode="while-editing"
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -288,10 +291,10 @@ export default function PaymentLinks() {
           ].map(f => (
             <TouchableOpacity
               key={f.key}
-              style={[s.filterChip, filter === f.key && s.filterChipActive]}
+              style={[s.filterChip, { backgroundColor: colors.surface, borderColor: colors.border }, filter === f.key && s.filterChipActive]}
               onPress={() => setFilter(f.key)}
             >
-              <Text style={[s.filterChipText, filter === f.key && s.filterChipTextActive]}>{f.label}</Text>
+              <Text style={[s.filterChipText, { color: colors.textSecondary }, filter === f.key && s.filterChipTextActive]}>{f.label}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -299,13 +302,13 @@ export default function PaymentLinks() {
         {/* ── Empty State ── */}
         {filteredLinks.length === 0 ? (
           <View style={s.emptyState}>
-            <View style={s.emptyIconWrap}>
+            <View style={[s.emptyIconWrap, { backgroundColor: colors.primaryLight }]}>
               <Ionicons name="link-outline" size={36} color="#C4B5FD" />
             </View>
-            <Text style={s.emptyTitle}>
+            <Text style={[s.emptyTitle, { color: colors.text }]}>
               {search ? "No results found" : filter === "all" ? "No payment links yet" : `No ${filter === "received" ? "received" : STATUS_LABELS[filter]?.toLowerCase()} links`}
             </Text>
-            <Text style={s.emptySubtitle}>
+            <Text style={[s.emptySubtitle, { color: colors.textMuted }]}>
               {search ? "Try a different search term" : "Create a payment link to start collecting payments from anyone, anywhere."}
             </Text>
             {!search && (
@@ -318,8 +321,8 @@ export default function PaymentLinks() {
         ) : (
           <>
             <View style={s.listHeader}>
-              <Text style={s.listCount}>{filteredLinks.length} link{filteredLinks.length !== 1 ? "s" : ""}</Text>
-              <Text style={s.listSort}>Newest first</Text>
+              <Text style={[s.listCount, { color: colors.textSecondary }]}>{filteredLinks.length} link{filteredLinks.length !== 1 ? "s" : ""}</Text>
+              <Text style={[s.listSort, { color: colors.textMuted }]}>Newest first</Text>
             </View>
             <View style={s.linksList}>
               {filteredLinks.map(link => (
@@ -341,7 +344,7 @@ export default function PaymentLinks() {
 
         {/* ── CTA footer ── */}
         {links.length > 0 && (
-          <TouchableOpacity style={s.fabFooter} onPress={() => router.push("/(screens)/create-payment-link" as any)}>
+          <TouchableOpacity style={[s.fabFooter, { backgroundColor: colors.primaryLight }]} onPress={() => router.push("/(screens)/create-payment-link" as any)}>
             <Ionicons name="add-circle" size={20} color={PRIMARY} />
             <Text style={s.fabFooterText}>Create New Payment Link</Text>
           </TouchableOpacity>
@@ -356,13 +359,14 @@ export default function PaymentLinks() {
 function MetricCard({ icon, label, value, color, bg }: {
   icon: any; label: string; value: string; color: string; bg: string;
 }) {
+  const { colors } = useTheme();
   return (
     <View style={[s.metricCard, { backgroundColor: bg }]}>
       <View style={[s.metricIcon, { backgroundColor: color + "20" }]}>
         <Ionicons name={icon} size={18} color={color} />
       </View>
       <Text style={[s.metricValue, { color }]}>{value}</Text>
-      <Text style={s.metricLabel}>{label}</Text>
+      <Text style={[s.metricLabel, { color: colors.textMuted }]}>{label}</Text>
     </View>
   );
 }
@@ -379,15 +383,18 @@ function PaymentLinkCard({
   onPayNow: () => void;
   onViewDetails: () => void;
 }) {
+  const { colors } = useTheme();
+  const { currency } = useCurrency();
   const progress = parseFloat(link.amount) > 0
     ? parseFloat(link.amountPaid) / parseFloat(link.amount) : 0;
   const isReceived = link.direction === "received";
   const isPaid = link.status === "paid";
   const statusColor = STATUS_COLORS[link.status] || "#6B7280";
+  const displayAmount = `${currency.symbol}${convertAmount(parseFloat(link.amount), currency.code).toFixed(2)}`;
 
   return (
     <TouchableOpacity
-      style={[s.card, isDeleting && { opacity: 0.5 }]}
+      style={[s.card, { backgroundColor: colors.card }, isDeleting && { opacity: 0.5 }]}
       onPress={onViewDetails}
       activeOpacity={0.85}
     >
@@ -403,12 +410,12 @@ function PaymentLinkCard({
 
         <View style={{ flex: 1, marginHorizontal: 10 }}>
           <View style={s.descRow}>
-            <Text style={s.cardDescription} numberOfLines={1}>
+            <Text style={[s.cardDescription, { color: colors.text }]} numberOfLines={1}>
               {link.description || "Payment Request"}
             </Text>
             {isReceived && <View style={s.dirBadge}><Text style={s.dirBadgeText}>IN</Text></View>}
           </View>
-          <Text style={s.cardDate}>{new Date(link.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</Text>
+          <Text style={[s.cardDate, { color: colors.textMuted }]}>{new Date(link.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</Text>
         </View>
 
         <View style={s.cardRightCol}>
@@ -416,35 +423,35 @@ function PaymentLinkCard({
             <View style={[s.statusDot, { backgroundColor: statusColor }]} />
             <Text style={[s.statusPillText, { color: statusColor }]}>{STATUS_LABELS[link.status]}</Text>
           </View>
-          <Text style={s.cardAmount}>{link.currency} {parseFloat(link.amount).toFixed(2)}</Text>
+          <Text style={[s.cardAmount, { color: colors.text }]}>{displayAmount}</Text>
         </View>
       </View>
 
       {/* Progress bar for partial */}
       {parseFloat(link.amountPaid) > 0 && !isPaid && (
         <View style={s.progressWrap}>
-          <View style={s.progressTrack}>
+          <View style={[s.progressTrack, { backgroundColor: colors.divider }]}>
             <View style={[s.progressFill, { width: `${Math.min(progress * 100, 100)}%` as any, backgroundColor: statusColor }]} />
           </View>
-          <Text style={s.progressLabel}>{Math.round(progress * 100)}% collected</Text>
+          <Text style={[s.progressLabel, { color: colors.textMuted }]}>{Math.round(progress * 100)}% collected</Text>
         </View>
       )}
 
       {/* Quick Actions */}
-      <View style={s.actionsBar}>
+      <View style={[s.actionsBar, { borderColor: colors.divider }]}>
         {isReceived ? (
           <>
             {!isPaid && (
               <ActionBtn icon="wallet" label="Pay Now" color="#fff" bg={GREEN} onPress={onPayNow} />
             )}
             <ActionBtn icon="logo-whatsapp" label="WhatsApp" color="#fff" bg="#25D366" onPress={onWhatsApp} />
-            <ActionBtn icon="copy-outline" label="Copy" color="#6B7280" onPress={onCopy} />
+            <ActionBtn icon="copy-outline" label="Copy" color={colors.textSecondary} onPress={onCopy} />
           </>
         ) : (
           <>
             <ActionBtn icon="logo-whatsapp" label="WhatsApp" color="#fff" bg="#25D366" onPress={onWhatsApp} />
             <ActionBtn icon="share-social-outline" label="Share" color={PRIMARY} onPress={onShare} />
-            <ActionBtn icon="copy-outline" label="Copy" color="#6B7280" onPress={onCopy} />
+            <ActionBtn icon="copy-outline" label="Copy" color={colors.textSecondary} onPress={onCopy} />
             <ActionBtn
               icon="trash-outline" label="Delete" color={RED}
               onPress={onDelete}
@@ -452,8 +459,8 @@ function PaymentLinkCard({
             />
           </>
         )}
-        <TouchableOpacity style={s.expandToggle} onPress={onViewDetails}>
-          <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+        <TouchableOpacity style={[s.expandToggle, { borderColor: colors.border }]} onPress={onViewDetails}>
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -463,9 +470,10 @@ function PaymentLinkCard({
 function ActionBtn({ icon, label, color, bg, onPress, disabled }: {
   icon: any; label: string; color: string; bg?: string; onPress: () => void; disabled?: boolean;
 }) {
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
-      style={[s.actionBtn, bg ? { backgroundColor: bg, borderColor: bg } : {}, disabled && { opacity: 0.5 }]}
+      style={[s.actionBtn, { borderColor: colors.border }, bg ? { backgroundColor: bg, borderColor: bg } : {}, disabled && { opacity: 0.5 }]}
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.75}

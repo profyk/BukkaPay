@@ -1,14 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
+import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export function useDarkMode() {
-  const [darkMode, setDarkModeState] = useState(false);
+  const systemScheme = useColorScheme();
+  const [darkMode, setDarkModeState] = useState(systemScheme === "dark");
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const dm = await AsyncStorage.getItem("dark_mode");
-      setDarkModeState(dm === "true");
+      const stored = await AsyncStorage.getItem("dark_mode");
+      if (stored !== null) {
+        setDarkModeState(stored === "true");
+      } else {
+        setDarkModeState(systemScheme === "dark");
+      }
       setLoaded(true);
     })();
   }, []);

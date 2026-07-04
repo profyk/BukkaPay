@@ -8,12 +8,14 @@ import { transfer, fetchCards } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import { getCountries, getBanksByCountry } from "../lib/banksData";
 import { useCurrency } from "../lib/CurrencyContext";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function SendMoney() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { toast } = useToast();
   const { currency } = useCurrency();
+  const { colors } = useTheme();
 
   const isFloatingButtonMode = params.mode === "qr";
   const initialMode = isFloatingButtonMode ? "scan" : "method";
@@ -121,67 +123,67 @@ export default function SendMoney() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Send Money</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Send Money</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {stage === "method" && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How would you like to send?</Text>
-          <Text style={styles.sectionSubtitle}>Choose your preferred payment method</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>How would you like to send?</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Choose your preferred payment method</Text>
 
           {isFloatingButtonMode && (
             <TouchableOpacity
               onPress={() => { setPaymentMethod("qr"); setStage("scan"); }}
-              style={[styles.methodCard, { borderColor: "#7C3AED", backgroundColor: "rgba(124,58,237,0.05)" }]}
+              style={[styles.methodCard, { backgroundColor: "rgba(124,58,237,0.05)", borderColor: "#7C3AED" }]}
             >
               <View style={[styles.methodIcon, { backgroundColor: "rgba(124,58,237,0.2)" }]}>
                 <Ionicons name="qr-code" size={24} color="#7C3AED" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.methodTitle}>Scan QR Code</Text>
-                <Text style={styles.methodDesc}>Fast P2P payment with BukkaPay users</Text>
+                <Text style={[styles.methodTitle, { color: colors.text }]}>Scan QR Code</Text>
+                <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>Fast P2P payment with BukkaPay users</Text>
               </View>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity onPress={() => handleMethodSelect("bukka")} style={styles.methodCard}>
+          <TouchableOpacity onPress={() => handleMethodSelect("bukka")} style={[styles.methodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.methodIcon, { backgroundColor: "rgba(139,92,246,0.2)" }]}>
               <Ionicons name="wallet" size={24} color="#8B5CF6" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.methodTitle}>BukkaPay Wallet</Text>
-              <Text style={styles.methodDesc}>Instant transfer to any BukkaPay user</Text>
+              <Text style={[styles.methodTitle, { color: colors.text }]}>BukkaPay Wallet</Text>
+              <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>Instant transfer to any BukkaPay user</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => handleMethodSelect("mobile")} style={styles.methodCard}>
+          <TouchableOpacity onPress={() => handleMethodSelect("mobile")} style={[styles.methodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.methodIcon, { backgroundColor: "rgba(16,185,129,0.2)" }]}>
               <Ionicons name="phone-portrait" size={24} color="#059669" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.methodTitle}>Mobile Money</Text>
-              <Text style={styles.methodDesc}>Send to local mobile wallets</Text>
+              <Text style={[styles.methodTitle, { color: colors.text }]}>Mobile Money</Text>
+              <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>Send to local mobile wallets</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => handleMethodSelect("bank")} style={styles.methodCard}>
+          <TouchableOpacity onPress={() => handleMethodSelect("bank")} style={[styles.methodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.methodIcon, { backgroundColor: "rgba(37,99,235,0.2)" }]}>
               <Ionicons name="business" size={24} color="#2563EB" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.methodTitle}>Local Bank Transfer</Text>
-              <Text style={styles.methodDesc}>Send to any local bank account</Text>
+              <Text style={[styles.methodTitle, { color: colors.text }]}>Local Bank Transfer</Text>
+              <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>Send to any local bank account</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.cancelButton}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)")} style={[styles.cancelButton, { borderColor: colors.border }]}>
+            <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -193,17 +195,17 @@ export default function SendMoney() {
             <Text style={styles.scanPlaceholderText}>Camera QR scanning</Text>
             <Text style={styles.scanPlaceholderSubtext}>Point your camera at a QR code</Text>
           </View>
-          <Text style={styles.inputLabel}>Or enter Wallet ID manually</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Or enter Wallet ID manually</Text>
           <TextInput
             value={walletId}
             onChangeText={setWalletId}
             placeholder="BKP-XXXXXXXX"
-            placeholderTextColor="#6B7280"
-            style={styles.input}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
           />
           <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={() => { setStage("method"); setPaymentMethod(null); }} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Back</Text>
+            <TouchableOpacity onPress={() => { setStage("method"); setPaymentMethod(null); }} style={[styles.secondaryButton, { borderColor: colors.border }]}>
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
@@ -224,22 +226,22 @@ export default function SendMoney() {
 
       {stage === "wallet-id" && paymentMethod !== "bank" && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recipient Details</Text>
-          <Text style={styles.sectionSubtitle}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recipient Details</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
             {paymentMethod === "bukka" ? "Enter the BukkaPay wallet ID" : "Enter the mobile wallet ID or phone number"}
           </Text>
-          <Text style={styles.inputLabel}>{paymentMethod === "bukka" ? "BukkaPay Wallet ID" : "Mobile Wallet ID"}</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>{paymentMethod === "bukka" ? "BukkaPay Wallet ID" : "Mobile Wallet ID"}</Text>
           <TextInput
             value={walletId}
             onChangeText={setWalletId}
             placeholder={paymentMethod === "bukka" ? "BKP-XXXXXXXX" : "Wallet ID or phone number"}
-            placeholderTextColor="#6B7280"
-            style={styles.input}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             autoFocus
           />
           <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={() => { setStage("method"); setPaymentMethod(null); }} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Back</Text>
+            <TouchableOpacity onPress={() => { setStage("method"); setPaymentMethod(null); }} style={[styles.secondaryButton, { borderColor: colors.border }]}>
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleWalletIdContinue} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Continue</Text>
@@ -250,27 +252,27 @@ export default function SendMoney() {
 
       {stage === "wallet-id" && paymentMethod === "bank" && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bank Details</Text>
-          <Text style={styles.sectionSubtitle}>Enter the recipient's bank account information</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Bank Details</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Enter the recipient's bank account information</Text>
 
-          <Text style={styles.inputLabel}>Account Holder Name</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Account Holder Name</Text>
           <TextInput
             value={bankDetails.accountName}
             onChangeText={(t) => setBankDetails({ ...bankDetails, accountName: t })}
             placeholder="Full name"
-            placeholderTextColor="#6B7280"
-            style={styles.input}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
           />
 
-          <Text style={styles.inputLabel}>Country</Text>
-          <TouchableOpacity onPress={() => setShowCountryPicker(!showCountryPicker)} style={styles.pickerButton}>
-            <Text style={bankDetails.country ? styles.pickerText : styles.pickerPlaceholder}>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Country</Text>
+          <TouchableOpacity onPress={() => setShowCountryPicker(!showCountryPicker)} style={[styles.pickerButton, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+            <Text style={[bankDetails.country ? styles.pickerText : styles.pickerPlaceholder, { color: bankDetails.country ? colors.text : colors.textMuted }]}>
               {bankDetails.country || "Select a country..."}
             </Text>
-            <Ionicons name="chevron-down" size={20} color="#6B7280" />
+            <Ionicons name="chevron-down" size={20} color={colors.textMuted} />
           </TouchableOpacity>
           {showCountryPicker && (
-            <ScrollView style={styles.pickerList} nestedScrollEnabled>
+            <ScrollView style={[styles.pickerList, { backgroundColor: colors.card, borderColor: colors.border }]} nestedScrollEnabled>
               {getCountries().map((country) => (
                 <TouchableOpacity
                   key={country}
@@ -278,27 +280,27 @@ export default function SendMoney() {
                     setBankDetails({ ...bankDetails, country, bankName: "" });
                     setShowCountryPicker(false);
                   }}
-                  style={styles.pickerItem}
+                  style={[styles.pickerItem, { borderBottomColor: colors.divider }]}
                 >
-                  <Text style={styles.pickerItemText}>{country}</Text>
+                  <Text style={[styles.pickerItemText, { color: colors.text }]}>{country}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           )}
 
-          <Text style={styles.inputLabel}>Bank Name</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Bank Name</Text>
           <TouchableOpacity
             onPress={() => bankDetails.country && setShowBankPicker(!showBankPicker)}
-            style={[styles.pickerButton, !bankDetails.country && { opacity: 0.5 }]}
+            style={[styles.pickerButton, { backgroundColor: colors.inputBg, borderColor: colors.border }, !bankDetails.country && { opacity: 0.5 }]}
             disabled={!bankDetails.country}
           >
-            <Text style={bankDetails.bankName ? styles.pickerText : styles.pickerPlaceholder}>
+            <Text style={[bankDetails.bankName ? styles.pickerText : styles.pickerPlaceholder, { color: bankDetails.bankName ? colors.text : colors.textMuted }]}>
               {bankDetails.bankName || (bankDetails.country ? "Select a bank..." : "Choose a country first...")}
             </Text>
-            <Ionicons name="chevron-down" size={20} color="#6B7280" />
+            <Ionicons name="chevron-down" size={20} color={colors.textMuted} />
           </TouchableOpacity>
           {showBankPicker && bankDetails.country && (
-            <ScrollView style={styles.pickerList} nestedScrollEnabled>
+            <ScrollView style={[styles.pickerList, { backgroundColor: colors.card, borderColor: colors.border }]} nestedScrollEnabled>
               {getBanksByCountry(bankDetails.country).map((bank) => (
                 <TouchableOpacity
                   key={bank}
@@ -306,26 +308,26 @@ export default function SendMoney() {
                     setBankDetails({ ...bankDetails, bankName: bank });
                     setShowBankPicker(false);
                   }}
-                  style={styles.pickerItem}
+                  style={[styles.pickerItem, { borderBottomColor: colors.divider }]}
                 >
-                  <Text style={styles.pickerItemText}>{bank}</Text>
+                  <Text style={[styles.pickerItemText, { color: colors.text }]}>{bank}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           )}
 
-          <Text style={styles.inputLabel}>Account Number</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Account Number</Text>
           <TextInput
             value={bankDetails.accountNumber}
             onChangeText={(t) => setBankDetails({ ...bankDetails, accountNumber: t })}
             placeholder="Account number or IBAN"
-            placeholderTextColor="#6B7280"
-            style={styles.input}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
           />
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={() => { setStage("method"); setPaymentMethod(null); }} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Back</Text>
+            <TouchableOpacity onPress={() => { setStage("method"); setPaymentMethod(null); }} style={[styles.secondaryButton, { borderColor: colors.border }]}>
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleBankDetailsContinue} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Continue</Text>
@@ -336,15 +338,15 @@ export default function SendMoney() {
 
       {stage === "card-select" && recipientData && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Payment Card</Text>
-          <Text style={styles.sectionSubtitle}>Choose which card to send from</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Payment Card</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Choose which card to send from</Text>
 
           {cardsLoading ? (
             <ActivityIndicator size="large" color="#7C3AED" style={{ marginVertical: 32 }} />
           ) : cards.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyCardText}>No cards available</Text>
-              <Text style={styles.emptyCardSubtext}>Please add a card first</Text>
+            <View style={[styles.emptyCard, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.emptyCardText, { color: colors.textSecondary }]}>No cards available</Text>
+              <Text style={[styles.emptyCardSubtext, { color: colors.textMuted }]}>Please add a card first</Text>
             </View>
           ) : (
             cards.map((card: any) => (
@@ -353,12 +355,13 @@ export default function SendMoney() {
                 onPress={() => setSelectedCard(card.id)}
                 style={[
                   styles.cardOption,
+                  { backgroundColor: colors.card, borderColor: colors.border },
                   selectedCard === card.id && { borderColor: "#7C3AED", backgroundColor: "rgba(124,58,237,0.05)" },
                 ]}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{card.title}</Text>
-                  <Text style={styles.cardBalance}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>{card.title}</Text>
+                  <Text style={[styles.cardBalance, { color: colors.textSecondary }]}>
                     Balance: {currency.symbol}{parseFloat(card.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
@@ -372,8 +375,8 @@ export default function SendMoney() {
           )}
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={() => setStage("wallet-id")} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Back</Text>
+            <TouchableOpacity onPress={() => setStage("wallet-id")} style={[styles.secondaryButton, { borderColor: colors.border }]}>
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleCardSelect}
@@ -388,24 +391,24 @@ export default function SendMoney() {
 
       {stage === "amount" && recipientData && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How much to send?</Text>
-          <Text style={styles.sectionSubtitle}>Enter the amount to transfer</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>How much to send?</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Enter the amount to transfer</Text>
 
-          <View style={styles.fromCardBox}>
-            <Text style={styles.fromCardLabel}>From Card</Text>
-            <Text style={styles.fromCardValue}>{cards.find((c: any) => c.id === selectedCard)?.title || "Loading..."}</Text>
+          <View style={[styles.fromCardBox, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.fromCardLabel, { color: colors.textMuted }]}>From Card</Text>
+            <Text style={[styles.fromCardValue, { color: colors.text }]}>{cards.find((c: any) => c.id === selectedCard)?.title || "Loading..."}</Text>
           </View>
 
-          <Text style={styles.inputLabel}>Amount</Text>
-          <View style={styles.amountInputRow}>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Amount</Text>
+          <View style={[styles.amountInputRow, { borderColor: colors.border }]}>
             <Text style={styles.amountDollar}>{currency.symbol}</Text>
             <TextInput
               value={amount}
               onChangeText={setAmount}
               placeholder="0.00"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
-              style={styles.amountInput}
+              style={[styles.amountInput, { color: colors.text }]}
               autoFocus
             />
           </View>
@@ -416,9 +419,9 @@ export default function SendMoney() {
                 if (paymentMethod === "qr") setStage("scan");
                 else setStage("wallet-id");
               }}
-              style={styles.secondaryButton}
+              style={[styles.secondaryButton, { borderColor: colors.border }]}
             >
-              <Text style={styles.secondaryButtonText}>Back</Text>
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleAmountContinue} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Continue</Text>
@@ -429,21 +432,21 @@ export default function SendMoney() {
 
       {stage === "confirm" && recipientData && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Confirm Payment</Text>
-          <Text style={styles.sectionSubtitle}>Review the details before sending</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Confirm Payment</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Review the details before sending</Text>
 
           <View style={styles.confirmCard}>
-            <Text style={styles.confirmLabel}>Sending to</Text>
+            <Text style={[styles.confirmLabel, { color: colors.textSecondary }]}>Sending to</Text>
             {paymentMethod === "bank" ? (
               <>
                 <Text style={styles.confirmName}>{recipientData.accountName}</Text>
-                <Text style={styles.confirmDetail}>{recipientData.bankName} - {recipientData.country}</Text>
-                <Text style={styles.confirmDetail}>Account: {recipientData.accountNumber}</Text>
+                <Text style={[styles.confirmDetail, { color: colors.textSecondary }]}>{recipientData.bankName} - {recipientData.country}</Text>
+                <Text style={[styles.confirmDetail, { color: colors.textSecondary }]}>Account: {recipientData.accountNumber}</Text>
               </>
             ) : (
               <>
                 <Text style={styles.confirmName}>{recipientData.username || recipientData.id}</Text>
-                <Text style={styles.confirmDetail}>
+                <Text style={[styles.confirmDetail, { color: colors.textSecondary }]}>
                   {paymentMethod === "bukka" ? "BukkaPay Wallet" : paymentMethod === "mobile" ? "Mobile Wallet" : "QR Payment"}
                 </Text>
               </>
@@ -451,13 +454,13 @@ export default function SendMoney() {
           </View>
 
           <View style={styles.confirmGrid}>
-            <View style={styles.confirmGridItem}>
-              <Text style={styles.confirmGridLabel}>Amount</Text>
+            <View style={[styles.confirmGridItem, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.confirmGridLabel, { color: colors.textSecondary }]}>Amount</Text>
               <Text style={styles.confirmGridValue}>{currency.symbol}{amount}</Text>
             </View>
-            <View style={styles.confirmGridItem}>
-              <Text style={styles.confirmGridLabel}>From Card</Text>
-              <Text style={styles.confirmGridValueSmall}>{cards.find((c: any) => c.id === selectedCard)?.title || "Loading..."}</Text>
+            <View style={[styles.confirmGridItem, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.confirmGridLabel, { color: colors.textSecondary }]}>From Card</Text>
+              <Text style={[styles.confirmGridValueSmall, { color: colors.text }]}>{cards.find((c: any) => c.id === selectedCard)?.title || "Loading..."}</Text>
             </View>
           </View>
 
@@ -467,8 +470,8 @@ export default function SendMoney() {
           </View>
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={() => setStage("amount")} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Edit</Text>
+            <TouchableOpacity onPress={() => setStage("amount")} style={[styles.secondaryButton, { borderColor: colors.border }]}>
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSend}
@@ -487,9 +490,9 @@ export default function SendMoney() {
           <View style={styles.successCircle}>
             <Ionicons name="checkmark" size={40} color="#FFFFFF" />
           </View>
-          <Text style={styles.successTitle}>Payment Sent!</Text>
-          <Text style={styles.successSubtitle}>{currency.symbol}{amount} has been sent successfully</Text>
-          <Text style={styles.successRedirect}>Redirecting to home...</Text>
+          <Text style={[styles.successTitle, { color: colors.text }]}>Payment Sent!</Text>
+          <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>{currency.symbol}{amount} has been sent successfully</Text>
+          <Text style={[styles.successRedirect, { color: colors.textMuted }]}>Redirecting to home...</Text>
         </View>
       )}
     </ScrollView>

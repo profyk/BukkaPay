@@ -4,17 +4,15 @@ import {
   ActivityIndicator, Linking, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { useCurrency } from "../lib/CurrencyContext";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
+import { useTheme } from "../lib/ThemeContext";
 
-const NAVY  = "#0F172A";
 const BLUE  = "#1D4ED8";
 const GREEN = "#16A34A";
-const MUTED = "#64748B";
-const BORDER = "#E2E8F0";
 
 type Section = "select" | "stitch" | "voucher" | "withdraw" | "pending";
 type AccountType = "savings" | "current" | "transmission";
@@ -23,10 +21,20 @@ interface StitchBank { id: string; name: string; }
 
 export default function TopUp() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ section?: string }>();
   const { toast } = useToast();
   const { currency } = useCurrency();
+  const { colors } = useTheme();
 
-  const [section, setSection] = useState<Section>("select");
+  const [section, setSection] = useState<Section>((params.section as Section) || "select");
+
+  // Dynamic colors from theme
+  const NAVY = colors.text;
+  const MUTED = colors.textSecondary;
+  const BORDER = colors.border;
+  const BG = colors.background;
+  const SURFACE = colors.surface;
+  const INPUT_BG = colors.inputBg;
   const [amount, setAmount] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -193,52 +201,52 @@ export default function TopUp() {
   // ─── Select Screen ────────────────────────────────────────────────────────
   if (section === "select") {
     return (
-      <View style={s.container}>
+      <View style={[s.container, { backgroundColor: BG }]}>
         <View style={s.header}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={NAVY} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Wallet</Text>
+          <Text style={[s.headerTitle, { color: NAVY }]}>Wallet</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
-          <Text style={s.sectionLabel}>Add Money</Text>
+          <Text style={[s.sectionLabel, { color: MUTED }]}>Add Money</Text>
 
-          <TouchableOpacity style={[s.optionCard, { backgroundColor: "#EFF6FF" }]} onPress={() => setSection("stitch")}>
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => setSection("stitch")}>
             <View style={[s.optionIcon, { backgroundColor: BLUE }]}>
               <Ionicons name="swap-horizontal" size={22} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.optionTitle, { color: BLUE }]}>Instant Bank Pay</Text>
-              <Text style={s.optionSub}>Pay via your bank · Powered by Stitch</Text>
+              <Text style={[s.optionSub, { color: MUTED }]}>Pay via your bank · Powered by Stitch</Text>
             </View>
             <View style={s.badge}>
               <Text style={s.badgeText}>Instant</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[s.optionCard, { backgroundColor: "#F0FDF4" }]} onPress={() => setSection("voucher")}>
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => setSection("voucher")}>
             <View style={[s.optionIcon, { backgroundColor: GREEN }]}>
               <Ionicons name="ticket" size={22} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.optionTitle, { color: GREEN }]}>Redeem Voucher</Text>
-              <Text style={s.optionSub}>BukkaPay gift cards and vouchers</Text>
+              <Text style={[s.optionSub, { color: MUTED }]}>BukkaPay gift cards and vouchers</Text>
             </View>
           </TouchableOpacity>
 
-          <View style={s.divider} />
+          <View style={[s.divider, { backgroundColor: BORDER }]} />
 
-          <Text style={s.sectionLabel}>Withdraw Funds</Text>
+          <Text style={[s.sectionLabel, { color: MUTED }]}>Withdraw Funds</Text>
 
-          <TouchableOpacity style={[s.optionCard, { backgroundColor: "#FFF7ED" }]} onPress={() => setSection("withdraw")}>
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => setSection("withdraw")}>
             <View style={[s.optionIcon, { backgroundColor: "#EA580C" }]}>
               <Ionicons name="arrow-up-circle" size={22} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.optionTitle, { color: "#EA580C" }]}>Withdraw to Bank</Text>
-              <Text style={s.optionSub}>Send to your bank account via Stitch</Text>
+              <Text style={[s.optionSub, { color: MUTED }]}>Send to your bank account via Stitch</Text>
             </View>
             <Text style={[s.optionSub, { color: MUTED }]}>1–2 days</Text>
           </TouchableOpacity>
@@ -250,12 +258,12 @@ export default function TopUp() {
   // ─── Stitch Top-Up ────────────────────────────────────────────────────────
   if (section === "stitch") {
     return (
-      <ScrollView style={s.container} contentContainerStyle={s.scrollContent}>
+      <ScrollView style={[s.container, { backgroundColor: BG }]} contentContainerStyle={s.scrollContent}>
         <View style={s.header}>
           <TouchableOpacity style={s.backBtn} onPress={() => setSection("select")}>
             <Ionicons name="arrow-back" size={24} color={NAVY} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Instant Bank Pay</Text>
+          <Text style={[s.headerTitle, { color: NAVY }]}>Instant Bank Pay</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -272,23 +280,23 @@ export default function TopUp() {
           </Text>
         </View>
 
-        <Text style={s.label}>Amount (ZAR)</Text>
+        <Text style={[s.label, { color: NAVY }]}>Amount (ZAR)</Text>
         <View style={s.amountRow}>
-          <Text style={s.currencyPrefix}>R</Text>
+          <Text style={[s.currencyPrefix, { color: NAVY }]}>R</Text>
           <TextInput
-            style={[s.input, { flex: 1 }]}
+            style={[s.input, { flex: 1, backgroundColor: INPUT_BG, borderColor: BORDER, color: NAVY }]}
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={MUTED}
             keyboardType="decimal-pad"
           />
         </View>
 
         <View style={s.quickRow}>
           {["50", "100", "250", "500"].map((v) => (
-            <TouchableOpacity key={v} style={s.quickBtn} onPress={() => setAmount(v)}>
-              <Text style={s.quickBtnText}>R{v}</Text>
+            <TouchableOpacity key={v} style={[s.quickBtn, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => setAmount(v)}>
+              <Text style={[s.quickBtnText, { color: NAVY }]}>R{v}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -319,10 +327,10 @@ export default function TopUp() {
   // ─── Pending Payment ──────────────────────────────────────────────────────
   if (section === "pending") {
     return (
-      <View style={[s.container, { alignItems: "center", justifyContent: "center", padding: 32 }]}>
+      <View style={[s.container, { backgroundColor: BG, alignItems: "center", justifyContent: "center", padding: 32 }]}>
         <Ionicons name="hourglass" size={56} color={BLUE} />
         <Text style={[s.heroTitle, { color: NAVY, marginTop: 16, textAlign: "center" }]}>Waiting for Payment</Text>
-        <Text style={[s.optionSub, { textAlign: "center", marginTop: 8, marginBottom: 32 }]}>
+        <Text style={[s.optionSub, { color: MUTED, textAlign: "center", marginTop: 8, marginBottom: 32 }]}>
           Complete the payment in your browser, then tap below to confirm.
         </Text>
 
@@ -339,8 +347,8 @@ export default function TopUp() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={[s.outlineBtn, { marginTop: 12, width: "100%" }]} onPress={() => setSection("select")}>
-          <Text style={s.outlineBtnText}>Cancel</Text>
+        <TouchableOpacity style={[s.outlineBtn, { marginTop: 12, width: "100%", borderColor: BORDER }]} onPress={() => setSection("select")}>
+          <Text style={[s.outlineBtnText, { color: MUTED }]}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
@@ -349,12 +357,12 @@ export default function TopUp() {
   // ─── Withdraw ─────────────────────────────────────────────────────────────
   if (section === "withdraw") {
     return (
-      <ScrollView style={s.container} contentContainerStyle={s.scrollContent}>
+      <ScrollView style={[s.container, { backgroundColor: BG }]} contentContainerStyle={s.scrollContent}>
         <View style={s.header}>
           <TouchableOpacity style={s.backBtn} onPress={() => { setSection("select"); setShowBankList(false); }}>
             <Ionicons name="arrow-back" size={24} color={NAVY} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Withdraw to Bank</Text>
+          <Text style={[s.headerTitle, { color: NAVY }]}>Withdraw to Bank</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -364,36 +372,36 @@ export default function TopUp() {
           <Text style={s.heroTitle}>Bank Withdrawal</Text>
         </View>
 
-        <Text style={s.label}>Amount (ZAR) — Min R50</Text>
+        <Text style={[s.label, { color: NAVY }]}>Amount (ZAR) — Min R50</Text>
         <View style={s.amountRow}>
-          <Text style={s.currencyPrefix}>R</Text>
+          <Text style={[s.currencyPrefix, { color: NAVY }]}>R</Text>
           <TextInput
-            style={[s.input, { flex: 1 }]}
+            style={[s.input, { flex: 1, backgroundColor: INPUT_BG, borderColor: BORDER, color: NAVY }]}
             value={withdrawAmount}
             onChangeText={setWithdrawAmount}
             placeholder="0.00"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={MUTED}
             keyboardType="decimal-pad"
           />
         </View>
 
-        <Text style={s.label}>Bank</Text>
-        <TouchableOpacity style={s.selectBtn} onPress={() => setShowBankList(!showBankList)}>
-          <Text style={[s.selectBtnText, !selectedBank && { color: "#94A3B8" }]}>
+        <Text style={[s.label, { color: NAVY }]}>Bank</Text>
+        <TouchableOpacity style={[s.selectBtn, { backgroundColor: INPUT_BG, borderColor: BORDER }]} onPress={() => setShowBankList(!showBankList)}>
+          <Text style={[s.selectBtnText, { color: selectedBank ? NAVY : MUTED }]}>
             {selectedBank ? selectedBank.name : "Select your bank"}
           </Text>
           <Ionicons name={showBankList ? "chevron-up" : "chevron-down"} size={18} color={MUTED} />
         </TouchableOpacity>
 
         {showBankList && (
-          <View style={s.bankList}>
+          <View style={[s.bankList, { borderColor: BORDER }]}>
             {banks.map((bank) => (
               <TouchableOpacity
                 key={bank.id}
-                style={[s.bankItem, selectedBank?.id === bank.id && { backgroundColor: "#EFF6FF" }]}
+                style={[s.bankItem, { borderColor: BORDER }, selectedBank?.id === bank.id && { backgroundColor: SURFACE }]}
                 onPress={() => { setSelectedBank(bank); setShowBankList(false); }}
               >
-                <Text style={[s.bankItemText, selectedBank?.id === bank.id && { color: BLUE, fontWeight: "700" }]}>
+                <Text style={[s.bankItemText, { color: NAVY }, selectedBank?.id === bank.id && { color: BLUE, fontWeight: "700" }]}>
                   {bank.name}
                 </Text>
                 {selectedBank?.id === bank.id && <Ionicons name="checkmark" size={16} color={BLUE} />}
@@ -402,35 +410,35 @@ export default function TopUp() {
           </View>
         )}
 
-        <Text style={s.label}>Account Holder Name</Text>
+        <Text style={[s.label, { color: NAVY }]}>Account Holder Name</Text>
         <TextInput
-          style={s.input}
+          style={[s.input, { backgroundColor: INPUT_BG, borderColor: BORDER, color: NAVY }]}
           value={accountName}
           onChangeText={setAccountName}
           placeholder="Full name on account"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={MUTED}
           autoCapitalize="words"
         />
 
-        <Text style={s.label}>Account Number</Text>
+        <Text style={[s.label, { color: NAVY }]}>Account Number</Text>
         <TextInput
-          style={s.input}
+          style={[s.input, { backgroundColor: INPUT_BG, borderColor: BORDER, color: NAVY }]}
           value={accountNumber}
           onChangeText={setAccountNumber}
           placeholder="Bank account number"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={MUTED}
           keyboardType="number-pad"
         />
 
-        <Text style={s.label}>Account Type</Text>
+        <Text style={[s.label, { color: NAVY }]}>Account Type</Text>
         <View style={s.toggleRow}>
           {(["savings", "current", "transmission"] as AccountType[]).map((t) => (
             <TouchableOpacity
               key={t}
-              style={[s.toggleBtn, accountType === t && s.toggleBtnActive]}
+              style={[s.toggleBtn, { borderColor: BORDER }, accountType === t && s.toggleBtnActive]}
               onPress={() => setAccountType(t)}
             >
-              <Text style={[s.toggleTxt, accountType === t && s.toggleTxtActive]}>
+              <Text style={[s.toggleTxt, { color: MUTED }, accountType === t && s.toggleTxtActive]}>
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </Text>
             </TouchableOpacity>
@@ -452,7 +460,7 @@ export default function TopUp() {
           )}
         </TouchableOpacity>
 
-        <Text style={[s.trustText, { textAlign: "center", marginTop: 12 }]}>
+        <Text style={[s.trustText, { color: MUTED, textAlign: "center", marginTop: 12 }]}>
           Funds typically arrive within 1–2 business days
         </Text>
       </ScrollView>
@@ -461,12 +469,12 @@ export default function TopUp() {
 
   // ─── Voucher ──────────────────────────────────────────────────────────────
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.scrollContent}>
+    <ScrollView style={[s.container, { backgroundColor: BG }]} contentContainerStyle={s.scrollContent}>
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => setSection("select")}>
           <Ionicons name="arrow-back" size={24} color={NAVY} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Redeem Voucher</Text>
+        <Text style={[s.headerTitle, { color: NAVY }]}>Redeem Voucher</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -476,13 +484,13 @@ export default function TopUp() {
         <Text style={s.heroTitle}>Instant Credit</Text>
       </View>
 
-      <Text style={s.label}>Voucher Code</Text>
+      <Text style={[s.label, { color: NAVY }]}>Voucher Code</Text>
       <TextInput
-        style={[s.input, { textAlign: "center", letterSpacing: 4, fontFamily: "monospace" }]}
+        style={[s.input, { backgroundColor: INPUT_BG, borderColor: BORDER, color: NAVY, textAlign: "center", letterSpacing: 4, fontFamily: "monospace" }]}
         value={voucherCode}
         onChangeText={(t) => setVoucherCode(t.toUpperCase())}
         placeholder="Enter voucher code"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={MUTED}
         autoCapitalize="characters"
       />
 
@@ -495,7 +503,7 @@ export default function TopUp() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 48 },
   content: { paddingHorizontal: 24, paddingBottom: 48, paddingTop: 8 },
   header: {
@@ -503,66 +511,45 @@ const s = StyleSheet.create({
     paddingTop: Platform.OS === "ios" ? 56 : 44, paddingBottom: 16, paddingHorizontal: 24,
   },
   backBtn: { padding: 8, borderRadius: 20 },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: NAVY },
-  sectionLabel: { fontSize: 12, fontWeight: "600", color: MUTED, marginBottom: 12, marginTop: 8, textTransform: "uppercase", letterSpacing: 0.5 },
-  optionCard: {
-    flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 16,
-    marginBottom: 12, gap: 14, borderWidth: 1, borderColor: BORDER,
-  },
+  headerTitle: { fontSize: 18, fontWeight: "700" },
+  sectionLabel: { fontSize: 12, fontWeight: "600", marginBottom: 12, marginTop: 8, textTransform: "uppercase", letterSpacing: 0.5 },
+  optionCard: { flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 16, marginBottom: 12, gap: 14, borderWidth: 1 },
   optionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   optionTitle: { fontSize: 16, fontWeight: "700" },
-  optionSub: { fontSize: 12, color: MUTED, marginTop: 2 },
+  optionSub: { fontSize: 12, marginTop: 2 },
   badge: { backgroundColor: "#DCFCE7", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: "700", color: GREEN },
-  divider: { height: 1, backgroundColor: BORDER, marginVertical: 20 },
+  divider: { height: 1, marginVertical: 20 },
   heroBanner: { backgroundColor: BLUE, borderRadius: 20, padding: 24, marginBottom: 24 },
   heroSub: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 12 },
   heroTitle: { fontSize: 24, fontWeight: "800", color: "#fff", marginTop: 4 },
-  infoBox: {
-    flexDirection: "row", alignItems: "flex-start", gap: 10,
-    backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14, marginBottom: 20,
-  },
+  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14, marginBottom: 20 },
   infoText: { flex: 1, fontSize: 13, color: "#1E40AF", lineHeight: 19 },
-  label: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8, marginTop: 16 },
+  label: { fontSize: 13, fontWeight: "600", marginBottom: 8, marginTop: 16 },
   amountRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  currencyPrefix: { fontSize: 22, fontWeight: "700", color: NAVY },
-  input: {
-    borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, padding: 14,
-    fontSize: 16, color: NAVY, backgroundColor: "#F8FAFC",
-  },
+  currencyPrefix: { fontSize: 22, fontWeight: "700" },
+  input: { borderWidth: 1.5, borderRadius: 12, padding: 14, fontSize: 16 },
   quickRow: { flexDirection: "row", gap: 8, marginTop: 14, marginBottom: 4 },
-  quickBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: "#F1F5F9", alignItems: "center", borderWidth: 1, borderColor: BORDER,
-  },
-  quickBtnText: { fontSize: 14, fontWeight: "600", color: NAVY },
+  quickBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1 },
+  quickBtnText: { fontSize: 14, fontWeight: "600" },
   primaryBtn: {
     borderRadius: 16, paddingVertical: 16, flexDirection: "row",
     justifyContent: "center", alignItems: "center", gap: 8, marginTop: 24,
     shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
   primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  outlineBtn: {
-    borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingVertical: 14,
-    alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8,
-  },
-  outlineBtnText: { color: MUTED, fontWeight: "600", fontSize: 15 },
+  outlineBtn: { borderWidth: 1.5, borderRadius: 16, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
+  outlineBtnText: { fontWeight: "600", fontSize: 15 },
   trustRow: { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center", marginTop: 16 },
-  trustText: { fontSize: 12, color: MUTED },
-  selectBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, padding: 14, backgroundColor: "#F8FAFC",
-  },
-  selectBtnText: { fontSize: 15, color: NAVY },
-  bankList: { borderWidth: 1, borderColor: BORDER, borderRadius: 12, overflow: "hidden", marginTop: 4 },
-  bankItem: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    padding: 14, borderBottomWidth: 1, borderColor: BORDER,
-  },
-  bankItemText: { fontSize: 15, color: NAVY },
+  trustText: { fontSize: 12 },
+  selectBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1.5, borderRadius: 12, padding: 14 },
+  selectBtnText: { fontSize: 15 },
+  bankList: { borderWidth: 1, borderRadius: 12, overflow: "hidden", marginTop: 4 },
+  bankItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderBottomWidth: 1 },
+  bankItemText: { fontSize: 15 },
   toggleRow: { flexDirection: "row", gap: 8 },
-  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: BORDER, alignItems: "center" },
+  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, alignItems: "center" },
   toggleBtnActive: { borderColor: BLUE, backgroundColor: "#EFF6FF" },
-  toggleTxt: { fontSize: 13, fontWeight: "600", color: MUTED },
+  toggleTxt: { fontSize: 13, fontWeight: "600" },
   toggleTxtActive: { color: BLUE },
 });
