@@ -29,6 +29,15 @@ const webauthnChallenges = new Map<string, { challenge: string; expiresAt: numbe
 // Per-email brute-force tracking: lock after 10 failed attempts for 30 minutes
 const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
 
+// Purge expired lockout entries every hour to prevent memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of loginAttempts.entries()) {
+    if (val.lockedUntil < now && val.lockedUntil !== 0) loginAttempts.delete(key);
+    else if (val.count > 0 && val.lockedUntil === 0) loginAttempts.delete(key);
+  }
+}, 60 * 60 * 1000);
+
 // ─── Rate limiters ─────────────────────────────────────────────────────────
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -91,8 +100,10 @@ async function deleteSessionFromDB(token: string) {
 }
 
 const rpName = "BukkaPay";
-const rpID = process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co` : "localhost";
-const origin = process.env.REPL_SLUG ? `https://${rpID}` : "http://localhost:5000";
+const rpID = process.env.WEBAUTHN_RP_ID
+  || (process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co` : "localhost");
+const origin = process.env.WEBAUTHN_ORIGIN
+  || (process.env.REPL_SLUG ? `https://${rpID}` : "http://localhost:5000");
 
 function getUserIdFromRequest(req: Request): string | null {
   const token = req.headers.authorization?.replace("Bearer ", "");
@@ -308,16 +319,19 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/auth/me", (req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      storage.getUser(userId).then(user => {
-        if (!user) return res.status(404).json({ error: "User not found" });
-        res.json({ id: user.id, walletId: user.walletId, name: user.name, email: user.email, username: user.username, phone: user.phone, countryCode: user.countryCode, loyaltyPoints: user.loyaltyPoints, biometricEnabled: user.biometricEnabled, avatar: user.avatar });
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      res.json({
+        id: user.id, walletId: user.walletId, name: user.name, email: user.email,
+        username: user.username, phone: user.phone, countryCode: user.countryCode,
+        loyaltyPoints: user.loyaltyPoints, biometricEnabled: user.biometricEnabled,
+        avatar: user.avatar, frozen: (user as any).frozen || false,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -435,13 +449,14 @@ export async function registerRoutes(
     }
   });
 
-  // Transactions
+  // Transactions (wallet history)
   app.get("/api/transactions", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      
-      const transactions = await storage.getTransactions(userId);
+
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      const transactions = await storage.getTransactions(userId, limit);
       res.json(transactions);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -477,6 +492,121 @@ export async function registerRoutes(
       res.status(201).json(transaction);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ─── Wallet-to-Wallet Transfer ────────────────────────────────────────────────
+  app.post("/api/transfer", paymentLimiter, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { fromCardId, toUserId, amount } = req.body;
+      if (!fromCardId || !toUserId || !amount) {
+        return res.status(400).json({ error: "fromCardId, toUserId, and amount are required" });
+      }
+
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+      if (parsedAmount > 50000) {
+        return res.status(400).json({ error: "Maximum single transfer is R50,000" });
+      }
+
+      // Validate sender's card
+      const senderCard = await storage.getWalletCard(fromCardId, userId);
+      if (!senderCard) return res.status(404).json({ error: "Sender card not found" });
+      if ((senderCard as any).blocked || (senderCard as any).flagged) {
+        return res.status(403).json({ error: "This card is restricted" });
+      }
+      if (parseFloat(senderCard.balance) < parsedAmount) {
+        return res.status(400).json({ error: "Insufficient balance" });
+      }
+
+      // Prevent self-transfer
+      if (toUserId === userId) {
+        return res.status(400).json({ error: "Cannot transfer to yourself" });
+      }
+
+      // Resolve recipient by wallet ID or user ID
+      let recipient = await storage.getUserByWalletId(toUserId)
+        || await storage.getUser(toUserId)
+        || await storage.getUserByUsername(toUserId);
+
+      if (!recipient) {
+        return res.status(404).json({ error: "Recipient not found. Check the wallet ID and try again." });
+      }
+      if ((recipient as any).frozen) {
+        return res.status(400).json({ error: "Recipient account is not available" });
+      }
+
+      // Get recipient's first card
+      const recipientCards = await storage.getWalletCards(recipient.id);
+      if (!recipientCards.length) {
+        return res.status(400).json({ error: "Recipient has no wallet to receive funds" });
+      }
+      const recipientCard = recipientCards[0];
+
+      const amtStr = parsedAmount.toFixed(2);
+      const sender = await storage.getUser(userId);
+
+      // Debit sender
+      await storage.updateWalletCardBalance(
+        fromCardId, userId,
+        (parseFloat(senderCard.balance) - parsedAmount).toFixed(2)
+      );
+
+      // Credit recipient
+      await storage.updateWalletCardBalance(
+        recipientCard.id, recipient.id,
+        (parseFloat(recipientCard.balance) + parsedAmount).toFixed(2)
+      );
+
+      // Transaction records
+      await storage.createTransaction({
+        userId,
+        cardId: fromCardId,
+        title: `Sent to ${recipient.name || recipient.username}`,
+        category: "transfer",
+        amount: amtStr,
+        type: "debit",
+        icon: "send",
+      });
+      await storage.createTransaction({
+        userId: recipient.id,
+        cardId: recipientCard.id,
+        title: `Received from ${sender?.name || sender?.username || "BukkaPay User"}`,
+        category: "transfer",
+        amount: amtStr,
+        type: "credit",
+        icon: "receive",
+      });
+
+      // Notifications
+      await storage.createNotification({
+        userId,
+        type: "info",
+        title: "Transfer Sent",
+        message: `R${amtStr} sent to ${recipient.name || recipient.username}`,
+        relatedType: "transfer",
+      });
+      await storage.createNotification({
+        userId: recipient.id,
+        type: "success",
+        title: "Money Received",
+        message: `R${amtStr} received from ${sender?.name || sender?.username || "BukkaPay User"}`,
+        relatedType: "transfer",
+      });
+
+      res.json({
+        success: true,
+        amount: amtStr,
+        recipient: { name: recipient.name, walletId: recipient.walletId },
+        newBalance: (parseFloat(senderCard.balance) - parsedAmount).toFixed(2),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -2003,7 +2133,7 @@ export async function registerRoutes(
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const groups = await storage.getContributionGroupsByCreator(userId);
-      res.json(groups);
+      res.json(groups.map(g => ({ ...g, status: g.isActive ? "active" : "inactive" })));
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2026,7 +2156,7 @@ export async function registerRoutes(
         shareCode,
       });
 
-      res.status(201).json(group);
+      res.status(201).json({ ...group, status: group.isActive ? "active" : "inactive" });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2040,7 +2170,7 @@ export async function registerRoutes(
       }
 
       const contributionsList = await storage.getContributionsByGroup(group.id);
-      res.json({ group, contributions: contributionsList });
+      res.json({ group: { ...group, status: group.isActive ? "active" : "inactive" }, contributions: contributionsList });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2054,7 +2184,7 @@ export async function registerRoutes(
       }
 
       const contributionsList = await storage.getContributionsByGroup(group.id);
-      res.json({ group, contributions: contributionsList });
+      res.json({ group: { ...group, status: group.isActive ? "active" : "inactive" }, contributions: contributionsList });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2198,8 +2328,8 @@ export async function registerRoutes(
   // Purchase Transactions Routes (Purchases Hub)
   // ==========================================
 
-  // GET /api/transactions - Get user's purchase transactions with optional filters
-  app.get("/api/transactions", async (req, res) => {
+  // GET /api/purchase-transactions - Get user's purchase transactions with optional filters
+  app.get("/api/purchase-transactions", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -2229,8 +2359,8 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/transactions/:id - Get single transaction detail
-  app.get("/api/transactions/:id", async (req, res) => {
+  // GET /api/purchase-transactions/:id - Get single purchase transaction detail
+  app.get("/api/purchase-transactions/:id", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -2240,7 +2370,6 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Transaction not found" });
       }
 
-      // Ensure user can only access their own transactions
       if (transaction.userId !== userId) {
         return res.status(403).json({ error: "Access denied" });
       }
@@ -2251,8 +2380,8 @@ export async function registerRoutes(
     }
   });
 
-  // POST /api/transactions - Create a new purchase transaction (internal use)
-  app.post("/api/transactions", async (req, res) => {
+  // POST /api/purchase-transactions - Create a new purchase transaction (internal use)
+  app.post("/api/purchase-transactions", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -2270,7 +2399,7 @@ export async function registerRoutes(
         category,
         merchantName,
         amount: String(amount),
-        currency: currency || "USD",
+        currency: currency || "ZAR",
         status: status || "success",
         reference,
         metadata: metadata || null,
@@ -2282,8 +2411,8 @@ export async function registerRoutes(
     }
   });
 
-  // PATCH /api/transactions/:id - Update purchase transaction metadata (e.g. used/unused)
-  app.patch("/api/transactions/:id", async (req, res) => {
+  // PATCH /api/purchase-transactions/:id - Update purchase transaction metadata
+  app.patch("/api/purchase-transactions/:id", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });

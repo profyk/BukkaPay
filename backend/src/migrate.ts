@@ -219,6 +219,45 @@ export async function runCoreMigrations(): Promise<void> {
     await pool.query(`UPDATE payment_links SET remaining_balance = amount WHERE remaining_balance IS NULL`);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS purchase_transactions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category TEXT NOT NULL,
+        merchant_name TEXT NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'ZAR',
+        status TEXT NOT NULL DEFAULT 'success',
+        reference TEXT NOT NULL UNIQUE,
+        metadata JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS claim_payments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+        sender_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        recipient_name TEXT NOT NULL,
+        recipient_contact TEXT NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'ZAR',
+        note TEXT,
+        pin_hash TEXT NOT NULL,
+        require_pin BOOLEAN NOT NULL DEFAULT true,
+        status TEXT NOT NULL DEFAULT 'pending',
+        claimed BOOLEAN NOT NULL DEFAULT false,
+        claim_method TEXT,
+        bank_details JSONB,
+        pickup_code TEXT,
+        pickup_status TEXT DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS tag_ride_drivers (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
         user_id VARCHAR NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,

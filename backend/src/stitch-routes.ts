@@ -1,10 +1,13 @@
 // @ts-nocheck
 import type { Express } from "express";
 import { db } from "./db/index";
-import { walletCards, transactions, users } from "../shared/schema";
+import { walletCards, transactions, users, paymentLinks } from "../shared/schema";
 import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { createPaymentRequest, getPaymentStatus, createDisbursement } from "./stitch";
+
+// Guard against double-crediting the same payment (reset on restart — acceptable for MVP)
+const claimedTopups = new Set<string>();
 
 const STITCH_BANKS = [
   { id: "absa", name: "Absa Bank" },
@@ -61,7 +64,7 @@ export function registerStitchRoutes(app: Express) {
       if (!card) return res.status(404).json({ error: "Wallet card not found" });
 
       const reference = `TOPUP-${nanoid(10).toUpperCase()}`;
-      const redirectUrl = `${process.env.API_BASE_URL || "https://api.bukkapay.com"}/api/stitch/topup/callback?ref=${reference}&cardId=${walletCardId}`;
+      const redirectUrl = `${process.env.API_BASE_URL || "https://api.bukkapay.com"}/api/stitch/topup/callback?ref=${reference}&cardId=${walletCardId}&amount=${parsedAmount}`;
 
       const { id: paymentRequestId, url: paymentUrl } = await createPaymentRequest({
         amount: parsedAmount,
@@ -79,10 +82,10 @@ export function registerStitchRoutes(app: Express) {
   });
 
   // ─── Top-Up: Callback (redirect from Stitch after payment) ─────────────────
-  // GET /api/stitch/topup/callback?ref=REF&cardId=CARD_ID
+  // GET /api/stitch/topup/callback?ref=REF&cardId=CARD_ID&amount=AMOUNT&id=PAYMENT_REQUEST_ID
   app.get("/api/stitch/topup/callback", async (req, res) => {
     try {
-      const { ref, cardId, id: paymentRequestId } = req.query as Record<string, string>;
+      const { ref, cardId, id: paymentRequestId, amount } = req.query as Record<string, string>;
 
       const appUrl = process.env.APP_URL || "https://app.bukkapay.com";
 
@@ -96,17 +99,37 @@ export function registerStitchRoutes(app: Express) {
         return res.redirect(`${appUrl}/topup?status=${status}&ref=${ref}`);
       }
 
-      // Credit the wallet
+      // Idempotency: don't credit twice for the same payment request
+      if (claimedTopups.has(paymentRequestId)) {
+        return res.redirect(`${appUrl}/topup?status=success&ref=${ref}`);
+      }
+
+      // Credit the wallet using the amount stored in the redirect URL
+      const topupAmount = parseFloat(amount || "0");
+      if (!topupAmount || topupAmount <= 0) {
+        return res.redirect(`${appUrl}/topup?status=error&message=Invalid+amount`);
+      }
+
       const [card] = await db.select().from(walletCards).where(eq(walletCards.id, cardId));
       if (!card) return res.redirect(`${appUrl}/topup?status=error&message=Card+not+found`);
 
-      const newBalance = (parseFloat(card.balance) + 0).toFixed(2); // amount captured from Stitch status
-      // Note: for production, parse the amount from the payment status query
+      const newBalance = (parseFloat(card.balance) + topupAmount).toFixed(2);
       await db.update(walletCards)
         .set({ balance: newBalance })
         .where(eq(walletCards.id, cardId));
 
-      res.redirect(`${appUrl}/topup?status=success&ref=${ref}`);
+      await db.insert(transactions).values({
+        userId: card.userId,
+        cardId,
+        title: "Wallet Top-Up (Stitch)",
+        category: "topup",
+        amount: topupAmount.toFixed(2),
+        type: "credit",
+        icon: "bank",
+      });
+
+      claimedTopups.add(paymentRequestId);
+      res.redirect(`${appUrl}/topup?status=success&ref=${ref}&amount=${topupAmount}`);
     } catch (err: any) {
       console.error("[stitch] topup callback error:", err.message);
       const appUrl = process.env.APP_URL || "https://app.bukkapay.com";
@@ -134,6 +157,13 @@ export function registerStitchRoutes(app: Express) {
       if (status === "pending") return res.json({ status: "pending" });
       if (status === "failed") return res.status(400).json({ status: "failed", error: "Payment was not completed" });
 
+      // Idempotency: already credited via callback or a previous verify call
+      if (claimedTopups.has(paymentRequestId)) {
+        const [card] = await db.select().from(walletCards)
+          .where(and(eq(walletCards.id, walletCardId), eq(walletCards.userId, userId)));
+        return res.json({ status: "completed", newBalance: card?.balance, amount: parseFloat(amount).toFixed(2) });
+      }
+
       // Payment completed — credit the wallet
       const [card] = await db.select().from(walletCards)
         .where(and(eq(walletCards.id, walletCardId), eq(walletCards.userId, userId)));
@@ -157,6 +187,7 @@ export function registerStitchRoutes(app: Express) {
         icon: "bank",
       });
 
+      claimedTopups.add(paymentRequestId);
       res.json({ status: "completed", newBalance, amount: parsedAmount.toFixed(2) });
     } catch (err: any) {
       console.error("[stitch] verify error:", err.message);
@@ -252,12 +283,21 @@ export function registerStitchRoutes(app: Express) {
 
       if (!payerName) return res.status(400).json({ error: "payerName is required" });
 
-      // Fetch the payment link
-      const [link] = await (db as any).select().from((db as any).paymentLinks || []).where(eq((db as any).paymentLinks?.id, linkId)).catch(() => [null]);
+      // Fetch and validate the payment link
+      const [link] = await db.select().from(paymentLinks).where(eq(paymentLinks.id, linkId));
+      if (!link) return res.status(404).json({ error: "Payment link not found" });
+      if (link.status !== "pending" && link.status !== "active") {
+        return res.status(400).json({ error: "This payment link is no longer active" });
+      }
 
-      // If no link found from DB, fall back gracefully
-      const payAmount = parseFloat(amount || "0");
+      // Use the provided amount or fall back to the link amount
+      const payAmount = parseFloat(amount || link.amount);
       if (!payAmount || payAmount <= 0) return res.status(400).json({ error: "Valid amount is required" });
+
+      // Validate against minimum payment if partial payments are allowed
+      if (link.allowPartialPayment && link.minimumPayment && payAmount < parseFloat(link.minimumPayment)) {
+        return res.status(400).json({ error: `Minimum payment is ${link.currency} ${link.minimumPayment}` });
+      }
 
       const reference = `PLK-${linkId.slice(0, 8).toUpperCase()}-${nanoid(6).toUpperCase()}`;
       const redirectUrl = `${process.env.API_BASE_URL || "https://api.bukkapay.com"}/api/stitch/payment-link/callback?linkId=${linkId}&ref=${reference}`;
