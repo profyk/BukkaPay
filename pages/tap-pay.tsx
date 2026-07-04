@@ -21,7 +21,6 @@ export default function TapPay() {
   const { toast } = useToast();
   const [step, setStep] = useState<"select" | "auth" | "ready" | "processing" | "success">("select");
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
-  const [authMethod, setAuthMethod] = useState<"pin" | "face">("pin");
   const [pin, setPin] = useState("");
   const [amount, setAmount] = useState("");
   const [storeName, setStoreName] = useState("");
@@ -32,6 +31,16 @@ export default function TapPay() {
   });
 
   const mappedCards: CardData[] = cards?.map(mapCardFromAPI) || [];
+
+  // Auto-select the default card when cards load
+  useEffect(() => {
+    if (!cards || step !== "select") return;
+    const defaultCard = mappedCards.find((c: any) => c.isDefault);
+    if (defaultCard) {
+      setSelectedCard(defaultCard);
+      setStep("auth");
+    }
+  }, [cards]);
 
   const handleNumberClick = (num: string) => {
     if (pin.length < 4) setPin(pin + num);
@@ -62,11 +71,20 @@ export default function TapPay() {
   };
 
   const resetPayment = () => {
-    setStep("select");
-    setPin("");
-    setSelectedCard(null);
-    setAmount("");
-    setStoreName("");
+    const defaultCard = mappedCards.find((c: any) => c.isDefault);
+    if (defaultCard) {
+      setSelectedCard(defaultCard);
+      setPin("");
+      setAmount("");
+      setStoreName("");
+      setStep("auth");
+    } else {
+      setStep("select");
+      setPin("");
+      setSelectedCard(null);
+      setAmount("");
+      setStoreName("");
+    }
   };
 
   if (step === "select") {
@@ -121,7 +139,7 @@ export default function TapPay() {
     return (
       <View style={styles.container}>
         <View style={styles.header2}>
-          <TouchableOpacity onPress={() => setStep("select")} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verify Identity</Text>

@@ -17,6 +17,15 @@ export async function createCard(card: any) {
   return res.json();
 }
 
+export async function setDefaultCard(id: string) {
+  const res = await fetch(API_BASE + `/api/cards/${id}/set-default`, {
+    method: "PATCH",
+    headers: { ...(await getAuthHeader()) },
+  });
+  if (!res.ok) throw new Error("Failed to set default card");
+  return res.json();
+}
+
 export async function updateCardBalance(id: string, balance: string) {
   const res = await fetch(API_BASE + `/api/cards/${id}/balance`, {
     method: "PATCH",

@@ -18,19 +18,12 @@ import { createCard } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import PremiumCard from "./PremiumCard";
 
-function generateCardNumber() {
-  const segments = [];
-  for (let i = 0; i < 4; i++) {
-    segments.push(Math.floor(1000 + Math.random() * 9000).toString());
-  }
-  return segments.join(" ");
-}
+const PREVIEW_NUMBER = "5399 •••• •••• ••••";
 
 export default function AddCardDialog() {
   const [open, setOpen] = useState(false);
   const [cardName, setCardName] = useState("");
   const [userName, setUserName] = useState("Card Holder");
-  const [previewCardNumber] = useState(generateCardNumber());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,14 +55,7 @@ export default function AddCardDialog() {
       toast({ title: "Name required", description: "Please give your card a name." });
       return;
     }
-    createCardMutation.mutate({
-      title: cardName.trim(),
-      balance: "0",
-      currency: "$",
-      icon: "credit-card",
-      color: "blue",
-      cardNumber: previewCardNumber,
-    });
+    createCardMutation.mutate({ title: cardName.trim() });
   };
 
   return (
@@ -99,18 +85,17 @@ export default function AddCardDialog() {
             {/* Card Preview */}
             <View style={styles.previewWrap}>
               <PremiumCard
-                cardNumber={previewCardNumber}
+                cardNumber={PREVIEW_NUMBER}
                 holderName={userName}
                 balance={0}
                 currency="$"
                 color="blue"
                 showBalanceToggle={false}
               />
-              {cardName.trim() !== "" && (
-                <View style={styles.cardLabel}>
-                  <Text style={styles.cardLabelText}>{cardName.trim()}</Text>
-                </View>
-              )}
+              <View style={styles.stitchBadge}>
+                <Ionicons name="shield-checkmark" size={12} color="#7C3AED" />
+                <Text style={styles.stitchBadgeText}>Issued by Stitch · Mastercard</Text>
+              </View>
             </View>
 
             {/* Card Name Input */}
@@ -125,7 +110,7 @@ export default function AddCardDialog() {
                 autoFocus
                 maxLength={32}
               />
-              <Text style={styles.hint}>Give your virtual card a memorable name.</Text>
+              <Text style={styles.hint}>A real Mastercard virtual card will be issued for your account.</Text>
             </View>
 
             {/* Create Button */}
@@ -135,11 +120,14 @@ export default function AddCardDialog() {
               disabled={!cardName.trim() || createCardMutation.isPending}
             >
               {createCardMutation.isPending ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={styles.createBtnText}>Issuing Card…</Text>
+                </>
               ) : (
                 <>
                   <Ionicons name="card" size={18} color="#FFFFFF" />
-                  <Text style={styles.createBtnText}>Create Virtual Card</Text>
+                  <Text style={styles.createBtnText}>Issue Virtual Card</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -210,16 +198,19 @@ const styles = StyleSheet.create({
   previewWrap: {
     marginBottom: 20,
   },
-  cardLabel: {
+  stitchBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     marginTop: 10,
-    alignSelf: "flex-start",
+    alignSelf: "center",
     backgroundColor: "#F4F3FF",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
-  cardLabelText: {
-    fontSize: 13,
+  stitchBadgeText: {
+    fontSize: 12,
     fontWeight: "600",
     color: "#7C3AED",
   },

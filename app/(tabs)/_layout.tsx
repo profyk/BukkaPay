@@ -47,7 +47,7 @@ export default function TabLayout() {
         options={{
           title: "Cards",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wallet-outline" size={size} color={color} />
+            <Ionicons name="card-outline" size={size} color={color} />
           ),
         }}
       />

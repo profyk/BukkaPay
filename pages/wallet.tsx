@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import PremiumCard from "../components/PremiumCard";
 import AddCardDialog from "../components/AddCardDialog";
-import { fetchCards } from "../lib/api";
+import { fetchCards, setDefaultCard } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import { getCurrentUser } from "../lib/auth";
 import { useCurrency } from "../lib/CurrencyContext";
 import { convertAmount } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
+import { queryClient } from "../lib/queryClient";
+import { useToast } from "../hooks/use-toast";
 
 const cardColors: Array<"blue" | "gold" | "black" | "purple"> = ["blue", "gold", "black", "purple"];
 
@@ -18,6 +20,7 @@ export default function Wallet() {
   const router = useRouter();
   const { colors } = useTheme();
   const { currency } = useCurrency();
+  const { toast } = useToast();
   const [userName, setUserName] = useState("Card Holder");
 
   useEffect(() => {
@@ -30,6 +33,15 @@ export default function Wallet() {
   const { data: cards, isLoading } = useQuery({
     queryKey: ["cards"],
     queryFn: fetchCards,
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: (id: string) => setDefaultCard(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cards"] });
+      toast({ title: "Default card updated", description: "This card will be used for Tap to Pay." });
+    },
+    onError: () => toast({ title: "Error", description: "Could not set default card.", variant: "destructive" }),
   });
 
   const mappedCards = cards?.map(mapCardFromAPI) || [];
@@ -105,7 +117,7 @@ export default function Wallet() {
       ))}
 
       {mappedCards.map((card: any, index: number) => (
-        <View key={card.id} style={[styles.cardContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <View key={card.id} style={[styles.cardContainer, { backgroundColor: colors.card, borderColor: card.isDefault ? colors.primary : colors.cardBorder, borderWidth: card.isDefault ? 2 : 1 }]}>
           <PremiumCard
             cardNumber={card.cardNumber}
             holderName={userName}
@@ -115,9 +127,16 @@ export default function Wallet() {
           />
           <View style={styles.cardInfo}>
             <View style={styles.cardTitleRow}>
-              <View style={[styles.virtualBadge, { backgroundColor: colors.primaryLight }]}>
-                <Text style={[styles.virtualBadgeText, { color: colors.primary }]}>VIRTUAL</Text>
-              </View>
+              {card.isDefault ? (
+                <View style={styles.defaultBadge}>
+                  <Ionicons name="star" size={10} color="#FFFFFF" />
+                  <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+                </View>
+              ) : (
+                <View style={[styles.virtualBadge, { backgroundColor: colors.primaryLight }]}>
+                  <Text style={[styles.virtualBadgeText, { color: colors.primary }]}>VIRTUAL</Text>
+                </View>
+              )}
               <Text style={[styles.cardTitle, { color: colors.text }]}>{card.title}</Text>
             </View>
             <View style={styles.cardRight}>
@@ -131,6 +150,20 @@ export default function Wallet() {
                 </View>
               )}
             </View>
+          </View>
+          {!card.isDefault && (
+            <TouchableOpacity
+              style={styles.setDefaultBtn}
+              onPress={() => setDefaultMutation.mutate(card.id)}
+              disabled={setDefaultMutation.isPending}
+            >
+              <Ionicons name="star-outline" size={14} color={colors.primary} />
+              <Text style={[styles.setDefaultText, { color: colors.primary }]}>Set as Default</Text>
+            </TouchableOpacity>
+          )}
+          <View style={styles.stitchRow}>
+            <Ionicons name="shield-checkmark" size={11} color={colors.textMuted} />
+            <Text style={[styles.stitchText, { color: colors.textMuted }]}>Issued by Stitch · Mastercard</Text>
           </View>
         </View>
       ))}
@@ -212,6 +245,35 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   frozenText: { fontSize: 10, fontWeight: "600", color: "#3B82F6" },
+  defaultBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#7C3AED",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  defaultBadgeText: { fontSize: 10, fontWeight: "700", color: "#FFFFFF", letterSpacing: 0.5 },
+  setDefaultBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginHorizontal: 12,
+    marginBottom: 4,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+  },
+  setDefaultText: { fontSize: 13, fontWeight: "600" },
+  stitchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginHorizontal: 12,
+    marginBottom: 10,
+  },
+  stitchText: { fontSize: 11 },
   emptyState: {
     alignItems: "center",
     paddingVertical: 40,
