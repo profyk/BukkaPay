@@ -299,7 +299,7 @@ export default function PurchaseDetail() {
   const [copied, setCopied] = useState(false);
 
   const { data: transaction, isLoading, error, refetch } = useQuery<any>({
-    queryKey: [`/api/transactions/${id}`],
+    queryKey: [`/api/purchase-transactions/${id}`],
     enabled: !!id,
   });
 
@@ -307,13 +307,13 @@ export default function PurchaseDetail() {
     mutationFn: async () => {
       const meta = transaction?.metadata || {};
       const newStatus = meta.ticketStatus === "used" ? "unused" : "used";
-      return apiRequest("PATCH", `/api/transactions/${id}`, {
+      return apiRequest("PATCH", `/api/purchase-transactions/${id}`, {
         metadata: { ticketStatus: newStatus },
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/transactions/${id}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/purchase-transactions/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/purchase-transactions"] });
     },
   });
 

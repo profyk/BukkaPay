@@ -67,8 +67,8 @@ export default function PurchasesHub() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const queryUrl = activeCategory !== "all"
-    ? `/api/transactions?category=${activeCategory}`
-    : "/api/transactions";
+    ? `/api/purchase-transactions?category=${activeCategory}`
+    : "/api/purchase-transactions";
 
   const { data: transactions = [], isLoading, refetch, isRefetching } = useQuery<any[]>({
     queryKey: [queryUrl],
