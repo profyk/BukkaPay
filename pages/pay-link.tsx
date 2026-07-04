@@ -4,6 +4,8 @@ import {
   ActivityIndicator, TextInput, Linking, KeyboardAvoidingView,
   Platform, Image, Share,
 } from "react-native";
+
+const logoImage = require("../assets/logo.png");
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { API_BASE, APP_URL } from "../lib/config";
@@ -260,7 +262,7 @@ export default function PayLink() {
       <View style={s.fullCenter}>
         <View style={s.floatCard}>
           <View style={s.loadingLogoWrap}>
-            <View style={s.loadingLogo}><Text style={s.loadingLogoText}>B</Text></View>
+            <Image source={logoImage} style={s.loadingLogoImg} resizeMode="cover" />
             <Text style={s.loadingBrand}>BukkaPay</Text>
           </View>
           <ActivityIndicator size="large" color={BLUE} style={{ marginVertical: 20 }} />
@@ -359,7 +361,7 @@ export default function PayLink() {
         {/* ── Header bar ── */}
         <View style={s.header}>
           <View style={s.headerLeft}>
-            <View style={s.logoBox}><Text style={s.logoLetter}>B</Text></View>
+            <Image source={logoImage} style={s.logoImg} resizeMode="cover" />
             <Text style={s.brandName}>BukkaPay</Text>
           </View>
           <View style={s.headerRight}>
@@ -515,10 +517,10 @@ export default function PayLink() {
               <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={[s.methodRow, { borderColor: "#DBEAFE" }]} activeOpacity={0.82}
+            <TouchableOpacity style={[s.methodRow, { borderColor: "#EDE9FE" }]} activeOpacity={0.82}
               onPress={() => { setPayMethod("stitch"); setInlineError(""); setStep("stitch-form"); }}>
-              <View style={[s.methodIcon, { backgroundColor: "#EFF6FF" }]}>
-                <Ionicons name="swap-horizontal" size={24} color={BLUE} />
+              <View style={[s.methodIcon, { backgroundColor: "#F5F3FF" }]}>
+                <Ionicons name="swap-horizontal" size={24} color="#7C3AED" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.methodTitle}>Instant Bank Pay</Text>
@@ -881,8 +883,8 @@ function BankRow({ label, value, copyable }: { label: string; value: string; cop
 }
 
 const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#F1F5F9" },
-  fullCenter: { flex: 1, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", padding: 20 },
+  page: { flex: 1, backgroundColor: "#F5F3FF" },
+  fullCenter: { flex: 1, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center", padding: 20 },
   floatCard: {
     backgroundColor: "#fff", borderRadius: 24, padding: 32, width: "100%", maxWidth: 440,
     shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 8,
@@ -906,12 +908,12 @@ const s = StyleSheet.create({
   successDivider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 20, width: "100%" },
 
   header: {
-    backgroundColor: NAVY, paddingTop: Platform.OS === "ios" ? 56 : 44, paddingBottom: 16,
+    backgroundColor: "#7C3AED", paddingTop: Platform.OS === "ios" ? 56 : 44, paddingBottom: 16,
     paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  logoBox: { width: 32, height: 32, borderRadius: 9, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  logoLetter: { color: NAVY, fontSize: 18, fontWeight: "900" },
+  logoImg: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#fff" },
+  loadingLogoImg: { width: 56, height: 56, borderRadius: 16, marginBottom: 8 },
   brandName: { color: "#fff", fontSize: 20, fontWeight: "800" },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   sslPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
@@ -921,7 +923,8 @@ const s = StyleSheet.create({
 
   merchantCard: {
     margin: 16, backgroundColor: "#fff", borderRadius: 24, padding: 24, alignItems: "center",
-    shadowColor: NAVY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
+    shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 6,
+    borderWidth: 1, borderColor: "#EDE9FE",
   },
   merchantLogo: { width: 80, height: 80, borderRadius: 40, marginBottom: 12, borderWidth: 2, borderColor: "#E0E7FF" },
   merchantAvatar: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", marginBottom: 12 },
@@ -998,13 +1001,13 @@ const s = StyleSheet.create({
   errorBoxText: { flex: 1, color: RED, fontSize: 13 },
 
   primaryBtn: {
-    backgroundColor: BLUE, borderRadius: 16, paddingVertical: 17,
+    backgroundColor: "#7C3AED", borderRadius: 16, paddingVertical: 17,
     flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 20,
-    shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  outlineBtn: { borderWidth: 1.5, borderColor: BLUE, borderRadius: 16, paddingVertical: 15, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
-  outlineBtnText: { color: BLUE, fontWeight: "700", fontSize: 15 },
+  outlineBtn: { borderWidth: 1.5, borderColor: "#7C3AED", borderRadius: 16, paddingVertical: 15, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
+  outlineBtnText: { color: "#7C3AED", fontWeight: "700", fontSize: 15 },
   waBtn: {
     backgroundColor: WA, borderRadius: 16, paddingVertical: 17,
     flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4,
@@ -1028,7 +1031,7 @@ const s = StyleSheet.create({
   stickyLabel: { fontSize: 11, color: MUTED, fontWeight: "600" },
   stickyAmount: { fontSize: 20, fontWeight: "900", color: NAVY },
   stickyPayBtn: {
-    flex: 1, backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14,
+    flex: 1, backgroundColor: "#7C3AED", borderRadius: 14, paddingVertical: 14,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
   },
   stickyPayText: { color: "#fff", fontWeight: "800", fontSize: 15 },

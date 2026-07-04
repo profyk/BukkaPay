@@ -438,7 +438,9 @@ export default function MerchantDashboard() {
   if (isLoading) {
     return (
       <View style={[styles.loaderWrap, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color="#7C3AED" />
+        <Image source={logoImage} style={styles.loaderLogo} />
+        <Text style={styles.loaderBrand}>BukkaPay</Text>
+        <ActivityIndicator size="large" color="#7C3AED" style={{ marginTop: 20 }} />
         <Text style={[styles.loaderText, { color: colors.textSecondary }]}>Loading your dashboard…</Text>
       </View>
     );
@@ -1075,24 +1077,22 @@ export default function MerchantDashboard() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.headerBack} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerCenter} onPress={() => setShowSwitcher(!showSwitcher)}>
-          <View style={[styles.headerStorefront, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="storefront" size={16} color="#7C3AED" />
-          </View>
-          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>{selectedMerchant.businessName}</Text>
-          <Ionicons name={showSwitcher ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+          <Image source={logoImage} style={styles.headerLogo} />
+          <Text style={styles.headerTitle} numberOfLines={1}>{selectedMerchant.businessName}</Text>
+          <Ionicons name={showSwitcher ? "chevron-up" : "chevron-down"} size={16} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerBack} onPress={() => router.push("/(screens)/become-merchant")}>
-          <Ionicons name="add-circle-outline" size={24} color="#7C3AED" />
+          <Ionicons name="add-circle-outline" size={24} color="rgba(255,255,255,0.9)" />
         </TouchableOpacity>
       </View>
 
       {showSwitcher && (
-        <View style={[styles.switcherDropdown, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={[styles.switcherDropdown, { backgroundColor: colors.surface }]}>
           {merchants.map((m) => (
             <View
               key={m.id}
@@ -1128,7 +1128,7 @@ export default function MerchantDashboard() {
       )}
 
       {/* Tab Bar */}
-      <View style={[styles.tabBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View style={[styles.tabBar, { backgroundColor: colors.surface, borderBottomColor: colors.border, borderTopColor: "rgba(124,58,237,0.12)", borderTopWidth: 1 }]}>
         {([
           { key: "overview" as TabKey, label: "Overview", icon: "analytics" as const },
           { key: "transactions" as TabKey, label: "Transactions", icon: "receipt" as const },
@@ -1311,17 +1311,33 @@ export default function MerchantDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F7F8FC" },
 
-  loaderWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 12, backgroundColor: "#F7F8FC" },
-  loaderText: { fontSize: 14, color: "#6B7280", marginTop: 8 },
+  loaderWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 4, backgroundColor: "#F7F8FC" },
+  loaderLogo: { width: 64, height: 64, borderRadius: 18, marginBottom: 8 },
+  loaderBrand: { fontSize: 20, fontWeight: "800", color: "#7C3AED" },
+  loaderText: { fontSize: 14, color: "#9CA3AF", marginTop: 8 },
   ctaBtn: { backgroundColor: "#7C3AED", borderRadius: 12, paddingHorizontal: 28, paddingVertical: 14, marginTop: 16 },
   ctaBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
 
   // ── Header ──
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14, backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#F0F0F5" },
-  headerBack: { width: 40, alignItems: "center" },
-  headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  headerStorefront: { width: 26, height: 26, borderRadius: 8, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700", color: "#1A1A2E", maxWidth: SCREEN_WIDTH * 0.45 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 54 : 42,
+    paddingBottom: 14,
+    backgroundColor: "#7C3AED",
+  },
+  headerBack: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  headerLogo: { width: 30, height: 30, borderRadius: 8 },
+  headerTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF", maxWidth: SCREEN_WIDTH * 0.45 },
 
   // ── Switcher ──
   switcherDropdown: { backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#F0F0F5", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3 },
@@ -1346,12 +1362,12 @@ const styles = StyleSheet.create({
 
   // ── Balance Card ──
   balanceCard: {
-    backgroundColor: "#1A1A2E",
+    backgroundColor: "#5B21B6",
     borderRadius: 20,
     marginBottom: 16,
-    shadowColor: "#1A1A2E",
+    shadowColor: "#7C3AED",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 8,
   },

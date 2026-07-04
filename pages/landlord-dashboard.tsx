@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, ActivityIndicator, Modal, Share } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, ActivityIndicator, Modal, Share, Image, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -8,6 +8,10 @@ import { apiRequest, queryClient } from "../lib/queryClient";
 import * as Clipboard from "expo-clipboard";
 import { APP_URL } from "../lib/config";
 import * as Linking from "expo-linking";
+
+const PURPLE = "#7C3AED";
+const PURPLE_LIGHT = "#EDE9FE";
+const logoImage = require("../assets/logo.png");
 
 interface Property {
   id: string;
@@ -58,6 +62,23 @@ interface Merchant {
   businessName: string;
   businessType: string;
 }
+
+function getPropertyIcon(type: string): keyof typeof Ionicons.glyphMap {
+  const t = type.toLowerCase();
+  if (t.includes("hostel") || t.includes("dorm")) return "bed-outline";
+  if (t.includes("student") || t.includes("res") || t.includes("campus")) return "school-outline";
+  if (t.includes("house")) return "home-outline";
+  if (t.includes("commercial")) return "storefront-outline";
+  return "business-outline";
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+const AVATAR_COLORS = ["#7C3AED", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
 
 export default function LandlordDashboard() {
   const router = useRouter();
@@ -228,6 +249,8 @@ export default function LandlordDashboard() {
   const vacantUnits = units?.filter(u => !u.isOccupied) || [];
 
   const propertyTypes = [
+    { value: "hostel", label: "Hostel" },
+    { value: "student_residence", label: "Student Res" },
     { value: "apartment", label: "Apartment" },
     { value: "house", label: "House" },
     { value: "condo", label: "Condo" },
@@ -237,88 +260,108 @@ export default function LandlordDashboard() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C3AED" />
+        <Image source={logoImage} style={styles.loadingLogo} />
+        <Text style={styles.loadingBrand}>BukkaPay</Text>
+        <ActivityIndicator size="large" color={PURPLE} style={{ marginTop: 20 }} />
       </View>
     );
   }
 
+  const paidRate = dashboard && dashboard.totalTenants > 0
+    ? Math.round((dashboard.paidCount / dashboard.totalTenants) * 100)
+    : 0;
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.headerSimple}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* ─── Header ─────────────────────────────────────────────── */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Landlord Dashboard</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerCenter}>
+          <Image source={logoImage} style={styles.headerLogo} />
+          <View>
+            <Text style={styles.headerTitle}>Property Manager</Text>
+            <Text style={styles.headerSub}>Hostels & Student Residences</Text>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.backBtn} onPress={() => setAddTenantOpen(true)}>
+          <Ionicons name="person-add-outline" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.subtitleText}>Manage your properties and tenants</Text>
 
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <View style={styles.statRow}>
-              <Ionicons name="business" size={24} color="#7C3AED" />
-              <View>
-                <Text style={styles.statValue}>{dashboard?.totalProperties || 0}</Text>
-                <Text style={styles.statLabel}>Properties</Text>
-              </View>
+        {/* ─── KPI Strip ──────────────────────────────────────────── */}
+        <View style={styles.kpiRow}>
+          <View style={[styles.kpiCard, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
+            <View style={[styles.kpiIcon, { backgroundColor: PURPLE }]}>
+              <Ionicons name="business-outline" size={16} color="#fff" />
             </View>
+            <Text style={[styles.kpiValue, { color: PURPLE }]}>{dashboard?.totalProperties || 0}</Text>
+            <Text style={styles.kpiLabel}>Properties</Text>
           </View>
 
-          <View style={styles.statCard}>
-            <View style={styles.statRow}>
-              <Ionicons name="people" size={24} color="#3B82F6" />
-              <View>
-                <Text style={styles.statValue}>{dashboard?.totalTenants || 0}</Text>
-                <Text style={styles.statLabel}>Tenants</Text>
-              </View>
+          <View style={[styles.kpiCard, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+            <View style={[styles.kpiIcon, { backgroundColor: "#3B82F6" }]}>
+              <Ionicons name="people-outline" size={16} color="#fff" />
             </View>
+            <Text style={[styles.kpiValue, { color: "#3B82F6" }]}>{dashboard?.totalTenants || 0}</Text>
+            <Text style={styles.kpiLabel}>Tenants</Text>
           </View>
 
-          <View style={styles.statCard}>
-            <View style={styles.statRow}>
-              <Ionicons name="cash" size={24} color="#10B981" />
-              <View>
-                <Text style={styles.statValue}>${(dashboard?.totalIncome || 0).toFixed(2)}</Text>
-                <Text style={styles.statLabel}>Total Income</Text>
-              </View>
+          <View style={[styles.kpiCard, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+            <View style={[styles.kpiIcon, { backgroundColor: "#10B981" }]}>
+              <Ionicons name="cash-outline" size={16} color="#fff" />
             </View>
+            <Text style={[styles.kpiValue, { color: "#10B981" }]}>R{(dashboard?.totalIncome || 0).toFixed(0)}</Text>
+            <Text style={styles.kpiLabel}>Income</Text>
           </View>
+        </View>
 
-          <View style={styles.statCard}>
-            <View style={styles.statusList}>
-              <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: "#10B981" }]} />
-                <Text style={styles.statusText}>{dashboard?.paidCount || 0} Paid</Text>
-              </View>
-              <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: "#F59E0B" }]} />
-                <Text style={styles.statusText}>{dashboard?.partialCount || 0} Partial</Text>
-              </View>
-              <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: "#EF4444" }]} />
-                <Text style={styles.statusText}>{dashboard?.unpaidCount || 0} Unpaid</Text>
-              </View>
+        {/* ─── Payment Status Banner ─────────────────────────────── */}
+        <View style={styles.statusBanner}>
+          <View style={styles.statusBannerLeft}>
+            <Text style={styles.statusBannerTitle}>Payment Status</Text>
+            <Text style={styles.statusBannerSub}>{paidRate}% of tenants paid</Text>
+          </View>
+          <View style={styles.statusPills}>
+            <View style={[styles.statusPill, { backgroundColor: "#ECFDF5" }]}>
+              <View style={[styles.statusDot, { backgroundColor: "#10B981" }]} />
+              <Text style={[styles.statusPillText, { color: "#059669" }]}>{dashboard?.paidCount || 0} Paid</Text>
+            </View>
+            <View style={[styles.statusPill, { backgroundColor: "#FFFBEB" }]}>
+              <View style={[styles.statusDot, { backgroundColor: "#F59E0B" }]} />
+              <Text style={[styles.statusPillText, { color: "#D97706" }]}>{dashboard?.partialCount || 0} Partial</Text>
+            </View>
+            <View style={[styles.statusPill, { backgroundColor: "#FEF2F2" }]}>
+              <View style={[styles.statusDot, { backgroundColor: "#EF4444" }]} />
+              <Text style={[styles.statusPillText, { color: "#DC2626" }]}>{dashboard?.unpaidCount || 0} Unpaid</Text>
             </View>
           </View>
         </View>
 
+        {/* ─── Tab Bar ────────────────────────────────────────────── */}
         <View style={styles.tabBar}>
           <TouchableOpacity
             style={[styles.tab, activeTab === "tenants" && styles.tabActive]}
             onPress={() => setActiveTab("tenants")}
           >
+            <Ionicons name="people-outline" size={16} color={activeTab === "tenants" ? PURPLE : "#9CA3AF"} />
             <Text style={[styles.tabText, activeTab === "tenants" && styles.tabTextActive]}>Tenants</Text>
+            {activeTab === "tenants" && <View style={styles.tabUnderline} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === "properties" && styles.tabActive]}
             onPress={() => setActiveTab("properties")}
           >
+            <Ionicons name="business-outline" size={16} color={activeTab === "properties" ? PURPLE : "#9CA3AF"} />
             <Text style={[styles.tabText, activeTab === "properties" && styles.tabTextActive]}>Properties</Text>
+            {activeTab === "properties" && <View style={styles.tabUnderline} />}
           </TouchableOpacity>
         </View>
 
+        {/* ─── Tenants Tab ────────────────────────────────────────── */}
         {activeTab === "tenants" && (
           <>
             <View style={styles.sectionHeader}>
@@ -331,52 +374,83 @@ export default function LandlordDashboard() {
 
             {dashboard?.tenants.length === 0 && (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No tenants yet. Add a property and unit first, then add tenants.</Text>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="people-outline" size={32} color={PURPLE} />
+                </View>
+                <Text style={styles.emptyTitle}>No Tenants Yet</Text>
+                <Text style={styles.emptyText}>Add a property and unit first, then add tenants.</Text>
               </View>
             )}
 
-            {dashboard?.tenants.map((tenant) => {
+            {dashboard?.tenants.map((tenant, idx) => {
               const statusColor = tenant.status === 'paid' ? '#10B981' : tenant.status === 'partial' ? '#F59E0B' : '#EF4444';
+              const statusBg = tenant.status === 'paid' ? '#ECFDF5' : tenant.status === 'partial' ? '#FFFBEB' : '#FEF2F2';
               const statusLabel = tenant.status === 'paid' ? 'Paid' : tenant.status === 'partial' ? 'Partial' : 'Unpaid';
+              const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+              const due = tenant.monthlyRent - tenant.amountPaid;
+              const unitLabel = /^\d+$/.test(tenant.unitNumber) ? `Room ${tenant.unitNumber}` : `Unit ${tenant.unitNumber}`;
 
               return (
                 <View key={tenant.id} style={styles.tenantCard}>
-                  <View style={styles.tenantHeader}>
+                  <View style={styles.tenantTop}>
+                    {/* Avatar */}
+                    <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+                      <Text style={styles.avatarText}>{getInitials(tenant.name)}</Text>
+                    </View>
+
+                    {/* Info */}
                     <View style={{ flex: 1 }}>
                       <View style={styles.tenantNameRow}>
                         <Text style={styles.tenantName}>{tenant.name}</Text>
-                        <View style={[styles.badge, { backgroundColor: statusColor }]}>
-                          <Text style={styles.badgeText}>{statusLabel}</Text>
+                        <View style={[styles.statusPillSmall, { backgroundColor: statusBg }]}>
+                          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                          <Text style={[styles.statusPillSmallText, { color: statusColor }]}>{statusLabel}</Text>
                         </View>
                       </View>
+                      <Text style={styles.tenantSub}>{tenant.propertyName} · {unitLabel}</Text>
                       <View style={styles.tenantIdRow}>
                         <Text style={styles.tenantIdText}>ID: {tenant.tenantId}</Text>
-                        <TouchableOpacity onPress={() => copyTenantId(tenant.tenantId)}>
-                          <Ionicons name="copy" size={12} color="#6B7280" />
+                        <TouchableOpacity onPress={() => copyTenantId(tenant.tenantId)} style={styles.copyBtn}>
+                          <Ionicons name="copy-outline" size={11} color="#9CA3AF" />
                         </TouchableOpacity>
                       </View>
-                      <Text style={styles.tenantProperty}>{tenant.propertyName} - Unit {tenant.unitNumber}</Text>
-                    </View>
-                    <View style={styles.tenantRightCol}>
-                      <Text style={styles.tenantRentLabel}>Rent: <Text style={styles.tenantRentValue}>${tenant.monthlyRent.toFixed(2)}</Text></Text>
-                      <Text style={styles.tenantRentLabel}>Paid: <Text style={[styles.tenantRentValue, { color: "#10B981" }]}>${tenant.amountPaid.toFixed(2)}</Text></Text>
-                      {tenant.status !== 'paid' && (
-                        <Text style={styles.tenantRentLabel}>Due: <Text style={[styles.tenantRentValue, { color: "#EF4444" }]}>${(tenant.monthlyRent - tenant.amountPaid).toFixed(2)}</Text></Text>
-                      )}
-                      {tenant.status !== 'paid' && (
-                        <TouchableOpacity style={styles.requestPayButton} onPress={() => handleRequestPayment(tenant)}>
-                          <Ionicons name="send" size={12} color="#7C3AED" />
-                          <Text style={styles.requestPayText}>Request Payment</Text>
-                        </TouchableOpacity>
-                      )}
                     </View>
                   </View>
+
+                  {/* Rent Details Row */}
+                  <View style={styles.rentRow}>
+                    <View style={styles.rentCell}>
+                      <Text style={styles.rentCellLabel}>Monthly Rent</Text>
+                      <Text style={styles.rentCellValue}>R{tenant.monthlyRent.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.rentDivider} />
+                    <View style={styles.rentCell}>
+                      <Text style={styles.rentCellLabel}>Paid</Text>
+                      <Text style={[styles.rentCellValue, { color: "#10B981" }]}>R{tenant.amountPaid.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.rentDivider} />
+                    <View style={styles.rentCell}>
+                      <Text style={styles.rentCellLabel}>Due</Text>
+                      <Text style={[styles.rentCellValue, { color: due > 0 ? "#EF4444" : "#10B981" }]}>
+                        R{due.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Request Payment */}
+                  {tenant.status !== 'paid' && (
+                    <TouchableOpacity style={styles.requestPayBtn} onPress={() => handleRequestPayment(tenant)}>
+                      <Ionicons name="send-outline" size={14} color="#fff" />
+                      <Text style={styles.requestPayBtnText}>Send Payment Request</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
           </>
         )}
 
+        {/* ─── Properties Tab ─────────────────────────────────────── */}
         {activeTab === "properties" && (
           <>
             <View style={styles.sectionHeader}>
@@ -389,78 +463,88 @@ export default function LandlordDashboard() {
 
             {dashboard?.properties.length === 0 && (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No properties yet. Create a Property merchant account first, then add properties.</Text>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="business-outline" size={32} color={PURPLE} />
+                </View>
+                <Text style={styles.emptyTitle}>No Properties Yet</Text>
+                <Text style={styles.emptyText}>Create a Property merchant account first, then add properties.</Text>
               </View>
             )}
 
-            {dashboard?.properties.map((property) => (
-              <View key={property.id} style={styles.propertyCard}>
-                <View style={styles.propertyRow}>
-                  <View style={styles.propertyIconBox}>
-                    <Ionicons name="home" size={20} color="#7C3AED" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.propertyName}>{property.name}</Text>
-                    <Text style={styles.propertyAddress}>{property.address || "No address"}</Text>
-                    <View style={styles.propertyTypeBadge}>
-                      <Text style={styles.propertyTypeText}>{property.propertyType}</Text>
+            {dashboard?.properties.map((property) => {
+              const iconName = getPropertyIcon(property.propertyType);
+              const typeLabel = property.propertyType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              return (
+                <View key={property.id} style={styles.propertyCard}>
+                  <View style={styles.propertyTop}>
+                    <View style={styles.propertyIconBox}>
+                      <Ionicons name={iconName} size={22} color={PURPLE} />
                     </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.propertyName}>{property.name}</Text>
+                      <Text style={styles.propertyAddress}>{property.address || "No address set"}</Text>
+                      <View style={styles.propertyTypePill}>
+                        <Text style={styles.propertyTypePillText}>{typeLabel}</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.addUnitButton}
+                      onPress={() => {
+                        setAddUnitPropertyId(property.id);
+                        setAddUnitPropertyName(property.name);
+                        setSelectedProperty(property.id);
+                        setAddUnitOpen(true);
+                      }}
+                    >
+                      <Ionicons name="add" size={14} color={PURPLE} />
+                      <Text style={styles.addUnitText}>Add Room</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={styles.addUnitButton}
-                    onPress={() => {
-                      setAddUnitPropertyId(property.id);
-                      setAddUnitPropertyName(property.name);
-                      setSelectedProperty(property.id);
-                      setAddUnitOpen(true);
-                    }}
-                  >
-                    <Ionicons name="add" size={14} color="#7C3AED" />
-                    <Text style={styles.addUnitText}>Add Unit</Text>
-                  </TouchableOpacity>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </>
         )}
 
         <View style={{ height: 100 }} />
       </View>
 
+      {/* ─── Add Tenant Modal ────────────────────────────────────── */}
       <Modal visible={addTenantOpen} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.container}>
+        <ScrollView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setAddTenantOpen(false)}>
-              <Ionicons name="close" size={24} color="#1A1A2E" />
+            <TouchableOpacity onPress={() => setAddTenantOpen(false)} style={styles.modalCloseBtn}>
+              <Ionicons name="close" size={20} color="#6B7280" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Add New Tenant</Text>
-            <View style={{ width: 24 }} />
+            <View style={{ width: 36 }} />
           </View>
 
-          <View style={styles.body}>
-            <Text style={styles.inputLabel}>Name</Text>
+          <View style={styles.modalBody}>
+            <Text style={styles.inputLabel}>Full Name</Text>
             <TextInput
-              placeholder="Tenant name"
-              placeholderTextColor="#6B7280"
+              placeholder="Tenant's full name"
+              placeholderTextColor="#9CA3AF"
               value={newTenant.name}
               onChangeText={(v) => setNewTenant({ ...newTenant, name: v })}
               style={styles.textInput}
             />
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Email</Text>
+            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Email Address</Text>
             <TextInput
               placeholder="tenant@email.com"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor="#9CA3AF"
               value={newTenant.email}
               onChangeText={(v) => setNewTenant({ ...newTenant, email: v })}
               keyboardType="email-address"
+              autoCapitalize="none"
               style={styles.textInput}
             />
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Phone</Text>
+            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Phone Number</Text>
             <TextInput
-              placeholder="+1234567890"
-              placeholderTextColor="#6B7280"
+              placeholder="+27 XX XXX XXXX"
+              placeholderTextColor="#9CA3AF"
               value={newTenant.phone}
               onChangeText={(v) => setNewTenant({ ...newTenant, phone: v })}
               keyboardType="phone-pad"
@@ -487,7 +571,7 @@ export default function LandlordDashboard() {
 
             {newTenant.propertyId ? (
               <>
-                <Text style={[styles.inputLabel, { marginTop: 16 }]}>Unit</Text>
+                <Text style={[styles.inputLabel, { marginTop: 16 }]}>Room / Unit</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                   {vacantUnits.map((u) => (
                     <TouchableOpacity
@@ -496,7 +580,7 @@ export default function LandlordDashboard() {
                       onPress={() => setNewTenant({ ...newTenant, unitId: u.id })}
                     >
                       <Text style={[styles.selectChipText, newTenant.unitId === u.id && styles.selectChipTextActive]}>
-                        {u.unitNumber} - ${u.monthlyRent}/mo
+                        {/^\d+$/.test(u.unitNumber) ? `Room ${u.unitNumber}` : u.unitNumber} · R{u.monthlyRent}/mo
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -517,21 +601,22 @@ export default function LandlordDashboard() {
         </ScrollView>
       </Modal>
 
+      {/* ─── Add Property Modal ─────────────────────────────────── */}
       <Modal visible={addPropertyOpen} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.container}>
+        <ScrollView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setAddPropertyOpen(false)}>
-              <Ionicons name="close" size={24} color="#1A1A2E" />
+            <TouchableOpacity onPress={() => setAddPropertyOpen(false)} style={styles.modalCloseBtn}>
+              <Ionicons name="close" size={20} color="#6B7280" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Add New Property</Text>
-            <View style={{ width: 24 }} />
+            <View style={{ width: 36 }} />
           </View>
 
-          <View style={styles.body}>
+          <View style={styles.modalBody}>
             <Text style={[styles.inputLabel, { marginTop: 0 }]}>Property Name</Text>
             <TextInput
-              placeholder="e.g., Sunrise Apartments"
-              placeholderTextColor="#6B7280"
+              placeholder="e.g., Sunrise Student Hostel"
+              placeholderTextColor="#9CA3AF"
               value={newProperty.name}
               onChangeText={(v) => setNewProperty({ ...newProperty, name: v })}
               style={styles.textInput}
@@ -540,25 +625,29 @@ export default function LandlordDashboard() {
             <Text style={[styles.inputLabel, { marginTop: 16 }]}>Address</Text>
             <TextInput
               placeholder="123 Main St, City"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor="#9CA3AF"
               value={newProperty.address}
               onChangeText={(v) => setNewProperty({ ...newProperty, address: v })}
               style={styles.textInput}
             />
 
             <Text style={[styles.inputLabel, { marginTop: 16 }]}>Property Type</Text>
-            <View style={styles.propertyTypeRow}>
-              {propertyTypes.map((pt) => (
-                <TouchableOpacity
-                  key={pt.value}
-                  style={[styles.selectChip, newProperty.propertyType === pt.value && styles.selectChipActive]}
-                  onPress={() => setNewProperty({ ...newProperty, propertyType: pt.value })}
-                >
-                  <Text style={[styles.selectChipText, newProperty.propertyType === pt.value && styles.selectChipTextActive]}>
-                    {pt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.propertyTypeGrid}>
+              {propertyTypes.map((pt) => {
+                const isActive = newProperty.propertyType === pt.value;
+                const icon = getPropertyIcon(pt.value);
+                return (
+                  <TouchableOpacity
+                    key={pt.value}
+                    style={[styles.propertyTypeCard, isActive && styles.propertyTypeCardActive]}
+                    onPress={() => setNewProperty({ ...newProperty, propertyType: pt.value })}
+                  >
+                    <Ionicons name={icon} size={20} color={isActive ? PURPLE : "#9CA3AF"} />
+                    <Text style={[styles.propertyTypeCardText, isActive && { color: PURPLE }]}>{pt.label}</Text>
+                    {isActive && <View style={styles.propertyTypeCheck}><Ionicons name="checkmark-circle" size={14} color={PURPLE} /></View>}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <TouchableOpacity
@@ -574,30 +663,31 @@ export default function LandlordDashboard() {
         </ScrollView>
       </Modal>
 
+      {/* ─── Add Unit Modal ─────────────────────────────────────── */}
       <Modal visible={addUnitOpen} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.container}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setAddUnitOpen(false)}>
-              <Ionicons name="close" size={24} color="#1A1A2E" />
+            <TouchableOpacity onPress={() => setAddUnitOpen(false)} style={styles.modalCloseBtn}>
+              <Ionicons name="close" size={20} color="#6B7280" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add Unit to {addUnitPropertyName}</Text>
-            <View style={{ width: 24 }} />
+            <Text style={styles.modalTitle}>Add Room to {addUnitPropertyName}</Text>
+            <View style={{ width: 36 }} />
           </View>
 
-          <View style={styles.body}>
-            <Text style={styles.inputLabel}>Unit Number</Text>
+          <View style={styles.modalBody}>
+            <Text style={styles.inputLabel}>Room / Unit Number</Text>
             <TextInput
               placeholder="e.g., 101, A1, Ground Floor"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor="#9CA3AF"
               value={newUnit.unitNumber}
               onChangeText={(v) => setNewUnit({ ...newUnit, unitNumber: v })}
               style={styles.textInput}
             />
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Monthly Rent ($)</Text>
+            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Monthly Rent (R)</Text>
             <TextInput
-              placeholder="1000"
-              placeholderTextColor="#6B7280"
+              placeholder="e.g., 3500"
+              placeholderTextColor="#9CA3AF"
               value={newUnit.monthlyRent}
               onChangeText={(v) => setNewUnit({ ...newUnit, monthlyRent: v })}
               keyboardType="numeric"
@@ -610,34 +700,39 @@ export default function LandlordDashboard() {
               disabled={createUnitMutation.isPending}
             >
               <Text style={styles.primaryButtonText}>
-                {createUnitMutation.isPending ? "Adding..." : "Add Unit"}
+                {createUnitMutation.isPending ? "Adding..." : "Add Room"}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
+      {/* ─── Request Payment Modal ───────────────────────────────── */}
       <Modal visible={requestPaymentOpen} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.container}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setRequestPaymentOpen(false)}>
-              <Ionicons name="close" size={24} color="#1A1A2E" />
+            <TouchableOpacity onPress={() => setRequestPaymentOpen(false)} style={styles.modalCloseBtn}>
+              <Ionicons name="close" size={20} color="#6B7280" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Request Rent Payment</Text>
-            <View style={{ width: 24 }} />
+            <View style={{ width: 36 }} />
           </View>
 
           {selectedTenantForPayment && (
-            <View style={styles.body}>
+            <View style={styles.modalBody}>
+              {/* Tenant info card */}
               <View style={styles.paymentInfoCard}>
+                <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[0], marginBottom: 8 }]}>
+                  <Text style={styles.avatarText}>{getInitials(selectedTenantForPayment.name)}</Text>
+                </View>
                 <Text style={styles.paymentInfoName}>{selectedTenantForPayment.name}</Text>
                 <Text style={styles.paymentInfoSub}>
-                  {selectedTenantForPayment.propertyName} - Unit {selectedTenantForPayment.unitNumber}
+                  {selectedTenantForPayment.propertyName} · Unit {selectedTenantForPayment.unitNumber}
                 </Text>
                 <View style={styles.paymentInfoAmountRow}>
-                  <Text style={styles.paymentInfoLabel}>Amount Due:</Text>
+                  <Text style={styles.paymentInfoLabel}>Amount Due</Text>
                   <Text style={styles.paymentInfoAmount}>
-                    ${(selectedTenantForPayment.monthlyRent - selectedTenantForPayment.amountPaid).toFixed(2)}
+                    R{(selectedTenantForPayment.monthlyRent - selectedTenantForPayment.amountPaid).toFixed(2)}
                   </Text>
                 </View>
               </View>
@@ -648,6 +743,7 @@ export default function LandlordDashboard() {
                   onPress={generatePaymentLink}
                   disabled={createPaymentLinkMutation.isPending}
                 >
+                  <Ionicons name="link" size={18} color="#fff" />
                   <Text style={styles.primaryButtonText}>
                     {createPaymentLinkMutation.isPending ? "Generating..." : "Generate Payment Link"}
                   </Text>
@@ -655,22 +751,25 @@ export default function LandlordDashboard() {
               ) : (
                 <View>
                   <View style={styles.linkGeneratedCard}>
-                    <Text style={styles.linkGeneratedTitle}>Payment Link Generated!</Text>
+                    <View style={styles.linkGeneratedHeader}>
+                      <Ionicons name="checkmark-circle" size={20} color="#059669" />
+                      <Text style={styles.linkGeneratedTitle}>Payment Link Ready!</Text>
+                    </View>
                     <Text style={styles.linkGeneratedUrl}>{generatedPaymentLink}</Text>
                   </View>
 
                   <View style={styles.linkButtonsRow}>
                     <TouchableOpacity style={styles.outlineButton} onPress={copyPaymentLink}>
-                      <Ionicons name="copy" size={16} color="#7C3AED" />
-                      <Text style={styles.outlineButtonText}> Copy</Text>
+                      <Ionicons name="copy-outline" size={16} color={PURPLE} />
+                      <Text style={styles.outlineButtonText}>Copy</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.primaryButtonSmall, { backgroundColor: "#25D366" }]} onPress={shareViaWhatsApp}>
+                    <TouchableOpacity style={[styles.shareBtn, { backgroundColor: "#25D366" }]} onPress={shareViaWhatsApp}>
                       <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
-                      <Text style={styles.primaryButtonSmallText}> WhatsApp</Text>
+                      <Text style={styles.shareBtnText}>WhatsApp</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.primaryButtonSmall} onPress={sharePaymentLink}>
-                      <Ionicons name="share-social" size={16} color="#FFFFFF" />
-                      <Text style={styles.primaryButtonSmallText}> Share</Text>
+                    <TouchableOpacity style={[styles.shareBtn, { backgroundColor: PURPLE }]} onPress={sharePaymentLink}>
+                      <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
+                      <Text style={styles.shareBtnText}>Share</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -688,437 +787,419 @@ export default function LandlordDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerSimple: {
+  container: { flex: 1, backgroundColor: "#F8F7FF" },
+  loadingContainer: { flex: 1, backgroundColor: "#F8F7FF", alignItems: "center", justifyContent: "center" },
+  loadingLogo: { width: 64, height: 64, borderRadius: 18 },
+  loadingBrand: { fontSize: 20, fontWeight: "800", color: PURPLE, marginTop: 12 },
+
+  // ── Header
+  header: {
+    backgroundColor: PURPLE,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 56 : 44,
+    paddingBottom: 20,
   },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A2E",
-  },
-  body: {
-    paddingHorizontal: 24,
-  },
-  subtitleText: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 16,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  statCard: {
-    width: "48%",
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 12,
-  },
-  statRow: {
-    flexDirection: "row",
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1A1A2E",
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  statusList: {
+  headerCenter: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLogo: { width: 36, height: 36, borderRadius: 10 },
+  headerTitle: { fontSize: 17, fontWeight: "800", color: "#fff" },
+  headerSub: { fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 },
+
+  // ── Body
+  body: { paddingHorizontal: 20, paddingTop: 20 },
+
+  // ── KPI Strip
+  kpiRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  kpiCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: "center",
     gap: 4,
   },
-  statusRow: {
+  kpiIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  kpiValue: { fontSize: 18, fontWeight: "800" },
+  kpiLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600" },
+
+  // ── Status Banner
+  statusBanner: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#F0EBFF",
+    shadowColor: "#7C3AED",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statusBannerLeft: { marginBottom: 12 },
+  statusBannerTitle: { fontSize: 14, fontWeight: "700", color: "#1A1A2E" },
+  statusBannerSub: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  statusPills: { flexDirection: "row", gap: 8 },
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  statusText: {
-    fontSize: 12,
-    color: "#1A1A2E",
-  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusPillText: { fontSize: 12, fontWeight: "600" },
+
+  // ── Tab Bar
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 16,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#F0EBFF",
+    marginBottom: 20,
+    overflow: "hidden",
   },
   tab: {
     flex: 1,
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    borderRadius: 6,
+    justifyContent: "center",
+    paddingVertical: 14,
+    gap: 6,
+    position: "relative",
   },
-  tabActive: {
-    backgroundColor: "#FFFFFF",
+  tabActive: { backgroundColor: PURPLE_LIGHT },
+  tabText: { fontSize: 14, color: "#9CA3AF", fontWeight: "500" },
+  tabTextActive: { color: PURPLE, fontWeight: "700" },
+  tabUnderline: {
+    position: "absolute",
+    bottom: 0,
+    left: 16,
+    right: 16,
+    height: 2,
+    backgroundColor: PURPLE,
+    borderRadius: 2,
   },
-  tabText: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  tabTextActive: {
-    color: "#7C3AED",
-    fontWeight: "600",
-  },
+
+  // ── Section Header
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1A1A2E",
-  },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#1A1A2E" },
   addButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#7C3AED",
-    paddingHorizontal: 12,
+    backgroundColor: PURPLE,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 20,
   },
-  addButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
+  addButtonText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
+
+  // ── Empty States
   emptyCard: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 32,
+    borderColor: "#F0EBFF",
+    padding: 36,
     alignItems: "center",
+    marginBottom: 16,
   },
-  emptyText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: PURPLE_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#1A1A2E", marginBottom: 6 },
+  emptyText: { fontSize: 13, color: "#6B7280", textAlign: "center", lineHeight: 20 },
+
+  // ── Tenant Card
   tenantCard: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#F0EBFF",
     padding: 16,
-    marginBottom: 8,
+    marginBottom: 12,
+    shadowColor: "#7C3AED",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  tenantHeader: {
-    flexDirection: "row",
-    gap: 12,
+  tenantTop: { flexDirection: "row", gap: 12, marginBottom: 14 },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  avatarText: { fontSize: 14, fontWeight: "800", color: "#fff" },
   tenantNameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginBottom: 4,
+    flexWrap: "wrap",
   },
-  tenantName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1A1A2E",
-  },
-  badge: {
+  tenantName: { fontSize: 15, fontWeight: "700", color: "#1A1A2E" },
+  statusPillSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 12,
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#FFFFFF",
+  statusPillSmallText: { fontSize: 11, fontWeight: "700" },
+  tenantSub: { fontSize: 13, color: "#6B7280", marginBottom: 4 },
+  tenantIdRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  tenantIdText: { fontSize: 11, color: "#9CA3AF" },
+  copyBtn: { padding: 2 },
+
+  rentRow: {
+    flexDirection: "row",
+    backgroundColor: "#F8F7FF",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 12,
   },
-  tenantIdRow: {
+  rentCell: { flex: 1, alignItems: "center" },
+  rentCellLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600", marginBottom: 4 },
+  rentCellValue: { fontSize: 14, fontWeight: "700", color: "#1A1A2E" },
+  rentDivider: { width: 1, backgroundColor: "#E5E7EB" },
+
+  requestPayBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginBottom: 4,
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: PURPLE,
+    borderRadius: 12,
+    paddingVertical: 10,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  tenantIdText: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  tenantProperty: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  tenantRightCol: {
-    alignItems: "flex-end",
-  },
-  tenantRentLabel: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  tenantRentValue: {
-    fontWeight: "600",
-    color: "#1A1A2E",
-  },
-  requestPayButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderWidth: 1,
-    borderColor: "#7C3AED",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  requestPayText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#7C3AED",
-  },
+  requestPayBtnText: { fontSize: 13, fontWeight: "700", color: "#fff" },
+
+  // ── Property Card
   propertyCard: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#F0EBFF",
     padding: 16,
-    marginBottom: 8,
+    marginBottom: 12,
+    shadowColor: "#7C3AED",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  propertyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
+  propertyTop: { flexDirection: "row", alignItems: "center", gap: 12 },
   propertyIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: "rgba(124,58,237,0.1)",
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: PURPLE_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
-  propertyName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1A1A2E",
-  },
-  propertyAddress: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  propertyTypeBadge: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  propertyName: { fontSize: 15, fontWeight: "700", color: "#1A1A2E", marginBottom: 2 },
+  propertyAddress: { fontSize: 12, color: "#6B7280", marginBottom: 6 },
+  propertyTypePill: {
     alignSelf: "flex-start",
-    marginTop: 4,
+    backgroundColor: PURPLE_LIGHT,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  propertyTypeText: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
+  propertyTypePillText: { fontSize: 11, fontWeight: "600", color: PURPLE },
   addUnitButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: PURPLE,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 12,
   },
-  addUnitText: {
-    fontSize: 12,
-    color: "#7C3AED",
-    fontWeight: "600",
-  },
+  addUnitText: { fontSize: 12, color: PURPLE, fontWeight: "700" },
+
+  // ── Modals
+  modalContainer: { flex: 1, backgroundColor: "#fff" },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A2E",
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A1A2E",
-    marginBottom: 8,
-  },
+  modalTitle: { fontSize: 17, fontWeight: "700", color: "#1A1A2E" },
+  modalBody: { paddingHorizontal: 20, paddingTop: 20 },
+  inputLabel: { fontSize: 13, fontWeight: "700", color: "#1A1A2E", marginBottom: 8 },
   textInput: {
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FAFAFA",
     paddingHorizontal: 16,
     fontSize: 16,
     color: "#1A1A2E",
   },
   selectChip: {
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
     marginRight: 8,
-    height: 34,
     justifyContent: "center",
   },
-  selectChipActive: {
-    borderColor: "#7C3AED",
-    backgroundColor: "rgba(124,58,237,0.1)",
-  },
-  selectChipText: {
-    fontSize: 14,
-    color: "#1A1A2E",
-  },
-  selectChipTextActive: {
-    color: "#7C3AED",
-    fontWeight: "600",
-  },
-  primaryButton: {
-    backgroundColor: "#7C3AED",
-    borderRadius: 12,
-    height: 52,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 24,
-    marginBottom: 32,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  hintText: {
-    fontSize: 12,
-    color: "#6B7280",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  propertyTypeRow: {
+  selectChipActive: { borderColor: PURPLE, backgroundColor: PURPLE_LIGHT },
+  selectChipText: { fontSize: 13, color: "#6B7280", fontWeight: "500" },
+  selectChipTextActive: { color: PURPLE, fontWeight: "700" },
+
+  // Property type grid in modal
+  propertyTypeGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 8,
+  },
+  propertyTypeCard: {
+    width: "30%",
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FAFAFA",
+    alignItems: "center",
+    gap: 6,
+    position: "relative",
+  },
+  propertyTypeCardActive: { borderColor: PURPLE, backgroundColor: PURPLE_LIGHT },
+  propertyTypeCardText: { fontSize: 11, fontWeight: "600", color: "#6B7280", textAlign: "center" },
+  propertyTypeCheck: { position: "absolute", top: 4, right: 4 },
+
+  primaryButton: {
+    backgroundColor: PURPLE,
+    borderRadius: 14,
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
+    marginTop: 24,
+    marginBottom: 32,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
+  primaryButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+
+  // Payment modal
   paymentInfoCard: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: PURPLE_LIGHT,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+    marginBottom: 20,
   },
-  paymentInfoName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1A1A2E",
-  },
-  paymentInfoSub: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 2,
-  },
+  paymentInfoName: { fontSize: 18, fontWeight: "700", color: "#1A1A2E", textAlign: "center" },
+  paymentInfoSub: { fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 12, textAlign: "center" },
   paymentInfoAmountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 12,
-  },
-  paymentInfoLabel: {
-    fontSize: 14,
-    color: "#1A1A2E",
-  },
-  paymentInfoAmount: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#EF4444",
-  },
-  linkGeneratedCard: {
-    backgroundColor: "rgba(16,185,129,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(16,185,129,0.3)",
+    width: "100%",
+    backgroundColor: "#fff",
     borderRadius: 12,
+    padding: 12,
+  },
+  paymentInfoLabel: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
+  paymentInfoAmount: { fontSize: 18, fontWeight: "800", color: "#EF4444" },
+  linkGeneratedCard: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  linkGeneratedTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#059669",
-    marginBottom: 8,
-  },
-  linkGeneratedUrl: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  linkButtonsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
-  },
+  linkGeneratedHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  linkGeneratedTitle: { fontSize: 14, fontWeight: "700", color: "#059669" },
+  linkGeneratedUrl: { fontSize: 12, color: "#6B7280", lineHeight: 18 },
+  linkButtonsRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
   outlineButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: PURPLE,
     borderRadius: 12,
     height: 44,
   },
-  outlineButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#7C3AED",
-  },
-  primaryButtonSmall: {
+  outlineButtonText: { fontSize: 14, fontWeight: "700", color: PURPLE },
+  shareBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#7C3AED",
+    gap: 6,
     borderRadius: 12,
     height: 44,
   },
-  primaryButtonSmallText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
+  shareBtnText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
+  hintText: { fontSize: 12, color: "#9CA3AF", textAlign: "center", lineHeight: 18 },
 });

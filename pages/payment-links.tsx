@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   ActivityIndicator, RefreshControl, Share, Alert,
-  TextInput, Platform, Linking,
+  TextInput, Platform, Linking, Image,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +12,8 @@ import { getAuthHeader } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
 import { useCurrency } from "../lib/CurrencyContext";
 import { convertAmount } from "../lib/currency";
+
+const logoImage = require("../assets/logo.png");
 
 const PRIMARY = "#7C3AED";
 const PRIMARY_DARK = "#5B21B6";
@@ -192,7 +194,10 @@ export default function PaymentLinks() {
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[s.topBarTitle, { color: colors.text }]}>Payment Links</Text>
+        <View style={s.topBarCenter}>
+          <Image source={logoImage} style={s.topBarLogo} />
+          <Text style={[s.topBarTitle, { color: colors.text }]}>Payment Links</Text>
+        </View>
         <View style={s.topBarActions}>
           <TouchableOpacity
             style={s.inboxBtn}
@@ -512,6 +517,8 @@ const s = StyleSheet.create({
     backgroundColor: "#fff", borderBottomWidth: 1, borderColor: "#EDE9FE",
   },
   backBtn: { padding: 6 },
+  topBarCenter: { flexDirection: "row", alignItems: "center", gap: 7 },
+  topBarLogo: { width: 26, height: 26, borderRadius: 7 },
   topBarTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A2E" },
   topBarActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   inboxBtn: {
@@ -532,9 +539,9 @@ const s = StyleSheet.create({
 
   // Hero Banner
   heroBanner: {
-    margin: 16, borderRadius: 20, padding: 20,
+    margin: 16, borderRadius: 24, padding: 22,
     backgroundColor: PRIMARY,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 8,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 20, elevation: 10,
   },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   heroTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -593,8 +600,9 @@ const s = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: "#fff", borderRadius: 18, padding: 14,
-    shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    backgroundColor: "#fff", borderRadius: 20, padding: 16,
+    shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3,
+    borderWidth: 1, borderColor: "#F3F0FF",
   },
   cardTopRow: { flexDirection: "row", alignItems: "center" },
   cardIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
