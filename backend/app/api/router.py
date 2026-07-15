@@ -44,7 +44,13 @@ api_router.include_router(notification.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
 
-admin_router = APIRouter(prefix="/api/admin")
+from app.api.admin import auth as admin_auth
+from app.api.admin import finance as admin_finance
+from app.api.admin import platform as admin_platform
+from app.api.admin import users as admin_users
 
-# from app.api.admin import auth as admin_auth
-# admin_router.include_router(admin_auth.router)
+admin_router = APIRouter(prefix="/api/admin")
+admin_router.include_router(admin_auth.router)
+admin_router.include_router(admin_users.router)
+admin_router.include_router(admin_finance.router)
+admin_router.include_router(admin_platform.router)
