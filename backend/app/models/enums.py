@@ -126,11 +126,6 @@ class PaymentLinkType(StrEnum):
     BUSINESS = "business"
 
 
-class PaymentLinkRegion(StrEnum):
-    LOCAL = "local"
-    INTERNATIONAL = "international"
-
-
 class PaymentLinkDestination(StrEnum):
     WALLET = "wallet"
     BANK = "bank"

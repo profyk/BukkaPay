@@ -99,10 +99,6 @@ def upgrade() -> None:
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("""
-        DO $$ BEGIN CREATE TYPE payment_link_region AS ENUM ('local', 'international');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-    """)
-    op.execute("""
         DO $$ BEGIN CREATE TYPE payment_link_destination AS ENUM ('wallet', 'bank');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
@@ -130,11 +126,10 @@ def upgrade() -> None:
     op.execute("ALTER TABLE payment_links ALTER COLUMN type DROP DEFAULT")
     op.execute("ALTER TABLE payment_links ALTER COLUMN type TYPE payment_link_type USING type::payment_link_type")
     op.execute("ALTER TABLE payment_links ALTER COLUMN type SET DEFAULT 'personal'::payment_link_type")
-    op.execute("ALTER TABLE payment_links ALTER COLUMN region DROP DEFAULT")
-    op.execute(
-        "ALTER TABLE payment_links ALTER COLUMN region TYPE payment_link_region USING region::payment_link_region"
-    )
-    op.execute("ALTER TABLE payment_links ALTER COLUMN region SET DEFAULT 'local'::payment_link_region")
+    # region stays free text — the original route never validated it
+    # (`region || "local"`), and real data holds values outside a
+    # local/international closed set (e.g. "africa").
+    op.execute("ALTER TABLE payment_links ALTER COLUMN region SET DEFAULT 'local'")
     op.execute("ALTER TABLE payment_links ALTER COLUMN destination DROP DEFAULT")
     op.execute(
         "ALTER TABLE payment_links ALTER COLUMN destination TYPE payment_link_destination "
@@ -331,7 +326,7 @@ def downgrade() -> None:
         ("claim_payments", "claim_method"), ("claim_payments", "status"),
         ("invoice_payments", "status"), ("invoice_payments", "method"),
         ("invoices", "type"), ("payment_links", "status"), ("payment_links", "link_type"),
-        ("payment_links", "destination"), ("payment_links", "region"), ("payment_links", "type"),
+        ("payment_links", "destination"), ("payment_links", "type"),
         ("contribution_groups", "category"), ("gift_cards", "status"),
     ]:
         op.execute(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE text USING {col}::text")
@@ -340,6 +335,6 @@ def downgrade() -> None:
         "bill_split_status", "pickup_status", "claim_method", "claim_payment_status",
         "invoice_payment_status", "invoice_payment_method", "document_type",
         "payment_link_status", "link_type", "payment_link_destination",
-        "payment_link_region", "payment_link_type", "contribution_category", "gift_card_status",
+        "payment_link_type", "contribution_category", "gift_card_status",
     ]:
         op.execute(f"DROP TYPE IF EXISTS {enum_type}")

@@ -123,6 +123,9 @@ def upgrade() -> None:
     op.execute("ALTER TABLE purchase_transactions ALTER COLUMN user_id TYPE uuid USING user_id::uuid")
     op.execute("CREATE INDEX IF NOT EXISTS ix_purchase_transactions_user_id ON purchase_transactions (user_id)")
     op.execute("ALTER TABLE purchase_transactions ALTER COLUMN amount TYPE numeric(14,2)")
+    # currency is a new column — the original schema never had one, purchases
+    # were implicitly ZAR-only.
+    op.execute("ALTER TABLE purchase_transactions ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT 'ZAR'")
     op.execute("ALTER TABLE purchase_transactions ALTER COLUMN currency TYPE char(3)")
     op.execute(
         "ALTER TABLE purchase_transactions ALTER COLUMN category TYPE purchase_category "
@@ -306,3 +309,5 @@ def downgrade() -> None:
         "notification_type", "purchase_status", "purchase_category", "autopay_frequency",
     ]:
         op.execute(f"DROP TYPE IF EXISTS {enum_type}")
+
+    op.execute("ALTER TABLE purchase_transactions DROP COLUMN IF EXISTS currency")

@@ -9,7 +9,6 @@ from app.models.enums import (
     InvoicePaymentStatus,
     LinkType,
     PaymentLinkDestination,
-    PaymentLinkRegion,
     PaymentLinkStatus,
     PaymentLinkType,
 )
@@ -44,10 +43,10 @@ class PaymentLink(Base, TimestampMixin):
         Enum(PaymentLinkType, name="payment_link_type", native_enum=True, values_callable=lambda x: [e.value for e in x]),
         default=PaymentLinkType.PERSONAL,
     )
-    region: Mapped[PaymentLinkRegion] = mapped_column(
-        Enum(PaymentLinkRegion, name="payment_link_region", native_enum=True, values_callable=lambda x: [e.value for e in x]),
-        default=PaymentLinkRegion.LOCAL,
-    )
+    # Free text, not a closed enum: the original Node route never validated
+    # this field (`region || "local"`), and real data holds values beyond
+    # "local"/"international" (e.g. "africa").
+    region: Mapped[str] = mapped_column(Text, default="local")
     sub_region: Mapped[str | None] = mapped_column(Text)
     destination: Mapped[PaymentLinkDestination] = mapped_column(
         Enum(PaymentLinkDestination, name="payment_link_destination", native_enum=True, values_callable=lambda x: [e.value for e in x]),
