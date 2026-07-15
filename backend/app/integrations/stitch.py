@@ -57,6 +57,16 @@ def is_stitch_card_configured() -> bool:
     )
 
 
+def is_stitch_payments_configured() -> bool:
+    """Distinct from is_stitch_card_configured() — instant-EFT top-ups and
+    withdrawals only need the client credentials + a receiving account
+    number, not a card program id."""
+    settings = get_settings()
+    return bool(
+        settings.stitch_client_id and settings.stitch_client_secret and settings.bukkapay_account_number
+    )
+
+
 _token_cache: dict | None = None
 
 

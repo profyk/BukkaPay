@@ -21,6 +21,7 @@ from app.api import (
     payment_link,
     purchase_transaction,
     rental,
+    stitch,
     upload,
     wallet,
     webauthn,
@@ -43,6 +44,7 @@ api_router.include_router(loyalty.router)
 api_router.include_router(notification.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
+api_router.include_router(stitch.router)
 
 from app.api.admin import auth as admin_auth
 from app.api.admin import finance as admin_finance
