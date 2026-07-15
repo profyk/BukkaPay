@@ -1,11 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["python312"]
 
 [phases.install]
-cmds = ["npm install --include=dev"]
-
-[phases.build]
-cmds = ["npm run build"]
+cmds = ["pip install uv", "uv pip install --system -e ."]
 
 [start]
-cmd = "npm start"
+cmd = "uvicorn server:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-4}"
