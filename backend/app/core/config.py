@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Runtime
-    env: str = Field(default="development", alias="NODE_ENV")
+    env: str = Field(default="development", alias="ENV")
     port: int = Field(default=5000, alias="PORT")
     web_concurrency: int = Field(default=4, alias="WEB_CONCURRENCY")
 

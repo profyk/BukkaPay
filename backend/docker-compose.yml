@@ -33,7 +33,7 @@ services:
     environment:
       DATABASE_URL: postgresql://bukkapay:bukkapay@postgres:5432/bukkapay
       REDIS_URL: redis://redis:6379/0
-      NODE_ENV: development
+      ENV: development
     volumes:
       - .:/app
     depends_on:
@@ -44,11 +44,11 @@ services:
 
   worker:
     build: .
-    command: arq app.workers.settings.WorkerSettings
+    command: arq worker.WorkerSettings
     environment:
       DATABASE_URL: postgresql://bukkapay:bukkapay@postgres:5432/bukkapay
       REDIS_URL: redis://redis:6379/0
-      NODE_ENV: development
+      ENV: development
     volumes:
       - .:/app
     depends_on:

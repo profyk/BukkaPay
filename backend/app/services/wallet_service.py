@@ -192,18 +192,19 @@ async def transfer(
         raise ApiError("Sender card not found", status_code=404)
     if sender_card.blocked or sender_card.flagged:
         raise ApiError("This card is restricted", status_code=403)
+    if sender_card.frozen:
+        raise ApiError("This card is frozen", status_code=403)
     if sender_card.balance < parsed_amount:
         raise ApiError("Insufficient balance")
 
     sender_result = await db.execute(select(User).where(User.id == user_id))
     sender = sender_result.scalar_one_or_none()
 
-    if to_user_id == str(user_id):
-        raise ApiError("Cannot transfer to yourself")
-
     recipient = await _resolve_user(db, to_user_id)
     if recipient is None:
         raise ApiError("Recipient not found. Check the wallet ID and try again.", status_code=404)
+    if recipient.id == user_id:
+        raise ApiError("Cannot transfer to yourself")
     if recipient.frozen:
         raise ApiError("Recipient account is not available")
 
