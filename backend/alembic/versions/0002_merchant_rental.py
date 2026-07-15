@@ -24,7 +24,7 @@ def upgrade() -> None:
     """)
     op.execute("""
         DO $$ BEGIN
-            CREATE TYPE subscription_plan AS ENUM ('starter', 'growth', 'pro');
+            CREATE TYPE subscription_plan AS ENUM ('starter', 'pro', 'business');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("""

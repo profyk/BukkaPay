@@ -7,12 +7,14 @@ together.
 
 from fastapi import APIRouter
 
-from app.api import auth, misc, wallet
+from app.api import auth, merchant, misc, payment_link, wallet
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(wallet.router)
 api_router.include_router(misc.router)
+api_router.include_router(merchant.router)
+api_router.include_router(payment_link.router)
 
 admin_router = APIRouter(prefix="/api/admin")
 

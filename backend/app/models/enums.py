@@ -60,8 +60,8 @@ class BillingLinkStatus(StrEnum):
 
 class SubscriptionPlan(StrEnum):
     STARTER = "starter"
-    GROWTH = "growth"
     PRO = "pro"
+    BUSINESS = "business"
 
 
 class SubscriptionStatus(StrEnum):
@@ -139,7 +139,7 @@ class PaymentLinkDestination(StrEnum):
 
 class PaymentLinkStatus(StrEnum):
     PENDING = "pending"
-    PARTIALLY_PAID = "partially_paid"
+    PARTIAL = "partial"
     PAID = "paid"
     EXPIRED = "expired"
     CANCELLED = "cancelled"

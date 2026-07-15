@@ -113,7 +113,7 @@ def upgrade() -> None:
     op.execute("""
         DO $$ BEGIN
             CREATE TYPE payment_link_status AS ENUM
-                ('pending', 'partially_paid', 'paid', 'expired', 'cancelled');
+                ('pending', 'partial', 'paid', 'expired', 'cancelled');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("ALTER TABLE payment_links ALTER COLUMN id DROP DEFAULT")
@@ -147,7 +147,7 @@ def upgrade() -> None:
     op.execute("""
         UPDATE payment_links SET status = 'pending'
         WHERE status IS NULL
-           OR status NOT IN ('pending', 'partially_paid', 'paid', 'expired', 'cancelled')
+           OR status NOT IN ('pending', 'partial', 'paid', 'expired', 'cancelled')
     """)
     op.execute("ALTER TABLE payment_links ALTER COLUMN status DROP DEFAULT")
     op.execute(
