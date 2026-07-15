@@ -107,7 +107,7 @@ def upgrade() -> None:
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("""
-        DO $$ BEGIN CREATE TYPE link_type AS ENUM ('payment', 'invoice');
+        DO $$ BEGIN CREATE TYPE link_type AS ENUM ('payment', 'invoice', 'billing');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("""
@@ -231,9 +231,16 @@ def upgrade() -> None:
     op.execute("CREATE INDEX IF NOT EXISTS ix_saved_payment_links_payment_link_id ON saved_payment_links (payment_link_id)")
 
     # ─── claim_payments ─────────────────────────────────────────────────────
+    # Node only ever writes 'pending'/'completed'/'cancelled' for status and
+    # 'pending'/'completed' for pickup_status (verified against routes.ts) —
+    # 'expired' is computed at read-time from expires_at, never persisted.
+    op.execute("""
+        UPDATE claim_payments SET status = 'completed'
+        WHERE status = 'claimed'
+    """)
     op.execute("""
         DO $$ BEGIN
-            CREATE TYPE claim_payment_status AS ENUM ('pending', 'claimed', 'expired', 'cancelled');
+            CREATE TYPE claim_payment_status AS ENUM ('pending', 'completed', 'expired', 'cancelled');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("""
@@ -241,7 +248,11 @@ def upgrade() -> None:
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("""
-        DO $$ BEGIN CREATE TYPE pickup_status AS ENUM ('pending', 'collected', 'expired');
+        UPDATE claim_payments SET pickup_status = 'completed'
+        WHERE pickup_status = 'collected'
+    """)
+    op.execute("""
+        DO $$ BEGIN CREATE TYPE pickup_status AS ENUM ('pending', 'completed');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("ALTER TABLE claim_payments ALTER COLUMN id DROP DEFAULT")
@@ -278,7 +289,7 @@ def upgrade() -> None:
     # ─── bill_splits ────────────────────────────────────────────────────────
     op.execute("""
         DO $$ BEGIN
-            CREATE TYPE bill_split_status AS ENUM ('pending', 'settled', 'cancelled');
+            CREATE TYPE bill_split_status AS ENUM ('pending', 'completed', 'cancelled');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("ALTER TABLE bill_splits ALTER COLUMN id DROP DEFAULT")

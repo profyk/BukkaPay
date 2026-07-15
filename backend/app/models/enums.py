@@ -28,7 +28,7 @@ class PaymentRequestStatus(StrEnum):
 
 class BillSplitStatus(StrEnum):
     PENDING = "pending"
-    SETTLED = "settled"
+    COMPLETED = "completed"
     CANCELLED = "cancelled"
 
 
@@ -105,7 +105,7 @@ class GiftCardStatus(StrEnum):
 
 class ClaimPaymentStatus(StrEnum):
     PENDING = "pending"
-    CLAIMED = "claimed"
+    COMPLETED = "completed"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
 
@@ -118,8 +118,7 @@ class ClaimMethod(StrEnum):
 
 class PickupStatus(StrEnum):
     PENDING = "pending"
-    COLLECTED = "collected"
-    EXPIRED = "expired"
+    COMPLETED = "completed"
 
 
 class PaymentLinkType(StrEnum):
@@ -161,6 +160,7 @@ class InvoicePaymentMethod(StrEnum):
 class LinkType(StrEnum):
     PAYMENT = "payment"
     INVOICE = "invoice"
+    BILLING = "billing"
 
 
 class DocumentType(StrEnum):
