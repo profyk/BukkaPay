@@ -14,11 +14,14 @@ from app.api import (
     claim_payment,
     contribution,
     gift_card,
+    loyalty,
     merchant,
     misc,
+    notification,
     payment_link,
     purchase_transaction,
     rental,
+    upload,
     wallet,
 )
 
@@ -35,6 +38,9 @@ api_router.include_router(rental.router)
 api_router.include_router(gift_card.router)
 api_router.include_router(contribution.router)
 api_router.include_router(billing_link.router)
+api_router.include_router(loyalty.router)
+api_router.include_router(notification.router)
+api_router.include_router(upload.router)
 
 admin_router = APIRouter(prefix="/api/admin")
 
