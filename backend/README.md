@@ -1,134 +1,109 @@
 # BukkaPay Backend
 
-Express.js REST API backend for BukkaPay wallet application with PostgreSQL database.
+FastAPI REST API backend for the BukkaPay wallet application, backed by PostgreSQL and Redis.
 
 ## Tech Stack
 
-- **Node.js** - Runtime
-- **Express.js** - Web framework
-- **TypeScript** - Type safety
+- **FastAPI** + **Uvicorn** - Web framework / ASGI server
+- **SQLAlchemy 2.0** (async) + **asyncpg** - Database toolkit
+- **Alembic** - Schema migrations
+- **Pydantic v2** - Request/response validation
 - **PostgreSQL** - Database
-- **Drizzle ORM** - Type-safe database toolkit
-- **Stripe** - Payment processing
-- **Supabase** - Authentication & database
+- **Redis** - Session cache, rate limiting, ARQ job queue
+- **ARQ** - Background workers (runs as a separate service from the API)
+- **Stitch** - South African instant-EFT payments
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
-- npm >= 9.0.0
+- Python >= 3.12
 - PostgreSQL database
+- Redis
 
 ### Installation
 
 ```bash
-# Install dependencies
-npm install
+# Install dependencies (editable install, incl. dev extras)
+pip install uv
+uv pip install --system -e ".[dev]"
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your database and API credentials
+# Edit .env with your database, Redis, and API credentials
 ```
 
 ### Development
 
 ```bash
-# Start development server with hot reload
-npm run dev
+# Apply migrations
+alembic upgrade head
 
-# Type check
-npm run type-check
+# Start the API with hot reload
+uvicorn server:app --reload
+
+# Start the background worker (separate process)
+arq worker.WorkerSettings
+
+# Or bring up Postgres + Redis + api + worker together
+docker-compose up
 ```
 
-### Production Build
+### Tests
 
 ```bash
-# Build TypeScript to JavaScript
-npm run build
+pytest
+```
 
-# Start production server
-npm start
+Tests run against a real Postgres instance (`DATABASE_URL`) and fakeredis in place of Redis — no external services required beyond Postgres.
+
+### Production
+
+```bash
+uvicorn server:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-4}
 ```
 
 ## Project Structure
 
 ```
 backend/
-├── db/                  # Database connection and client
-├── shared/              # Shared schema and types
-├── dist/                # Compiled JavaScript (generated)
-├── index.ts            # Express server entry point
-├── routes.ts           # API route definitions
-├── storage.ts          # Database repository layer
-├── auth.ts             # Authentication logic
-├── package.json        # Dependencies and scripts
-├── tsconfig.json       # TypeScript configuration
-└── .env.example        # Environment template
+├── server.py            # FastAPI entrypoint (uvicorn server:app)
+├── worker.py            # ARQ background-worker entrypoint
+├── app/
+│   ├── core/            # config, security, sessions, middleware, rate limiting, errors
+│   ├── db/               # async SQLAlchemy engine/session
+│   ├── models/            # SQLAlchemy ORM models, one module per domain
+│   ├── schemas/            # Pydantic request/response models (owns the JSON contract)
+│   ├── services/            # business logic, one module per domain
+│   ├── api/                  # route handlers (api/admin/ for the admin console)
+│   ├── workers/                # ARQ task definitions + cron schedule
+│   └── integrations/            # Stitch, PDF invoice generation
+├── alembic/               # schema migrations
+├── tests/                  # pytest suite
+├── Dockerfile
+├── docker-compose.yml       # postgres + redis + api + worker, for local dev
+├── railway.json              # Railway API service config
+└── railway.worker.json        # Railway worker service config
 ```
 
 ## API Endpoints
 
-All endpoints require Bearer token authentication in the `Authorization` header.
-
-### Authentication
-- `POST /api/auth/signup` - Create new account
-- `POST /api/auth/login` - Login user
-- `POST /api/auth/logout` - Logout user
-
-### Wallet & Cards
-- `GET /api/cards` - Get user's wallet cards
-- `POST /api/cards` - Create new card
-- `PATCH /api/cards/:id/balance` - Update card balance
-
-### Transactions
-- `GET /api/transactions` - Get transaction history
-- `POST /api/transactions` - Create transaction
-
-### Transfers & Payments
-- `POST /api/transfer` - Transfer between users
-- `POST /api/receive` - Receive payment
+All endpoints require Bearer token authentication in the `Authorization` header unless noted otherwise. Every route path, method, and JSON shape matches the mobile app and admin panel's existing expectations — see `app/api/router.py` for the full list of mounted routers (auth, wallet, merchants, rental, gift cards, contributions, bill splits, claim payments, payment links, loyalty, notifications, WebAuthn, Stitch, plus the `/api/admin` console).
 
 ## Database Schema
 
-Database schema is defined in `shared/schema.ts` using Drizzle ORM.
-
-Tables include:
-- users
-- wallet_cards
-- transactions
-- contacts
-- payment_requests
-- merchants
-- properties & tenants (rental system)
-- gift_cards
-- contributions
-- And more...
+Schema is defined via SQLAlchemy models in `app/models/`, one module per domain, evolved in place by the hand-written Alembic revisions in `alembic/versions/`.
 
 ## Environment Variables
 
-Required for local development and Railway deployment:
-
-```
-DATABASE_URL              # PostgreSQL connection string
-EXTERNAL_DATABASE_URL     # Alternative database URL (Neon)
-SUPABASE_URL             # Supabase project URL
-SUPABASE_ANON_KEY        # Supabase anonymous key
-STRIPE_SECRET_KEY        # Stripe secret key
-PORT                     # Server port (default: 5000)
-NODE_ENV                 # Environment (development/production)
-```
+See `.env.example` for the full list, including `DATABASE_URL`, `REDIS_URL`, `STITCH_CLIENT_ID`/`STITCH_CLIENT_SECRET`, `ADMIN_API_KEY`, `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN`, `ALLOWED_ORIGINS`, and `ADMIN_ALLOWED_ORIGINS`.
 
 ## Deployment
 
-### Railway
+Two Railway services from this one repo, sharing the same build:
 
-1. Connect GitHub repository
-2. Set environment variables in Railway dashboard
-3. Deploy automatically on push
-
-Build command: `npm run build`
-Start command: `npm start`
+- **API**: `railway.json` — `uvicorn server:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-4}`
+- **Worker**: `railway.worker.json` — `arq worker.WorkerSettings`
 
 ## License
 
