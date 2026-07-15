@@ -204,15 +204,6 @@ class AutoPayFrequency(StrEnum):
 class NotificationType(StrEnum):
     INFO = "info"
     SUCCESS = "success"
+    ALERT = "alert"
     WARNING = "warning"
     ERROR = "error"
-
-
-class TagRideVehicleType(StrEnum):
-    TAXI = "taxi"
-    RIDESHARE = "rideshare"
-
-
-class TagRideStatus(StrEnum):
-    COMPLETED = "completed"
-    REVERSED = "reversed"

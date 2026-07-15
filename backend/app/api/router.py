@@ -23,6 +23,7 @@ from app.api import (
     rental,
     upload,
     wallet,
+    webauthn,
 )
 
 api_router = APIRouter()
@@ -41,6 +42,7 @@ api_router.include_router(billing_link.router)
 api_router.include_router(loyalty.router)
 api_router.include_router(notification.router)
 api_router.include_router(upload.router)
+api_router.include_router(webauthn.router)
 
 admin_router = APIRouter(prefix="/api/admin")
 

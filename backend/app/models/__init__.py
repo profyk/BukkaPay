@@ -15,7 +15,6 @@ from app.models.misc import Contact, PaymentRequest, PurchaseTransaction
 from app.models.notification import Notification
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
-from app.models.tag_ride import TagRideDriver, TagRideRide
 from app.models.user import User, UserSession
 from app.models.virtual_card import VirtualCard
 from app.models.wallet import Transaction, WalletCard
@@ -54,8 +53,6 @@ __all__ = [
     "RentPayment",
     "RentPaymentLink",
     "Tenant",
-    "TagRideDriver",
-    "TagRideRide",
     "User",
     "UserSession",
     "VirtualCard",

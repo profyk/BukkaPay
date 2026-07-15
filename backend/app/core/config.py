@@ -19,11 +19,6 @@ class Settings(BaseSettings):
     # Redis (new — powers sessions cache, rate limiting, ARQ queue)
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
-    # Supabase (kept for parity with existing Vite/Supabase client config the
-    # mobile app may read via API metadata endpoints)
-    supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
-    supabase_anon_key: str | None = Field(default=None, alias="SUPABASE_ANON_KEY")
-
     # Stripe
     stripe_secret_key: str | None = Field(default=None, alias="STRIPE_SECRET_KEY")
     stripe_webhook_secret: str | None = Field(default=None, alias="STRIPE_WEBHOOK_SECRET")

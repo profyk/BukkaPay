@@ -1,10 +1,12 @@
 """remaining domains + retirement: loyalty_rewards, auto_pays, beneficiaries,
 challenges, achievements, virtual_cards, webauthn_credentials,
-purchase_transactions, notifications, tag_ride_drivers, tag_ride_rides,
-chat_messages, security_settings, family_members. Retires the dead
-stokvels/stokvel_members/stokvel_contributions/stokvel_payouts tables
-(zero write path anywhere in the app — verified via grep across
-routes.ts/admin-routes.ts, only a paginated admin GET reached them).
+purchase_transactions, notifications, chat_messages, security_settings,
+family_members. Retires the dead stokvels/stokvel_members/
+stokvel_contributions/stokvel_payouts tables (zero write path anywhere in
+the app — verified via grep across routes.ts/admin-routes.ts, only a
+paginated admin GET reached them). tag_ride_drivers/tag_ride_rides are
+intentionally left untouched — the tag-ride feature was dropped from the
+new backend's scope; see the comment further down.
 
 Revision ID: 0004_remaining_and_retirement
 Revises: 0003_savings_paylinks
@@ -87,6 +89,11 @@ def upgrade() -> None:
     op.execute("CREATE INDEX IF NOT EXISTS ix_virtual_cards_user_id ON virtual_cards (user_id)")
     op.execute("ALTER TABLE virtual_cards ALTER COLUMN spending_limit TYPE numeric(14,2)")
     op.execute("ALTER TABLE virtual_cards ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()")
+    # cvv is NOT NULL in the real deployed schema but shared/schema.ts's
+    # insertVirtualCardSchema never supplies it, so the live create path
+    # can't satisfy that constraint — relax it rather than leave a column
+    # the app can never populate on insert (see app/models/virtual_card.py).
+    op.execute("ALTER TABLE virtual_cards ALTER COLUMN cvv DROP NOT NULL")
 
     # ─── webauthn_credentials ───────────────────────────────────────────────
     op.execute("ALTER TABLE webauthn_credentials ALTER COLUMN id DROP DEFAULT")
@@ -135,7 +142,7 @@ def upgrade() -> None:
     # ─── notifications ──────────────────────────────────────────────────────
     op.execute("""
         DO $$ BEGIN
-            CREATE TYPE notification_type AS ENUM ('info', 'success', 'warning', 'error');
+            CREATE TYPE notification_type AS ENUM ('info', 'success', 'alert', 'warning', 'error');
         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     """)
     op.execute("ALTER TABLE notifications ALTER COLUMN id DROP DEFAULT")
@@ -146,7 +153,7 @@ def upgrade() -> None:
     op.execute("CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications (user_id)")
     op.execute("""
         UPDATE notifications SET type = 'info'
-        WHERE type IS NULL OR type NOT IN ('info', 'success', 'warning', 'error')
+        WHERE type IS NULL OR type NOT IN ('info', 'success', 'alert', 'warning', 'error')
     """)
     op.execute("ALTER TABLE notifications ALTER COLUMN type DROP DEFAULT")
     op.execute(
@@ -154,57 +161,13 @@ def upgrade() -> None:
     )
     op.execute("ALTER TABLE notifications ALTER COLUMN type SET DEFAULT 'info'::notification_type")
 
-    # ─── tag_ride_drivers ───────────────────────────────────────────────────
-    op.execute("""
-        DO $$ BEGIN CREATE TYPE tag_ride_vehicle_type AS ENUM ('taxi', 'rideshare');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-    """)
-    op.execute("ALTER TABLE tag_ride_drivers ALTER COLUMN id DROP DEFAULT")
-
-    op.execute("ALTER TABLE tag_ride_drivers ALTER COLUMN id TYPE uuid USING id::uuid")
-    op.execute("ALTER TABLE tag_ride_drivers ALTER COLUMN id SET DEFAULT gen_random_uuid()")
-    op.execute("ALTER TABLE tag_ride_drivers ALTER COLUMN user_id TYPE uuid USING user_id::uuid")
-    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_tag_ride_drivers_user_id ON tag_ride_drivers (user_id)")
-    op.execute("ALTER TABLE tag_ride_drivers ALTER COLUMN total_earnings TYPE numeric(14,2)")
-    op.execute("""
-        UPDATE tag_ride_drivers SET vehicle_type = 'taxi'
-        WHERE vehicle_type IS NULL OR vehicle_type NOT IN ('taxi', 'rideshare')
-    """)
-    op.execute("ALTER TABLE tag_ride_drivers ALTER COLUMN vehicle_type DROP DEFAULT")
-    op.execute(
-        "ALTER TABLE tag_ride_drivers ALTER COLUMN vehicle_type TYPE tag_ride_vehicle_type "
-        "USING vehicle_type::tag_ride_vehicle_type"
-    )
-    op.execute("ALTER TABLE tag_ride_drivers ALTER COLUMN vehicle_type SET DEFAULT 'taxi'::tag_ride_vehicle_type")
-
-    # ─── tag_ride_rides ─────────────────────────────────────────────────────
-    op.execute("""
-        DO $$ BEGIN CREATE TYPE tag_ride_status AS ENUM ('completed', 'reversed');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-    """)
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN id DROP DEFAULT")
-
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN id TYPE uuid USING id::uuid")
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN id SET DEFAULT gen_random_uuid()")
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN passenger_id TYPE uuid USING passenger_id::uuid")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_tag_ride_rides_passenger_id ON tag_ride_rides (passenger_id)")
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN driver_id TYPE uuid USING driver_id::uuid")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_tag_ride_rides_driver_id ON tag_ride_rides (driver_id)")
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN passenger_card_id TYPE uuid USING passenger_card_id::uuid")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_tag_ride_rides_passenger_card_id ON tag_ride_rides (passenger_card_id)")
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN driver_card_id TYPE uuid USING driver_card_id::uuid")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_tag_ride_rides_driver_card_id ON tag_ride_rides (driver_card_id)")
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN amount TYPE numeric(14,2)")
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN status DROP DEFAULT")
-    op.execute(
-        "ALTER TABLE tag_ride_rides ALTER COLUMN status TYPE tag_ride_status USING status::tag_ride_status"
-    )
-    op.execute("ALTER TABLE tag_ride_rides ALTER COLUMN status SET DEFAULT 'completed'::tag_ride_status")
-    op.execute("""
-        ALTER TABLE tag_ride_rides ADD CONSTRAINT ck_tag_ride_rides_amount_positive
-            CHECK (amount > 0) NOT VALID
-    """)
-    op.execute("ALTER TABLE tag_ride_rides VALIDATE CONSTRAINT ck_tag_ride_rides_amount_positive")
+    # tag_ride_drivers / tag_ride_rides: intentionally left untouched.
+    # Tag-ride was dropped from the new backend's scope — these tables keep
+    # their original varchar columns and (per the bulk FK drop at the start
+    # of 0001) end up without foreign key constraints after this migration.
+    # That's a metadata-only regression, not a data loss one; nothing here
+    # deletes rows. If ride-hailing is fully sunset, retiring these tables
+    # the same way stokvels* was retired is a reasonable follow-up.
 
     # ─── dormant tables (chat_messages, security_settings, family_members) ──
     # No reachable route anywhere in the app (verified via grep) — kept for
@@ -293,11 +256,6 @@ def upgrade() -> None:
         ("webauthn_credentials", "user_id", "users", "id", "CASCADE"),
         ("purchase_transactions", "user_id", "users", "id", "CASCADE"),
         ("notifications", "user_id", "users", "id", "CASCADE"),
-        ("tag_ride_drivers", "user_id", "users", "id", "CASCADE"),
-        ("tag_ride_rides", "passenger_id", "users", "id", "CASCADE"),
-        ("tag_ride_rides", "driver_id", "tag_ride_drivers", "id", "CASCADE"),
-        ("tag_ride_rides", "passenger_card_id", "wallet_cards", "id", "SET NULL"),
-        ("tag_ride_rides", "driver_card_id", "wallet_cards", "id", "SET NULL"),
         ("chat_messages", "user_id", "users", "id", "CASCADE"),
         ("security_settings", "user_id", "users", "id", "CASCADE"),
         ("family_members", "parent_id", "users", "id", "CASCADE"),
@@ -332,7 +290,6 @@ def downgrade() -> None:
     # stokvel* tables are not recreated — retirement is one-way. Everything
     # else reverts enum/type changes back to text/numeric(10,2) best-effort.
     drop_constraints = [
-        ("tag_ride_rides", "ck_tag_ride_rides_amount_positive"),
         ("purchase_transactions", "ck_purchase_transactions_amount_positive"),
         ("auto_pays", "ck_auto_pays_amount_positive"),
     ]
@@ -340,14 +297,12 @@ def downgrade() -> None:
         op.execute(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {constraint}")
 
     for table, col in [
-        ("tag_ride_rides", "status"), ("tag_ride_drivers", "vehicle_type"),
         ("notifications", "type"), ("purchase_transactions", "status"),
         ("purchase_transactions", "category"), ("auto_pays", "frequency"),
     ]:
         op.execute(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE text USING {col}::text")
 
     for enum_type in [
-        "tag_ride_status", "tag_ride_vehicle_type", "notification_type",
-        "purchase_status", "purchase_category", "autopay_frequency",
+        "notification_type", "purchase_status", "purchase_category", "autopay_frequency",
     ]:
         op.execute(f"DROP TYPE IF EXISTS {enum_type}")
