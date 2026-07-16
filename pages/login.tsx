@@ -66,19 +66,28 @@ export default function Login() {
     setLoading(true);
     try {
       await login(formData.email, formData.password);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
 
+    // Best-effort convenience: offer biometric login next time. This must
+    // never block getting into the app — a real login already succeeded
+    // above, so a failure here (e.g. no secure credential storage on this
+    // platform) is silently ignored rather than surfaced as a login error.
+    try {
       const available = await isBiometricAvailable();
       const enabled = await isBiometricLoginEnabled();
       if (available && !enabled) {
         await enableBiometricLogin(formData.email, formData.password);
       }
-
-      router.replace((returnTo || "/(tabs)") as any);
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.log("Biometric auto-enable skipped:", e);
     }
+
+    setLoading(false);
+    router.replace((returnTo || "/(tabs)") as any);
   };
 
   const biometricIconName = biometricLabel === "Face ID" ? "scan-outline" : "finger-print-outline";

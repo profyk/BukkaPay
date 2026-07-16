@@ -22,7 +22,6 @@ const features: Feature[] = [
   { iconName: "chatbubble",       label: "Support Chat",    route: "/(screens)/support-chat",    color: "#EC4899" },
   { iconName: "airplane",         label: "Travel Booking",  route: "/(screens)/travel",          color: "#0EA5E9", comingSoon: true },
   { iconName: "gift",             label: "Loyalty Rewards", route: "/(screens)/loyalty",         color: "#6D28D9", comingSoon: true },
-  { iconName: "bus",              label: "Tag n Ride",      route: "#",                          color: "#0D9488", comingSoon: true },
   { iconName: "people",           label: "Referral Program",route: "#",                          color: "#059669", comingSoon: true },
 ];
 
