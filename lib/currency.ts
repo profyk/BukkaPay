@@ -1,33 +1,42 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// The three currencies BukkaPay wallets can actually hold. Each wallet
+// card is denominated in exactly one of these (real balance, not a
+// display conversion) — converting between them only happens through a
+// Send Abroad transfer, priced by the admin-configured corridor rate
+// (see /api/transfer/quote), never client-side.
 export type CurrencyCode = "USD" | "ZAR" | "BWP";
 
 export interface Currency {
   code: CurrencyCode;
   symbol: string;
   name: string;
-  rate: number;
 }
 
 export const CURRENCIES: Currency[] = [
-  { code: "ZAR", symbol: "R", name: "South African Rand", rate: 18.2 },
-  { code: "USD", symbol: "$", name: "US Dollar", rate: 1 },
-  { code: "BWP", symbol: "P", name: "Botswana Pula", rate: 13.5 },
+  { code: "ZAR", symbol: "R", name: "South African Rand" },
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "BWP", symbol: "P", name: "Botswana Pula" },
 ];
 
 export function getCurrency(code: CurrencyCode): Currency {
   return CURRENCIES.find(c => c.code === code) || CURRENCIES[0];
 }
 
-export function convertAmount(amountUSD: number, toCurrency: CurrencyCode): number {
-  const currency = getCurrency(toCurrency);
-  return amountUSD * currency.rate;
-}
-
 export function formatCurrency(amount: number, currencyCode: CurrencyCode): string {
   const currency = getCurrency(currencyCode);
-  const convertedAmount = convertAmount(amount, currencyCode);
-  return `${currency.symbol}${convertedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${currency.symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// No-op kept for the many display-only call sites across the app
+// (analytics, purchases, payment links, etc.) that pre-date real
+// per-currency wallets — they used to multiply by a fake static rate to
+// simulate a "display currency" toggle. Now that an amount's currency is
+// a real, specific fact (which wallet card it's on) rather than a single
+// blended figure, there's nothing left to convert: the number shown is
+// already in its own currency, so this just passes it through unchanged.
+export function convertAmount(amount: number, _toCurrency: CurrencyCode): number {
+  return amount;
 }
 
 const VALID_CODES: CurrencyCode[] = ["USD", "ZAR", "BWP"];

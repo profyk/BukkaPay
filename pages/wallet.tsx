@@ -8,8 +8,7 @@ import AddCardDialog from "../components/AddCardDialog";
 import { fetchCards, setDefaultCard } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import { getCurrentUser } from "../lib/auth";
-import { useCurrency } from "../lib/CurrencyContext";
-import { convertAmount } from "../lib/currency";
+import { CURRENCIES, CurrencyCode, getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 import { queryClient } from "../lib/queryClient";
 import { useToast } from "../hooks/use-toast";
@@ -19,7 +18,6 @@ const cardColors: Array<"blue" | "gold" | "black" | "purple"> = ["blue", "gold",
 export default function Wallet() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { currency } = useCurrency();
   const { toast } = useToast();
   const [userName, setUserName] = useState("Card Holder");
 
@@ -45,7 +43,12 @@ export default function Wallet() {
   });
 
   const mappedCards = cards?.map(mapCardFromAPI) || [];
-  const totalBalance = mappedCards.reduce((sum: number, c: any) => sum + Number(c.balance), 0);
+  const balancesByCurrency = CURRENCIES.reduce((acc, c) => {
+    acc[c.code] = mappedCards
+      .filter((card: any) => card.currency === c.code)
+      .reduce((sum: number, card: any) => sum + Number(card.balance), 0);
+    return acc;
+  }, {} as Record<CurrencyCode, number>);
 
   return (
     <ScrollView
@@ -59,12 +62,19 @@ export default function Wallet() {
         </View>
       </View>
 
-      {/* Total Balance Banner */}
+      {/* Per-currency balances */}
       <View style={[styles.balanceBanner, { backgroundColor: colors.primary }]}>
-        <Text style={styles.balanceLabel}>Total Balance</Text>
-        <Text style={styles.balanceAmount}>
-          {currency.symbol}{convertAmount(totalBalance, currency.code).toFixed(2)}
-        </Text>
+        <Text style={styles.balanceLabel}>Your Balances</Text>
+        <View style={styles.currencyTiles}>
+          {CURRENCIES.map((c) => (
+            <View key={c.code} style={styles.currencyTile}>
+              <Text style={styles.currencyTileCode}>{c.code}</Text>
+              <Text style={styles.currencyTileAmount}>
+                {c.symbol}{balancesByCurrency[c.code].toFixed(2)}
+              </Text>
+            </View>
+          ))}
+        </View>
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
@@ -80,22 +90,22 @@ export default function Wallet() {
 
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => router.push({ pathname: "/(screens)/topup" as any, params: { section: "withdraw" } })}
-          >
-            <View style={styles.actionIcon}>
-              <Ionicons name="arrow-up" size={20} color="#7C3AED" />
-            </View>
-            <Text style={styles.actionLabel}>Withdraw</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
             onPress={() => router.push("/(screens)/send-money" as any)}
           >
             <View style={styles.actionIcon}>
               <Ionicons name="send" size={18} color="#7C3AED" />
             </View>
             <Text style={styles.actionLabel}>Send</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push("/(screens)/send-abroad" as any)}
+          >
+            <View style={styles.actionIcon}>
+              <Ionicons name="globe-outline" size={18} color="#7C3AED" />
+            </View>
+            <Text style={styles.actionLabel}>Send Abroad</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -121,8 +131,8 @@ export default function Wallet() {
           <PremiumCard
             cardNumber={card.cardNumber}
             holderName={userName}
-            balance={convertAmount(Number(card.balance), currency.code)}
-            currency={currency.symbol}
+            balance={Number(card.balance)}
+            currency={getCurrency(card.currency).symbol}
             color={cardColors[index % cardColors.length]}
           />
           <View style={styles.cardInfo}>
@@ -138,10 +148,13 @@ export default function Wallet() {
                 </View>
               )}
               <Text style={[styles.cardTitle, { color: colors.text }]}>{card.title}</Text>
+              <View style={[styles.currencyBadge, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[styles.currencyBadgeText, { color: colors.primary }]}>{card.currency}</Text>
+              </View>
             </View>
             <View style={styles.cardRight}>
               <Text style={[styles.cardBalance, { color: colors.text }]}>
-                {currency.symbol}{convertAmount(Number(card.balance), currency.code).toFixed(2)}
+                {getCurrency(card.currency).symbol}{Number(card.balance).toFixed(2)}
               </Text>
               {card.frozen && (
                 <View style={styles.frozenBadge}>
@@ -200,8 +213,14 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  balanceLabel: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 4 },
-  balanceAmount: { fontSize: 36, fontWeight: "800", color: "#FFFFFF", marginBottom: 24 },
+  balanceLabel: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 10 },
+  currencyTiles: { flexDirection: "row", gap: 10, marginBottom: 24 },
+  currencyTile: {
+    flex: 1, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 14,
+    paddingVertical: 12, paddingHorizontal: 10,
+  },
+  currencyTileCode: { fontSize: 11, fontWeight: "700", color: "rgba(255,255,255,0.75)", letterSpacing: 0.5 },
+  currencyTileAmount: { fontSize: 18, fontWeight: "800", color: "#FFFFFF", marginTop: 2 },
   quickActions: { flexDirection: "row", justifyContent: "space-between" },
   actionBtn: { alignItems: "center", gap: 6 },
   actionIcon: {
@@ -230,6 +249,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  currencyBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  currencyBadgeText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
   cardRight: { alignItems: "flex-end", gap: 4 },
   virtualBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   virtualBadgeText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },

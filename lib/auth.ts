@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
+import * as SecureStore from "expo-secure-store";
 import { API_BASE } from "./config";
 
 export interface User {
@@ -157,13 +158,19 @@ export async function authenticateWithBiometric(): Promise<boolean> {
 }
 
 export async function enableBiometricLogin(email: string, password: string) {
+  // Credentials are the keys to the account, so they go in the Keychain/
+  // Keystore (via SecureStore) rather than AsyncStorage, which is plain
+  // unencrypted storage on both platforms. A blank password would silently
+  // brick biometric sign-in later (login() would always be rejected), so
+  // refuse to save one — callers must confirm the real password first.
+  if (!password) throw new Error("A password is required to enable biometric login");
   await AsyncStorage.setItem(BIOMETRIC_ENABLED, "true");
-  await AsyncStorage.setItem(BIOMETRIC_CREDENTIALS, JSON.stringify({ email, password }));
+  await SecureStore.setItemAsync(BIOMETRIC_CREDENTIALS, JSON.stringify({ email, password }));
 }
 
 export async function disableBiometricLogin() {
   await AsyncStorage.setItem(BIOMETRIC_ENABLED, "false");
-  await AsyncStorage.removeItem(BIOMETRIC_CREDENTIALS);
+  await SecureStore.deleteItemAsync(BIOMETRIC_CREDENTIALS);
 }
 
 export async function isBiometricLoginEnabled(): Promise<boolean> {
@@ -172,7 +179,7 @@ export async function isBiometricLoginEnabled(): Promise<boolean> {
 }
 
 export async function biometricLogin(): Promise<any> {
-  const credsStr = await AsyncStorage.getItem(BIOMETRIC_CREDENTIALS);
+  const credsStr = await SecureStore.getItemAsync(BIOMETRIC_CREDENTIALS);
   if (!credsStr) throw new Error("No saved credentials");
 
   const authenticated = await authenticateWithBiometric();

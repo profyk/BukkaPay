@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Switch, ActivityIndicator, StyleSheet, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Switch, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  getCurrentUser, logout, setCurrentUser,
+  getCurrentUser, login, logout, setCurrentUser,
   isBiometricAvailable, isBiometricLoginEnabled,
   enableBiometricLogin, disableBiometricLogin, getBiometricType,
 } from "../lib/auth";
 import { apiRequest } from "../lib/queryClient";
+import { getKycStatus } from "../lib/api";
 import { useToast } from "../hooks/use-toast";
 import { useTheme } from "../lib/ThemeContext";
 import * as Clipboard from "expo-clipboard";
@@ -60,6 +61,9 @@ export default function Profile() {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("Biometric Login");
+  const [showBiometricPasswordModal, setShowBiometricPasswordModal] = useState(false);
+  const [biometricPassword, setBiometricPassword] = useState("");
+  const [confirmingBiometric, setConfirmingBiometric] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hideBalance, setHideBalance] = useState(false);
   const [quickPayEnabled, setQuickPayEnabled] = useState(false);
@@ -91,6 +95,8 @@ export default function Profile() {
       }
     })();
   }, []);
+
+  const { data: kycStatus } = useQuery<any>({ queryKey: ["kyc-status"], queryFn: getKycStatus, enabled: !!user });
 
   const { data: cards } = useQuery<any[]>({ queryKey: ["/api/cards"], enabled: !!user });
   const { data: transactions } = useQuery<any[]>({ queryKey: ["/api/transactions"], enabled: !!user });
@@ -178,25 +184,35 @@ export default function Profile() {
 
   const handleBiometricToggle = async (enabled: boolean) => {
     if (enabled) {
-      Alert.alert(
-        "Enable Biometric Login",
-        "This will allow you to sign in using your fingerprint or Face ID. You'll need to sign in with your password once to set it up.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Enable",
-            onPress: async () => {
-              setBiometricEnabled(true);
-              await enableBiometricLogin(user.email, "");
-              toast({ title: "Enabled", description: "Biometric login enabled. Sign in with your password next time to save credentials." });
-            },
-          },
-        ]
-      );
+      // Enabling needs the real password (to unlock biometric sign-in
+      // later) — this screen never has it in memory, so confirm it here
+      // rather than silently saving a blank one.
+      setBiometricPassword("");
+      setShowBiometricPasswordModal(true);
     } else {
       setBiometricEnabled(false);
       await disableBiometricLogin();
       toast({ title: "Disabled", description: "Biometric login disabled" });
+    }
+  };
+
+  const handleConfirmBiometricPassword = async () => {
+    if (!biometricPassword) {
+      toast({ title: "Enter your password", variant: "destructive" });
+      return;
+    }
+    setConfirmingBiometric(true);
+    try {
+      await login(user.email, biometricPassword);
+      await enableBiometricLogin(user.email, biometricPassword);
+      setBiometricEnabled(true);
+      setShowBiometricPasswordModal(false);
+      setBiometricPassword("");
+      toast({ title: "Enabled", description: `${biometricLabel} is ready to use.` });
+    } catch (e: any) {
+      toast({ title: "Incorrect password", description: "Biometric login was not enabled.", variant: "destructive" });
+    } finally {
+      setConfirmingBiometric(false);
     }
   };
 
@@ -257,6 +273,23 @@ export default function Profile() {
       />
     </View>
   );
+
+  const kycLabels: Record<string, string> = {
+    not_submitted: "Not started", pending: "Pending review", approved: "Verified", rejected: "Resubmit required",
+  };
+  const kycStatusValue = kycStatus?.kycStatus || "not_submitted";
+
+  const handleVerificationPress = () => {
+    if (kycStatusValue === "pending") {
+      toast({ title: "Under review", description: "We're reviewing your submitted documents." });
+      return;
+    }
+    if (kycStatusValue === "approved") {
+      toast({ title: "Verified", description: "Your identity has already been verified." });
+      return;
+    }
+    router.push("/(auth)/kyc-verification" as any);
+  };
 
   const renderNavRow = (icon: string, label: string, subtitle: string, onPress: () => void) => (
     <TouchableOpacity style={styles.settingRow} onPress={onPress}>
@@ -335,6 +368,8 @@ export default function Profile() {
       <Text style={styles.sectionLabel}>WALLET SETTINGS</Text>
       <View style={styles.settingsCard}>
         {renderSettingRow("finger-print", biometricLabel, biometricSupported ? "Use fingerprint or Face ID to sign in" : "Not available on this device", biometricEnabled, handleBiometricToggle, !biometricSupported)}
+        <View style={styles.divider} />
+        {renderNavRow("shield-checkmark-outline", "Identity Verification (KYC)", kycLabels[kycStatusValue] || kycStatusValue, handleVerificationPress)}
         <View style={styles.divider} />
         {renderSettingRow(hideBalance ? "eye-off" : "eye", "Hide Balance", "Hide your wallet balance", hideBalance, handleHideBalanceToggle)}
         <View style={styles.divider} />
@@ -438,6 +473,61 @@ export default function Profile() {
               )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancelButton} onPress={() => setShowEditModal(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showBiometricPasswordModal} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => { setShowBiometricPasswordModal(false); setBiometricPassword(""); }}
+        >
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Enable {biometricLabel}</Text>
+              <TouchableOpacity onPress={() => { setShowBiometricPasswordModal(false); setBiometricPassword(""); }}>
+                <Ionicons name="close" size={24} color="#1A1A2E" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+              Confirm your password once — after that, your fingerprint or Face ID signs you in.
+            </Text>
+
+            <View style={styles.modalField}>
+              <View style={styles.modalLabelRow}>
+                <Ionicons name="lock-closed-outline" size={16} color="#6B7280" />
+                <Text style={styles.modalLabel}>Password</Text>
+              </View>
+              <TextInput
+                style={styles.modalInput}
+                value={biometricPassword}
+                onChangeText={setBiometricPassword}
+                placeholder="Enter your password"
+                placeholderTextColor="#9CA3AF"
+                secureTextEntry
+                autoFocus
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveButton, (confirmingBiometric || !biometricPassword) && styles.disabledButton]}
+              onPress={handleConfirmBiometricPassword}
+              disabled={confirmingBiometric || !biometricPassword}
+            >
+              {confirmingBiometric ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveButtonText}>Confirm & Enable</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => { setShowBiometricPasswordModal(false); setBiometricPassword(""); }}
+            >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>

@@ -82,6 +82,32 @@ export async function transfer(fromCardId: string, toUserId: string, amount: str
   return res.json();
 }
 
+export async function getTransferQuote(fromCurrency: string, toCurrency: string, amount: string) {
+  const res = await fetch(API_BASE + "/api/transfer/quote", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+    body: JSON.stringify({ fromCurrency, toCurrency, amount }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Could not get a quote");
+  }
+  return res.json();
+}
+
+export async function sendInternational(fromCardId: string, toUserId: string, toCurrency: string, amount: string) {
+  const res = await fetch(API_BASE + "/api/transfer/international", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+    body: JSON.stringify({ fromCardId, toUserId, toCurrency, amount }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Transfer failed");
+  }
+  return res.json();
+}
+
 export async function receivePayment(fromUserId: string, toWalletId: string, amount: string) {
   const res = await fetch(API_BASE + "/api/receive", {
     method: "POST",
@@ -92,6 +118,25 @@ export async function receivePayment(fromUserId: string, toWalletId: string, amo
     const error = await res.json();
     throw new Error(error.error || "Receive failed");
   }
+  return res.json();
+}
+
+export async function submitKyc(fullName: string, documentType: string, documentNumber: string) {
+  const res = await fetch(API_BASE + "/api/kyc/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+    body: JSON.stringify({ fullName, documentType, documentNumber }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Could not submit verification details");
+  }
+  return res.json();
+}
+
+export async function getKycStatus() {
+  const res = await fetch(API_BASE + "/api/kyc/status", { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error("Failed to fetch verification status");
   return res.json();
 }
 

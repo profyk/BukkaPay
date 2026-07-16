@@ -58,7 +58,12 @@ export default function Signup() {
         formData.phone,
         formData.countryCode
       );
-      router.replace((returnTo || "/(tabs)") as any);
+      // Identity verification (KYC) is a required step of registration —
+      // land here next instead of going straight into the app.
+      router.replace({
+        pathname: "/(auth)/kyc-verification" as any,
+        params: returnTo ? { returnTo } : {},
+      });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
