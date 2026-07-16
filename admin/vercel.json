@@ -1,0 +1,19 @@
+{
+  "buildCommand": "pnpm --filter @workspace/bukkapay-admin run build",
+  "outputDirectory": "artifacts/bukkapay-admin/dist",
+  "installCommand": "pnpm install --frozen-lockfile=false",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://api.bukkapay.com/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "VERCEL": "1"
+  }
+}

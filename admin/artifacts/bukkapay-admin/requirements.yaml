@@ -1,0 +1,17 @@
+packages:
+  "axios": "Required for making API calls directly to external BukkaPay API"
+  "framer-motion": "For smooth page transitions and beautiful micro-interactions"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to resolve conflicting Tailwind classes"
+  "react-hook-form": "For robust form state management"
+  "@hookform/resolvers": "Zod resolver for react-hook-form"
+  "zod": "Schema validation for forms and API responses"
+
+images:
+  - path: "artifacts/bukkapay-admin/public/images/login-bg.png"
+    description: "Abstract 3D geometric shapes representing financial transactions, floating coins, and data charts in a clean, modern, premium fintech style. Deep slate, indigo, and soft gold accents. High-end lighting."
+    aspect_ratio: "16:9"
+
+notes:
+  - Connects directly to https://api.bukkapay.com (no local backend proxy)
+  - Uses JWT stored in localStorage under 'bukkapay_token'
