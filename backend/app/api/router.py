@@ -9,7 +9,6 @@ from fastapi import APIRouter
 
 from app.api import (
     auth,
-    bill_split,
     billing_link,
     claim_payment,
     contribution,
@@ -34,7 +33,6 @@ api_router.include_router(misc.router)
 api_router.include_router(merchant.router)
 api_router.include_router(payment_link.router)
 api_router.include_router(claim_payment.router)
-api_router.include_router(bill_split.router)
 api_router.include_router(purchase_transaction.router)
 api_router.include_router(rental.router)
 api_router.include_router(gift_card.router)

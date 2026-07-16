@@ -26,12 +26,6 @@ class PaymentRequestStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-class BillSplitStatus(StrEnum):
-    PENDING = "pending"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-
-
 class MerchantBusinessType(StrEnum):
     RETAIL = "retail"
     RESTAURANT = "restaurant"

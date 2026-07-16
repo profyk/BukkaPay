@@ -3,7 +3,6 @@ Alembic autogenerate/FK resolution, so everything is re-exported here.
 """
 
 from app.models.admin import AdminSession, AdminUser
-from app.models.bill_split import BillSplit
 from app.models.claim_payment import ClaimPayment
 from app.models.contribution import Contribution, ContributionGroup
 from app.models.dormant import ChatMessage, FamilyMember, SecuritySetting
@@ -23,7 +22,6 @@ from app.models.webauthn import WebauthnCredential
 __all__ = [
     "AdminSession",
     "AdminUser",
-    "BillSplit",
     "ClaimPayment",
     "Contribution",
     "ContributionGroup",
