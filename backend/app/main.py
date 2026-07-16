@@ -69,6 +69,6 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> JSONResponse:
-        return JSONResponse({"status": "ok"})
+        return JSONResponse({"status": "ok", "monorepoDeployCheck": "20260716"})
 
     return app

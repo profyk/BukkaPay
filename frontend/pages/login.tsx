@@ -202,6 +202,7 @@ export default function Login() {
       <View style={styles.brandingFooter}>
         <Text style={styles.brandingTitle}>BukkaPay</Text>
         <Text style={styles.brandingSubtitle}>The Pulse of African Finance</Text>
+        <Text style={{ fontSize: 9, color: "#D1D5DB", marginTop: 8 }}>monorepo-deploy-check-20260716</Text>
       </View>
     </ScrollView>
   );

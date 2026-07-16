@@ -225,6 +225,8 @@ export default function Login() {
               This portal is restricted to authorised BukkaPay administrators only. Unauthorised access is strictly prohibited and will be reported. All activity is logged.
             </p>
           </div>
+
+          <p className="mt-4 text-center text-[10px] text-muted-foreground/50">monorepo-deploy-check-20260716</p>
         </motion.div>
       </div>
     </div>
