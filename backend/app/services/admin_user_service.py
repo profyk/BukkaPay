@@ -4,8 +4,10 @@ from decimal import Decimal
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from datetime import UTC, datetime
+
 from app.core.errors import ApiError
-from app.models.enums import NotificationType
+from app.models.enums import KycStatus, NotificationType
 from app.models.merchant import Merchant
 from app.models.misc import PaymentRequest
 from app.models.payment_link import PaymentLink
@@ -140,20 +142,22 @@ async def broadcast(db: AsyncSession, *, type: str | None, title: str, message: 
     return len(user_ids)
 
 
-async def list_kyc_pending(db: AsyncSession, *, page: int, limit: int) -> tuple[list[dict], int]:
-    count_result = await db.execute(select(func.count()).select_from(User).where(User.verified.is_(False)))
+async def list_kyc(db: AsyncSession, *, page: int, limit: int) -> tuple[list[dict], int]:
+    has_submission = User.kyc_status != KycStatus.NOT_SUBMITTED
+    count_result = await db.execute(select(func.count()).select_from(User).where(has_submission))
     total = count_result.scalar_one()
 
     result = await db.execute(
-        select(User).where(User.verified.is_(False)).order_by(User.created_at.desc())
+        select(User).where(has_submission).order_by(User.kyc_submitted_at.desc())
         .limit(limit).offset((page - 1) * limit)
     )
     users = result.scalars().all()
     rows = [
         {
-            "id": u.id, "userId": u.id, "userEmail": u.email, "fullName": u.name,
-            "documentType": "national_id", "documentNumber": "", "status": "pending",
-            "submittedAt": u.created_at,
+            "id": u.id, "userId": u.id, "userEmail": u.email, "fullName": u.kyc_full_name or u.name,
+            "documentType": u.kyc_document_type, "documentNumber": u.kyc_document_number,
+            "status": u.kyc_status, "submittedAt": u.kyc_submitted_at,
+            "reviewedAt": u.kyc_reviewed_at, "rejectionReason": u.kyc_rejection_reason,
         }
         for u in users
     ]
@@ -161,6 +165,9 @@ async def list_kyc_pending(db: AsyncSession, *, page: int, limit: int) -> tuple[
 
 
 async def approve_kyc(db: AsyncSession, user: User) -> User:
+    user.kyc_status = KycStatus.APPROVED
+    user.kyc_reviewed_at = datetime.now(UTC)
+    user.kyc_rejection_reason = None
     user.verified = True
     await db.flush()
     await notification_service.create_notification(
@@ -172,5 +179,9 @@ async def approve_kyc(db: AsyncSession, user: User) -> User:
 
 async def reject_kyc(db: AsyncSession, user: User, reason: str | None) -> str:
     reason = reason or "Your submitted documents could not be verified."
+    user.kyc_status = KycStatus.REJECTED
+    user.kyc_reviewed_at = datetime.now(UTC)
+    user.kyc_rejection_reason = reason
+    await db.flush()
     await notification_service.create_notification(db, user.id, NotificationType.ALERT, "KYC Rejected", reason)
     return reason

@@ -13,6 +13,7 @@ from app.api import (
     claim_payment,
     contribution,
     gift_card,
+    kyc,
     loyalty,
     merchant,
     misc,
@@ -43,6 +44,7 @@ api_router.include_router(notification.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
 api_router.include_router(stitch.router)
+api_router.include_router(kyc.router)
 
 from app.api.admin import auth as admin_auth
 from app.api.admin import finance as admin_finance

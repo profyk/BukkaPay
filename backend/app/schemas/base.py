@@ -20,6 +20,10 @@ MoneyStr = Annotated[Decimal, PlainSerializer(lambda v: f"{v:.2f}", return_type=
 OptionalMoneyStr = Annotated[
     Decimal | None, PlainSerializer(lambda v: f"{v:.2f}" if v is not None else None, return_type=str | None)
 ]
+RateStr = Annotated[Decimal, PlainSerializer(lambda v: f"{v:.6f}", return_type=str)]
+OptionalRateStr = Annotated[
+    Decimal | None, PlainSerializer(lambda v: f"{v:.6f}" if v is not None else None, return_type=str | None)
+]
 
 
 def _to_js_iso(v: datetime) -> str:

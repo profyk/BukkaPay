@@ -63,7 +63,7 @@ async def _issue_default_card(db: AsyncSession, user: User) -> WalletCard:
         user_id=user.id,
         title="\U0001f4b3 BukkaPay",
         balance=Decimal("0.00"),
-        currency="USD",
+        currency="ZAR",
         icon="credit-card",
         color="blue",
         card_number=issued.card_number,

@@ -126,7 +126,7 @@ async def list_kyc(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=100),
     _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
 ) -> KycListResponse:
-    rows, total = await svc.list_kyc_pending(db, page=page, limit=limit)
+    rows, total = await svc.list_kyc(db, page=page, limit=limit)
     return KycListResponse.model_validate({
         "kyc": rows, "pagination": {"page": page, "limit": limit, "total": total, "pages": -(-total // limit)},
     })

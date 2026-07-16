@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalJsDateTime, OptionalMoneyStr
+from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalJsDateTime, OptionalMoneyStr, RateStr
 
 # ─── Pagination ─────────────────────────────────────────────────────────────
 
@@ -289,6 +289,55 @@ class UpdatePricingRequest(CamelModel):
     values: dict
 
 
+# ─── Currency corridors (cross-border FX pricing) ──────────────────────────
+
+
+class CorridorRow(CamelModel):
+    id: UUID
+    from_currency: str
+    to_currency: str
+    exchange_rate: RateStr
+    fee_percentage: MoneyStr
+    fee_fixed: MoneyStr
+    min_amount: MoneyStr
+    max_amount: MoneyStr
+    is_active: bool
+    updated_at: JsDateTime
+
+
+class CorridorsListResponse(CamelModel):
+    corridors: list[CorridorRow]
+
+
+class UpdateCorridorRequest(CamelModel):
+    exchange_rate: str | None = None
+    fee_percentage: str | None = None
+    fee_fixed: str | None = None
+    min_amount: str | None = None
+    max_amount: str | None = None
+    is_active: bool | None = None
+
+
+class InternationalTransferRow(CamelModel):
+    id: UUID
+    sender_id: UUID
+    recipient_id: UUID
+    from_currency: str
+    to_currency: str
+    source_amount: MoneyStr
+    exchange_rate_applied: RateStr
+    fee_amount: MoneyStr
+    destination_amount: MoneyStr
+    created_at: JsDateTime
+    sender: TransactionUserSummary
+    recipient: TransactionUserSummary
+
+
+class InternationalTransfersListResponse(CamelModel):
+    transfers: list[InternationalTransferRow]
+    pagination: Pagination
+
+
 # ─── KYC ────────────────────────────────────────────────────────────────────
 
 
@@ -301,6 +350,8 @@ class KycRow(CamelModel):
     document_number: str
     status: str
     submitted_at: JsDateTime
+    reviewed_at: OptionalJsDateTime = None
+    rejection_reason: str | None = None
 
 
 class KycListResponse(CamelModel):

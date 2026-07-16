@@ -16,7 +16,7 @@ from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedP
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
 from app.models.user import User, UserSession
 from app.models.virtual_card import VirtualCard
-from app.models.wallet import Transaction, WalletCard
+from app.models.wallet import CurrencyCorridor, InternationalTransfer, Transaction, WalletCard
 from app.models.webauthn import WebauthnCredential
 
 __all__ = [
@@ -56,5 +56,7 @@ __all__ = [
     "VirtualCard",
     "Transaction",
     "WalletCard",
+    "CurrencyCorridor",
+    "InternationalTransfer",
     "WebauthnCredential",
 ]

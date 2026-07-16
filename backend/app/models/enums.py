@@ -18,6 +18,25 @@ class TransactionType(StrEnum):
     TRANSFER = "transfer"
 
 
+class WalletCurrency(StrEnum):
+    USD = "USD"
+    ZAR = "ZAR"
+    BWP = "BWP"
+
+
+class KycStatus(StrEnum):
+    NOT_SUBMITTED = "not_submitted"
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class KycDocumentType(StrEnum):
+    NATIONAL_ID = "national_id"
+    PASSPORT = "passport"
+    DRIVER_LICENSE = "driver_license"
+
+
 class PaymentRequestStatus(StrEnum):
     PENDING = "pending"
     PAID = "paid"

@@ -1,9 +1,10 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.mixins import CreatedOnlyMixin, Timestamp, UUIDFk, UUIDPk
+from app.models.enums import KycDocumentType, KycStatus
+from app.models.mixins import CreatedOnlyMixin, OptionalTimestamp, Timestamp, UUIDFk, UUIDPk
 
 
 class User(Base, CreatedOnlyMixin):
@@ -23,6 +24,19 @@ class User(Base, CreatedOnlyMixin):
     frozen: Mapped[bool] = mapped_column(Boolean, default=False)
     role: Mapped[str] = mapped_column(String(20), default="user")
     loyalty_points: Mapped[int] = mapped_column(Integer, default=0)
+
+    kyc_status: Mapped[KycStatus] = mapped_column(
+        Enum(KycStatus, name="kyc_status", native_enum=True, values_callable=lambda x: [e.value for e in x]),
+        default=KycStatus.NOT_SUBMITTED,
+    )
+    kyc_full_name: Mapped[str | None] = mapped_column(Text)
+    kyc_document_type: Mapped[KycDocumentType | None] = mapped_column(
+        Enum(KycDocumentType, name="kyc_document_type", native_enum=True, values_callable=lambda x: [e.value for e in x])
+    )
+    kyc_document_number: Mapped[str | None] = mapped_column(Text)
+    kyc_submitted_at: Mapped[OptionalTimestamp]
+    kyc_reviewed_at: Mapped[OptionalTimestamp]
+    kyc_rejection_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class UserSession(Base, CreatedOnlyMixin):

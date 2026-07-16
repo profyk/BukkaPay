@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalMoneyStr
+from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalMoneyStr, OptionalRateStr
 
 
 class WalletCardResponse(CamelModel):
@@ -25,6 +25,7 @@ class WalletCardResponse(CamelModel):
 
 class CreateCardRequest(CamelModel):
     title: str
+    currency: str = "ZAR"
 
 
 class UpdateCardBalanceRequest(CamelModel):
@@ -40,6 +41,8 @@ class TransactionResponse(CamelModel):
     amount: MoneyStr
     type: str
     icon: str
+    exchange_rate: OptionalRateStr = None
+    fee_amount: OptionalMoneyStr = None
     created_at: JsDateTime
 
 
@@ -66,5 +69,39 @@ class TransferRecipient(CamelModel):
 class TransferResponse(CamelModel):
     success: bool
     amount: str
+    recipient: TransferRecipient
+    new_balance: str
+
+
+class TransferQuoteRequest(CamelModel):
+    from_currency: str
+    to_currency: str
+    amount: str
+
+
+class TransferQuoteResponse(CamelModel):
+    source_amount: MoneyStr
+    source_currency: str
+    exchange_rate: OptionalRateStr
+    fee: MoneyStr
+    destination_amount: MoneyStr
+    destination_currency: str
+
+
+class InternationalTransferRequest(CamelModel):
+    from_card_id: str
+    to_user_id: str
+    to_currency: str
+    amount: str
+
+
+class InternationalTransferResponse(CamelModel):
+    success: bool
+    source_amount: str
+    source_currency: str
+    fee: str
+    exchange_rate: str
+    destination_amount: str
+    destination_currency: str
     recipient: TransferRecipient
     new_balance: str

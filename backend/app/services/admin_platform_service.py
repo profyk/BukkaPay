@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis import get_redis
 from app.models.contribution import ContributionGroup
+from app.models.enums import KycStatus
 from app.models.merchant import Merchant
 from app.models.user import User
 from app.models.virtual_card import VirtualCard
@@ -42,6 +43,9 @@ async def get_stats(db: AsyncSession) -> dict:
     not_frozen = (await db.execute(select(func.count()).select_from(User).where(User.frozen.is_(False)))).scalar_one()
     merchant_count = (await db.execute(select(func.count()).select_from(Merchant))).scalar_one()
     admin_count = (await db.execute(text("SELECT count(*) FROM admin_users WHERE is_active = true"))).scalar_one()
+    pending_kyc = (
+        await db.execute(select(func.count()).select_from(User).where(User.kyc_status == KycStatus.PENDING))
+    ).scalar_one()
 
     recent_txns = await db.execute(text("""
         SELECT DATE(created_at) as date, COUNT(*)::int as count,
@@ -58,7 +62,7 @@ async def get_stats(db: AsyncSession) -> dict:
     return {
         "totalUsers": total_users, "activeUsers": not_frozen, "frozenUsers": frozen,
         "verifiedUsers": verified, "totalTransactions": total_txns, "flaggedTransactions": 0,
-        "totalVolume": float(volume or 0), "pendingKyc": total_users - verified,
+        "totalVolume": float(volume or 0), "pendingKyc": pending_kyc,
         "totalMerchants": merchant_count, "totalPaymentLinks": total_links,
         "activePaymentLinks": active_links, "activeAdmins": admin_count,
         "recentTransactions": [{"date": str(r.date), "volume": r.volume, "count": r.count} for r in recent_txns],

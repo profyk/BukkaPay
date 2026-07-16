@@ -19,6 +19,7 @@ UUIDPk = Annotated[
 UUIDFk = uuid.UUID
 Money = Annotated[Decimal, mapped_column(Numeric(14, 2))]
 CurrencyCode = Annotated[str, mapped_column(String(3))]
+ExchangeRate = Annotated[Decimal, mapped_column(Numeric(12, 6))]
 CreatedAt = Annotated[datetime, mapped_column(DateTime(timezone=True), server_default=func.now())]
 UpdatedAt = Annotated[
     datetime,
