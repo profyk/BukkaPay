@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, ArrowRightLeft, LogOut,
   FlaskConical, FileCheck, ScrollText, Wallet,
   Link2, Store, Megaphone, ChevronRight,
-  ShieldCheck, Settings2,
+  ShieldCheck, Settings2, Globe2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -37,6 +37,7 @@ const SECTIONS = [
       { href: "/transactions", label: "Transactions",    icon: ArrowRightLeft },
       { href: "/wallets",      label: "Wallets",         icon: Wallet },
       { href: "/payment-links",label: "Payment Links",   icon: Link2 },
+      { href: "/international-transfers", label: "International Transfers", icon: Globe2 },
     ],
   },
   {
@@ -54,6 +55,7 @@ const SUPER_ADMIN_SECTION = {
   links: [
     { href: "/admin-management", label: "Admin Management", icon: ShieldCheck },
     { href: "/pricing",          label: "Platform Pricing",  icon: Settings2 },
+    { href: "/corridors",        label: "Cross-Border FX",   icon: Globe2 },
   ],
 }
 

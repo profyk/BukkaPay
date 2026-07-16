@@ -17,6 +17,17 @@ import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/lib/permissions"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
+const CURRENCY_STYLE: Record<string, string> = {
+  ZAR: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  USD: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  BWP: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+}
+
+function CurrencyBadge({ currency }: { currency: string }) {
+  const style = CURRENCY_STYLE[currency] ?? "bg-muted text-muted-foreground"
+  return <span className={`inline-flex text-xs font-bold px-2 py-0.5 rounded-md ${style}`}>{currency}</span>
+}
+
 function WalletStatusBadge({ status, flagged }: { status: string; flagged: boolean }) {
   const base = "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
   if (flagged && status === "active")
@@ -157,7 +168,7 @@ export default function WalletsPage() {
                           <p className="font-medium">{w.user_name || "—"}</p>
                           <p className="text-xs text-muted-foreground">{w.user_email}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-muted-foreground">{w.currency}</td>
+                        <td className="px-6 py-4"><CurrencyBadge currency={w.currency} /></td>
                         <td className="px-6 py-4 font-bold">{formatCurrency(w.balance, w.currency)}</td>
                         <td className="px-6 py-4"><WalletStatusBadge status={w.status} flagged={w.flagged} /></td>
                         <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">{formatDate(w.last_transaction_at) || "Never"}</td>

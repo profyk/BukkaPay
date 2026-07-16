@@ -40,6 +40,8 @@ import MerchantsPage from "@/pages/merchants"
 import BroadcastPage from "@/pages/broadcast"
 import AdminManagementPage from "@/pages/admin-management"
 import PricingPage from "@/pages/pricing"
+import CorridorsPage from "@/pages/corridors"
+import InternationalTransfersPage from "@/pages/international-transfers"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -67,6 +69,8 @@ function Router() {
       <Route path="/broadcast"         component={BroadcastPage} />
       <Route path="/admin-management"  component={AdminManagementPage} />
       <Route path="/pricing"           component={PricingPage} />
+      <Route path="/corridors"         component={CorridorsPage} />
+      <Route path="/international-transfers" component={InternationalTransfersPage} />
       <Route component={NotFound} />
     </Switch>
   )
