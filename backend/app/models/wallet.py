@@ -5,11 +5,17 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.enums import TransactionType, WalletCurrency
+from app.models.enums import TransactionType, TransferPurpose, TransferZone, WalletCurrency
 from app.models.mixins import CreatedOnlyMixin, ExchangeRate, Money, TimestampMixin, UUIDFk, UUIDPk
 
 _wallet_currency_enum = Enum(
     WalletCurrency, name="wallet_currency", native_enum=True, values_callable=lambda x: [e.value for e in x]
+)
+_transfer_purpose_enum = Enum(
+    TransferPurpose, name="transfer_purpose", native_enum=True, values_callable=lambda x: [e.value for e in x]
+)
+_transfer_zone_enum = Enum(
+    TransferZone, name="transfer_zone", native_enum=True, values_callable=lambda x: [e.value for e in x]
 )
 
 
@@ -55,11 +61,17 @@ class Transaction(Base, TimestampMixin):
         Enum(TransactionType, name="transaction_type", native_enum=True, values_callable=lambda x: [e.value for e in x])
     )
     icon: Mapped[str] = mapped_column(Text)
-    # Set only for cross-currency (international) transfers — the rate/fee
-    # actually applied, locked in at send time. Null for every other
-    # transaction (domestic transfers, purchases, top-ups, etc.).
+    # exchange_rate is set only for cross-currency sends — the FX rate
+    # actually applied, locked in at send time. fee_amount is set for any
+    # Send Money transfer (local, Africa, or International all carry an
+    # admin-configured fee); both stay null for every other transaction
+    # type (purchases, top-ups, etc.).
     exchange_rate: Mapped[ExchangeRate | None]
     fee_amount: Mapped[Money | None]
+    purpose_category: Mapped[TransferPurpose | None] = mapped_column(_transfer_purpose_enum)
+    purpose_subcategory: Mapped[str | None] = mapped_column(Text)
+    destination_country_code: Mapped[str | None] = mapped_column(Text)
+    destination_zone: Mapped[TransferZone | None] = mapped_column(_transfer_zone_enum)
 
 
 class CurrencyCorridor(Base, TimestampMixin):
@@ -104,3 +116,7 @@ class InternationalTransfer(Base, CreatedOnlyMixin):
     recipient_transaction_id: Mapped[UUIDFk | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("transactions.id", ondelete="SET NULL")
     )
+    purpose_category: Mapped[TransferPurpose | None] = mapped_column(_transfer_purpose_enum)
+    purpose_subcategory: Mapped[str | None] = mapped_column(Text)
+    destination_country_code: Mapped[str | None] = mapped_column(Text)
+    destination_zone: Mapped[TransferZone | None] = mapped_column(_transfer_zone_enum)

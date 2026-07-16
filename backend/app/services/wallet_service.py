@@ -5,14 +5,13 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import countries
 from app.core.errors import ApiError
 from app.integrations import stitch
-from app.models.enums import NotificationType, TransactionType, WalletCurrency
+from app.models.enums import NotificationType, TransactionType, TransferPurpose, TransferZone, WalletCurrency
 from app.models.user import User
 from app.models.wallet import InternationalTransfer, Transaction, WalletCard
-from app.services import fx_service, notification_service
-
-MAX_SINGLE_TRANSFER = Decimal("50000")
+from app.services import admin_platform_service, fx_service, notification_service
 
 
 async def get_wallet_cards(db: AsyncSession, user_id: uuid.UUID) -> list[WalletCard]:
@@ -169,6 +168,49 @@ async def create_transaction(
     return transaction
 
 
+async def _apply_transfer_pricing(amount: Decimal) -> tuple[Decimal, Decimal]:
+    """Fee + net amount for a same-currency (local) transfer, using the
+    admin-configured "transfer" bucket in Platform Pricing — same
+    percentage-plus-fixed formula fx_service.quote() already uses for
+    cross-currency corridors, just against the local pricing config
+    instead of a CurrencyCorridor row."""
+    pricing = (await admin_platform_service.get_pricing())["transfer"]
+    min_amount = Decimal(str(pricing["min_amount"]))
+    max_amount = Decimal(str(pricing["max_amount"]))
+    if amount < min_amount:
+        raise ApiError(f"Minimum transfer is {min_amount}")
+    if amount > max_amount:
+        raise ApiError(f"Maximum transfer is {max_amount}")
+
+    fee_percentage = Decimal(str(pricing["fee_percentage"]))
+    fee_fixed = Decimal(str(pricing["fee_fixed"]))
+    fee = (amount * fee_percentage / Decimal(100) + fee_fixed).quantize(Decimal("0.01"))
+    if fee >= amount:
+        raise ApiError("Amount is too small to cover the transfer fee")
+    return fee, amount - fee
+
+
+async def quote_local(currency: str, amount: str) -> dict:
+    """Same-currency counterpart to fx_service.quote() — used by the
+    /transfer/quote preview when sender and destination currency match
+    (Local sends, or an Africa/International pick that happens to share
+    the sender's currency), so the confirm screen can show the real
+    admin-configured fee instead of erroring on "no corridor for X→X"."""
+    try:
+        parsed_amount = Decimal(amount)
+    except InvalidOperation as e:
+        raise ApiError("Invalid amount") from e
+    if parsed_amount <= 0:
+        raise ApiError("Invalid amount")
+    fee, destination_amount = await _apply_transfer_pricing(parsed_amount)
+    return {
+        "source_amount": parsed_amount,
+        "exchange_rate": Decimal("1.000000"),
+        "fee": fee,
+        "destination_amount": destination_amount,
+    }
+
+
 async def _resolve_user(db: AsyncSession, identifier: str) -> User | None:
     """Recipient may be identified by wallet ID, user UUID, or username —
     tried in that order, matching the `||` chain in the old Node handler."""
@@ -191,101 +233,22 @@ async def _resolve_user(db: AsyncSession, identifier: str) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def transfer(
-    db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_user_id: str, amount: str
+async def send_money(
+    db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_user_id: str,
+    amount: str, destination_country_code: str | None = None,
+    purpose_category: str | None = None, purpose_subcategory: str | None = None,
 ) -> dict:
-    try:
-        parsed_amount = Decimal(amount)
-    except InvalidOperation as e:
-        raise ApiError("Invalid amount") from e
-    if parsed_amount <= 0:
-        raise ApiError("Invalid amount")
-    if parsed_amount > MAX_SINGLE_TRANSFER:
-        raise ApiError("Maximum single transfer is R50,000")
-
-    sender_card = await get_wallet_card(db, from_card_id, user_id)
-    if sender_card is None:
-        raise ApiError("Sender card not found", status_code=404)
-    if sender_card.blocked or sender_card.flagged:
-        raise ApiError("This card is restricted", status_code=403)
-    if sender_card.frozen:
-        raise ApiError("This card is frozen", status_code=403)
-    if sender_card.balance < parsed_amount:
-        raise ApiError("Insufficient balance")
-
-    sender_result = await db.execute(select(User).where(User.id == user_id))
-    sender = sender_result.scalar_one_or_none()
-
-    recipient = await _resolve_user(db, to_user_id)
-    if recipient is None:
-        raise ApiError("Recipient not found. Check the wallet ID and try again.", status_code=404)
-    if recipient.id == user_id:
-        raise ApiError("Cannot transfer to yourself")
-    if recipient.frozen:
-        raise ApiError("Recipient account is not available")
-
-    recipient_cards = await get_wallet_cards(db, recipient.id)
-    if not recipient_cards:
-        raise ApiError("Recipient has no wallet to receive funds")
-    recipient_card = recipient_cards[0]
-
-    new_sender_balance = sender_card.balance - parsed_amount
-    sender_card.balance = new_sender_balance
-    recipient_card.balance = recipient_card.balance + parsed_amount
-    await db.flush()
-
-    recipient_display = recipient.name or recipient.username
-    sender_display = (sender.name if sender else None) or (sender.username if sender else None) or "BukkaPay User"
-
-    db.add(Transaction(
-        user_id=user_id,
-        card_id=sender_card.id,
-        title=f"Sent to {recipient_display}",
-        category="transfer",
-        amount=parsed_amount,
-        type=TransactionType.DEBIT,
-        icon="send",
-    ))
-    db.add(Transaction(
-        user_id=recipient.id,
-        card_id=recipient_card.id,
-        title=f"Received from {sender_display}",
-        category="transfer",
-        amount=parsed_amount,
-        type=TransactionType.CREDIT,
-        icon="receive",
-    ))
-    await db.flush()
-
-    await notification_service.create_notification(
-        db, user_id, NotificationType.INFO, "Transfer Sent",
-        f"R{parsed_amount:.2f} sent to {recipient_display}", related_type="transfer",
-    )
-    await notification_service.create_notification(
-        db, recipient.id, NotificationType.SUCCESS, "Money Received",
-        f"R{parsed_amount:.2f} received from {sender_display}", related_type="transfer",
-    )
-
-    return {
-        "success": True,
-        "amount": f"{parsed_amount:.2f}",
-        "recipient": {"name": recipient.name, "walletId": recipient.wallet_id},
-        "newBalance": f"{new_sender_balance:.2f}",
-    }
-
-
-async def international_transfer(
-    db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_user_id: str, to_currency: str, amount: str
-) -> dict:
-    """Cross-border send: reuses the same recipient-resolution and account-
-    status checks as the domestic `transfer()`, but always lands the funds
-    on the recipient's wallet for `to_currency` specifically (auto-issuing
-    one if they don't have it yet) rather than an arbitrary first card, and
-    applies the admin-configured corridor rate/fee whenever the sender's
-    card currency differs from `to_currency`."""
-    if to_currency not in WalletCurrency.__members__.values():
-        raise ApiError(f"Unsupported currency: {to_currency}")
-
+    """The single Send Money path — local, Africa, and International all
+    flow through here. `destination_country_code` absent means Local: no
+    country identity needed, the recipient's own currency is used and
+    there's no FX. Present, it's resolved via `app.core.countries` (the
+    backend's own trusted directory, not client-supplied currency/zone) to
+    a settlement currency + `TransferZone`; if that currency differs from
+    the sender's card, the existing admin-configured `CurrencyCorridor`
+    supplies the rate/fee exactly as before. Same-currency sends (Local, or
+    an Africa/International pick that happens to share the sender's
+    currency) now apply the admin's "Transfers" Platform Pricing fee
+    instead of moving money for free."""
     sender_card = await get_wallet_card(db, from_card_id, user_id)
     if sender_card is None:
         raise ApiError("Sender card not found", status_code=404)
@@ -304,6 +267,16 @@ async def international_transfer(
         raise ApiError("Cannot transfer to yourself")
     if recipient.frozen:
         raise ApiError("Recipient account is not available")
+
+    if destination_country_code:
+        country = countries.get_country(destination_country_code)
+        if country is None:
+            raise ApiError(f"Unsupported destination country: {destination_country_code}")
+        to_currency = country.currency
+        zone = country.zone
+    else:
+        to_currency = sender_card.currency
+        zone = TransferZone.LOCAL
 
     same_currency = sender_card.currency == to_currency
     if same_currency:
@@ -313,13 +286,10 @@ async def international_transfer(
             raise ApiError("Invalid amount") from e
         if parsed_amount <= 0:
             raise ApiError("Invalid amount")
-        if parsed_amount > MAX_SINGLE_TRANSFER:
-            raise ApiError("Maximum single transfer is R50,000")
+        fee, destination_amount = await _apply_transfer_pricing(parsed_amount)
+        exchange_rate = Decimal("1.000000")
         if sender_card.balance < parsed_amount:
             raise ApiError("Insufficient balance")
-        fee = Decimal("0.00")
-        exchange_rate = Decimal("1.000000")
-        destination_amount = parsed_amount
     else:
         quote_result = await fx_service.quote(db, sender_card.currency, to_currency, amount)
         parsed_amount = quote_result["source_amount"]
@@ -338,28 +308,37 @@ async def international_transfer(
 
     recipient_display = recipient.name or recipient.username
     sender_display = (sender.name if sender else None) or (sender.username if sender else None) or "BukkaPay User"
+    purpose_enum = TransferPurpose(purpose_category) if purpose_category else None
 
     sender_txn = Transaction(
         user_id=user_id,
         card_id=sender_card.id,
-        title=f"Sent to {recipient_display} ({to_currency})",
+        title=f"Sent to {recipient_display}" + ("" if same_currency else f" ({to_currency})"),
         category="transfer",
         amount=parsed_amount,
         type=TransactionType.DEBIT,
         icon="send",
         exchange_rate=None if same_currency else exchange_rate,
-        fee_amount=None if same_currency else fee,
+        fee_amount=fee,
+        purpose_category=purpose_enum,
+        purpose_subcategory=purpose_subcategory,
+        destination_country_code=destination_country_code,
+        destination_zone=zone,
     )
     recipient_txn = Transaction(
         user_id=recipient.id,
         card_id=recipient_card.id,
-        title=f"Received from {sender_display} ({sender_card.currency})",
+        title=f"Received from {sender_display}" + ("" if same_currency else f" ({sender_card.currency})"),
         category="transfer",
         amount=destination_amount,
         type=TransactionType.CREDIT,
         icon="receive",
         exchange_rate=None if same_currency else exchange_rate,
-        fee_amount=None if same_currency else fee,
+        fee_amount=fee,
+        purpose_category=purpose_enum,
+        purpose_subcategory=purpose_subcategory,
+        destination_country_code=destination_country_code,
+        destination_zone=zone,
     )
     db.add(sender_txn)
     db.add(recipient_txn)
@@ -377,6 +356,10 @@ async def international_transfer(
             destination_amount=destination_amount,
             sender_transaction_id=sender_txn.id,
             recipient_transaction_id=recipient_txn.id,
+            purpose_category=purpose_enum,
+            purpose_subcategory=purpose_subcategory,
+            destination_country_code=destination_country_code,
+            destination_zone=zone,
         ))
         await db.flush()
 
@@ -399,4 +382,5 @@ async def international_transfer(
         "destinationCurrency": to_currency,
         "recipient": {"name": recipient.name, "walletId": recipient.wallet_id},
         "newBalance": f"{new_sender_balance:.2f}",
+        "destinationZone": zone.value,
     }

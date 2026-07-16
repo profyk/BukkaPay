@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import { Loader2, AlertCircle, Save, Globe2, ShieldCheck, ArrowRight } from "lucide-react"
+import { Loader2, AlertCircle, Save, Globe2, ShieldCheck, ArrowRight, Search } from "lucide-react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { useCorridors, useUpdateCorridor, type Corridor } from "@/hooks/use-corridors"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,11 @@ const CURRENCY_LABEL: Record<string, string> = {
   USD: "US Dollar",
   ZAR: "South African Rand",
   BWP: "Botswana Pula",
+  NGN: "Nigerian Naira",
+  KES: "Kenyan Shilling",
+  GHS: "Ghanaian Cedi",
+  EUR: "Euro",
+  GBP: "British Pound",
 }
 
 interface Draft {
@@ -158,6 +163,18 @@ function CorridorCard({ corridor }: { corridor: Corridor }) {
 export default function CorridorsPage() {
   const { data: corridors, isLoading, isError, error } = useCorridors()
   const perms = usePermissions()
+  const [search, setSearch] = useState("")
+
+  const filtered = useMemo(() => {
+    if (!corridors) return corridors
+    const q = search.trim().toUpperCase()
+    if (!q) return corridors
+    return corridors.filter((c) =>
+      c.fromCurrency.includes(q) || c.toCurrency.includes(q) ||
+      (CURRENCY_LABEL[c.fromCurrency] || "").toUpperCase().includes(q) ||
+      (CURRENCY_LABEL[c.toCurrency] || "").toUpperCase().includes(q)
+    )
+  }, [corridors, search])
 
   if (!perms.isSuperAdmin) {
     return (
@@ -181,12 +198,24 @@ export default function CorridorsPage() {
           <div>
             <h1 className="text-3xl font-display">Cross-Border Corridors</h1>
             <p className="text-muted-foreground mt-1">
-              Set the exchange rate and fee BukkaPay applies whenever money moves between USD, ZAR, and BWP wallets —
-              this is what powers "Send Abroad" pricing for every African country, since every country a user sends
-              to settles into one of these three currencies.
+              Set the exchange rate and fee BukkaPay applies whenever money moves between wallet currencies —
+              this is what powers Send Money's Africa and International pricing, since every country a user
+              sends to settles into one of these wallet currencies.
             </p>
           </div>
         </div>
+
+        {!isLoading && !isError && (
+          <div className="relative max-w-sm">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Filter by currency (e.g. NGN, Euro)…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center h-48 bg-card rounded-2xl border border-border">
@@ -198,8 +227,12 @@ export default function CorridorsPage() {
             <p className="font-semibold">Failed to load corridors</p>
             <p className="text-sm opacity-80">{(error as any)?.message}</p>
           </div>
+        ) : filtered && filtered.length === 0 ? (
+          <div className="flex items-center justify-center h-32 bg-card rounded-2xl border border-border text-muted-foreground text-sm">
+            No corridors match "{search}"
+          </div>
         ) : (
-          corridors?.map((c) => <CorridorCard key={c.id} corridor={c} />)
+          filtered?.map((c) => <CorridorCard key={c.id} corridor={c} />)
         )}
       </motion.div>
     </AppLayout>

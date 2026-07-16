@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
-import { transfer, fetchCards } from "../lib/api";
+import { sendMoney, fetchCards } from "../lib/api";
 import { useCurrency } from "../lib/CurrencyContext";
 
 export default function QRPay() {
@@ -163,7 +163,7 @@ export default function QRPay() {
     }
     setLoading(true);
     try {
-      await transfer(selectedCard, scannedData.userId, amount);
+      await sendMoney(selectedCard, scannedData.userId, amount);
       setStage("success");
       toast({ title: "Payment Sent", description: `${currency.symbol}${amount} sent to ${scannedData.username}` });
       setTimeout(() => {

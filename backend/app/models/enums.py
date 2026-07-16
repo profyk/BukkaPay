@@ -22,6 +22,11 @@ class WalletCurrency(StrEnum):
     USD = "USD"
     ZAR = "ZAR"
     BWP = "BWP"
+    NGN = "NGN"
+    KES = "KES"
+    GHS = "GHS"
+    EUR = "EUR"
+    GBP = "GBP"
 
 
 class KycStatus(StrEnum):
@@ -185,6 +190,7 @@ class PurchaseCategory(StrEnum):
     MARKETPLACE = "marketplace"
     CONTRIBUTION = "contribution"
     TRANSFER = "transfer"
+    TRAVEL = "travel"
 
 
 class PurchaseStatus(StrEnum):
@@ -215,3 +221,24 @@ class NotificationType(StrEnum):
     ALERT = "alert"
     WARNING = "warning"
     ERROR = "error"
+
+
+class TransferPurpose(StrEnum):
+    FAMILY_FRIENDS = "family_friends"
+    BUSINESS = "business"
+    BILLS_RENT = "bills_rent"
+    SCHOOL_FEES = "school_fees"
+    MEDICAL = "medical"
+    GIFT = "gift"
+    OTHER = "other"
+
+
+class TransferZone(StrEnum):
+    LOCAL = "local"
+    AFRICA = "africa"
+    INTERNATIONAL = "international"
+
+
+class TravelMode(StrEnum):
+    BUS = "bus"
+    FLIGHT = "flight"

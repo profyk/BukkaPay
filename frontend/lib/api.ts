@@ -69,11 +69,19 @@ export async function createContact(contact: any) {
   return res.json();
 }
 
-export async function transfer(fromCardId: string, toUserId: string, amount: string) {
+export interface SendMoneyOptions {
+  destinationCountryCode?: string;
+  purposeCategory?: string;
+  purposeSubcategory?: string;
+}
+
+export async function sendMoney(
+  fromCardId: string, toUserId: string, amount: string, options: SendMoneyOptions = {}
+) {
   const res = await fetch(API_BASE + "/api/transfer", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ fromCardId, toUserId, amount }),
+    body: JSON.stringify({ fromCardId, toUserId, amount, ...options }),
   });
   if (!res.ok) {
     const error = await res.json();
@@ -91,19 +99,6 @@ export async function getTransferQuote(fromCurrency: string, toCurrency: string,
   if (!res.ok) {
     const error = await res.json();
     throw new Error(error.error || "Could not get a quote");
-  }
-  return res.json();
-}
-
-export async function sendInternational(fromCardId: string, toUserId: string, toCurrency: string, amount: string) {
-  const res = await fetch(API_BASE + "/api/transfer/international", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ fromCardId, toUserId, toCurrency, amount }),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Transfer failed");
   }
   return res.json();
 }
@@ -180,6 +175,47 @@ export async function clearAllNotifications() {
     headers: await getAuthHeader(),
   });
   if (!res.ok) throw new Error("Failed to clear notifications");
+  return res.json();
+}
+
+export async function searchDepartures(params: {
+  mode: "bus" | "flight"; originCountryCode?: string; destinationCountryCode?: string; date?: string;
+}) {
+  const query = new URLSearchParams();
+  query.set("mode", params.mode);
+  if (params.originCountryCode) query.set("originCountryCode", params.originCountryCode);
+  if (params.destinationCountryCode) query.set("destinationCountryCode", params.destinationCountryCode);
+  if (params.date) query.set("date", params.date);
+  const res = await fetch(API_BASE + "/api/travel/search?" + query.toString(), { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error("Failed to search departures");
+  return res.json();
+}
+
+export async function bookTravel(payload: {
+  departureId: string; fromCardId: string; seatClass?: string;
+  passengers: { name: string; idNumber?: string; phone?: string }[];
+}) {
+  const res = await fetch(API_BASE + "/api/travel/book", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Booking failed");
+  }
+  return res.json();
+}
+
+export async function cancelTravelBooking(purchaseTransactionId: string) {
+  const res = await fetch(API_BASE + `/api/travel/bookings/${purchaseTransactionId}/cancel`, {
+    method: "POST",
+    headers: await getAuthHeader(),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Cancellation failed");
+  }
   return res.json();
 }
 

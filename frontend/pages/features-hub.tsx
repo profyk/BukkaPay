@@ -13,14 +13,13 @@ interface Feature {
 
 const features: Feature[] = [
   { iconName: "swap-horizontal",  label: "Send Money",      route: "/(screens)/send-money",      color: "#2563EB" },
-  { iconName: "globe",            label: "Send Abroad",     route: "/(screens)/send-abroad",     color: "#7C3AED" },
   { iconName: "link",             label: "Payment Links",   route: "/(screens)/payment-links",   color: "#7C3AED" },
   { iconName: "bag-handle",       label: "Purchases Hub",   route: "/(screens)/purchases-hub",   color: "#0891B2" },
   { iconName: "heart",            label: "Contributions",   route: "/(screens)/contributions",   color: "#10B981" },
   { iconName: "home",             label: "Pay Rent",        route: "/(screens)/tenant-dashboard",color: "#D97706" },
   { iconName: "bar-chart",        label: "Analytics",       route: "/(screens)/analytics",       color: "#2563EB" },
   { iconName: "chatbubble",       label: "Support Chat",    route: "/(screens)/support-chat",    color: "#EC4899" },
-  { iconName: "airplane",         label: "Travel Booking",  route: "/(screens)/travel",          color: "#0EA5E9", comingSoon: true },
+  { iconName: "airplane",         label: "Travel Booking",  route: "/(screens)/travel",          color: "#0EA5E9" },
   { iconName: "gift",             label: "Loyalty Rewards", route: "/(screens)/loyalty",         color: "#6D28D9", comingSoon: true },
   { iconName: "people",           label: "Referral Program",route: "#",                          color: "#059669", comingSoon: true },
 ];

@@ -11,6 +11,8 @@ import * as Clipboard from "expo-clipboard";
 import { useCurrency } from "../lib/CurrencyContext";
 import { convertAmount } from "../lib/currency";
 import { apiRequest, queryClient } from "../lib/queryClient";
+import { cancelTravelBooking } from "../lib/api";
+import { useToast } from "../hooks/use-toast";
 
 const PRIMARY = "#7C3AED";
 const SURFACE = "#F8F9FA";
@@ -50,11 +52,16 @@ const metadataLabels: Record<string, Record<string, string>> = {
   rental: { property_id: "Property ID", period: "Rental Period", payment_state: "Payment State" },
 };
 
-function TravelTicket({ transaction, onToggleUsed }: { transaction: any; onToggleUsed: () => void }) {
+function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
+  transaction: any; onToggleUsed: () => void; onCancel: () => void; cancelling: boolean;
+}) {
   const { currency } = useCurrency();
   const meta = transaction.metadata || {};
   const isBus = meta.ticketType === "bus";
   const isUsed = meta.ticketStatus === "used";
+  const isRefunded = transaction.status === "refunded";
+  const isPast = meta.travelDate ? new Date(meta.travelDate) < new Date(new Date().toDateString()) : false;
+  const canCancel = !isUsed && !isRefunded && !isPast;
   const passengers: any[] = meta.passengers || [];
 
   const operatorName = isBus ? (meta.operator || transaction.merchantName) : (meta.airline || transaction.merchantName);
@@ -127,7 +134,7 @@ function TravelTicket({ transaction, onToggleUsed }: { transaction: any; onToggl
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-      <View style={[t.heroBg, { backgroundColor: isUsed ? "#6B7280" : PRIMARY }]}>
+      <View style={[t.heroBg, { backgroundColor: isRefunded ? "#9CA3AF" : isUsed ? "#6B7280" : PRIMARY }]}>
         <View style={t.heroTop}>
           <View style={t.heroIcon}>
             <Ionicons name={isBus ? "bus" : "airplane"} size={28} color="#fff" />
@@ -136,8 +143,8 @@ function TravelTicket({ transaction, onToggleUsed }: { transaction: any; onToggl
             <Text style={t.heroOperator}>{operatorName}</Text>
             <Text style={t.heroClass}>{meta.seatClass}</Text>
           </View>
-          <View style={[t.usedBadge, { backgroundColor: isUsed ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.2)" }]}>
-            <Text style={t.usedBadgeText}>{isUsed ? "USED" : "UNUSED"}</Text>
+          <View style={[t.usedBadge, { backgroundColor: isUsed || isRefunded ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.2)" }]}>
+            <Text style={t.usedBadgeText}>{isRefunded ? "CANCELLED" : isUsed ? "USED" : "UNUSED"}</Text>
           </View>
         </View>
 
@@ -255,27 +262,44 @@ function TravelTicket({ transaction, onToggleUsed }: { transaction: any; onToggl
           </View>
           <View style={t.detailRow}>
             <Text style={t.detailLabel}>Status</Text>
-            <View style={[t.statusPill, { backgroundColor: isUsed ? "#F3F4F6" : "#EDE9FE" }]}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: isUsed ? MUTED : PRIMARY }}>
-                {isUsed ? "USED" : "UNUSED"}
+            <View style={[t.statusPill, { backgroundColor: isRefunded ? "#F3F4F6" : isUsed ? "#F3F4F6" : "#EDE9FE" }]}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: isRefunded || isUsed ? MUTED : PRIMARY }}>
+                {isRefunded ? "CANCELLED" : isUsed ? "USED" : "UNUSED"}
               </Text>
             </View>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[t.toggleBtn, { backgroundColor: isUsed ? "#F3F4F6" : "#EDE9FE", borderColor: isUsed ? BORDER : PRIMARY }]}
-          onPress={onToggleUsed}
-        >
-          <Ionicons
-            name={isUsed ? "refresh-outline" : "checkmark-circle-outline"}
-            size={20}
-            color={isUsed ? MUTED : PRIMARY}
-          />
-          <Text style={[t.toggleBtnText, { color: isUsed ? MUTED : PRIMARY }]}>
-            {isUsed ? "Mark as Unused" : "Mark as Used"}
-          </Text>
-        </TouchableOpacity>
+        {!isRefunded && (
+          <TouchableOpacity
+            style={[t.toggleBtn, { backgroundColor: isUsed ? "#F3F4F6" : "#EDE9FE", borderColor: isUsed ? BORDER : PRIMARY }]}
+            onPress={onToggleUsed}
+          >
+            <Ionicons
+              name={isUsed ? "refresh-outline" : "checkmark-circle-outline"}
+              size={20}
+              color={isUsed ? MUTED : PRIMARY}
+            />
+            <Text style={[t.toggleBtnText, { color: isUsed ? MUTED : PRIMARY }]}>
+              {isUsed ? "Mark as Unused" : "Mark as Used"}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {canCancel && (
+          <TouchableOpacity
+            style={[t.toggleBtn, { backgroundColor: "#FEF2F2", borderColor: "#EF4444" }]}
+            onPress={onCancel}
+            disabled={cancelling}
+          >
+            {cancelling ? <ActivityIndicator color="#EF4444" /> : (
+              <>
+                <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
+                <Text style={[t.toggleBtnText, { color: "#EF4444" }]}>Cancel Ticket & Refund</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         <View style={t.actionRow}>
           <TouchableOpacity style={t.whatsappBtn} onPress={handleWhatsApp}>
@@ -296,6 +320,7 @@ export default function PurchaseDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { currency } = useCurrency();
+  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
   const { data: transaction, isLoading, error, refetch } = useQuery<any>({
@@ -314,6 +339,19 @@ export default function PurchaseDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/purchase-transactions/${id}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/purchase-transactions"] });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => cancelTravelBooking(id as string),
+    onSuccess: () => {
+      toast({ title: "Ticket cancelled", description: "Your fare has been refunded to your wallet." });
+      queryClient.invalidateQueries({ queryKey: [`/api/purchase-transactions/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/purchase-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cards"] });
+    },
+    onError: (e: any) => {
+      toast({ title: "Could not cancel ticket", description: e.message, variant: "destructive" });
     },
   });
 
@@ -390,6 +428,8 @@ export default function PurchaseDetail() {
         <TravelTicket
           transaction={transaction}
           onToggleUsed={() => toggleUsedMutation.mutate()}
+          onCancel={() => cancelMutation.mutate()}
+          cancelling={cancelMutation.isPending}
         />
       ) : (
         <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: 32 }}>

@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
+export type WalletCurrency = "USD" | "ZAR" | "BWP" | "NGN" | "KES" | "GHS" | "EUR" | "GBP"
+
 export interface Corridor {
   id: string
-  fromCurrency: "USD" | "ZAR" | "BWP"
-  toCurrency: "USD" | "ZAR" | "BWP"
+  fromCurrency: WalletCurrency
+  toCurrency: WalletCurrency
   exchangeRate: string
   feePercentage: string
   feeFixed: string

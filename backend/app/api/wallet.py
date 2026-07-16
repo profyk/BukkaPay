@@ -8,8 +8,6 @@ from app.db.deps import get_db
 from app.schemas.wallet import (
     CreateCardRequest,
     CreateTransactionRequest,
-    InternationalTransferRequest,
-    InternationalTransferResponse,
     TransactionResponse,
     TransferQuoteRequest,
     TransferQuoteResponse,
@@ -109,8 +107,11 @@ async def transfer(
 ) -> TransferResponse:
     if not body.from_card_id or not body.to_user_id or not body.amount:
         raise ApiError("fromCardId, toUserId, and amount are required")
-    result = await wallet_service.transfer(
-        db, user_id, from_card_id=body.from_card_id, to_user_id=body.to_user_id, amount=body.amount
+    result = await wallet_service.send_money(
+        db, user_id,
+        from_card_id=body.from_card_id, to_user_id=body.to_user_id, amount=body.amount,
+        destination_country_code=body.destination_country_code,
+        purpose_category=body.purpose_category, purpose_subcategory=body.purpose_subcategory,
     )
     return TransferResponse.model_validate(result)
 
@@ -119,7 +120,10 @@ async def transfer(
 async def transfer_quote(
     body: TransferQuoteRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> TransferQuoteResponse:
-    result = await fx_service.quote(db, body.from_currency, body.to_currency, body.amount)
+    if body.from_currency == body.to_currency:
+        result = await wallet_service.quote_local(body.from_currency, body.amount)
+    else:
+        result = await fx_service.quote(db, body.from_currency, body.to_currency, body.amount)
     return TransferQuoteResponse.model_validate({
         "source_amount": result["source_amount"],
         "source_currency": body.from_currency,
@@ -128,17 +132,3 @@ async def transfer_quote(
         "destination_amount": result["destination_amount"],
         "destination_currency": body.to_currency,
     })
-
-
-@router.post("/transfer/international", dependencies=[Depends(rate_limit("payment", 30, 60))])
-async def international_transfer(
-    body: InternationalTransferRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
-) -> InternationalTransferResponse:
-    if not body.from_card_id or not body.to_user_id or not body.to_currency or not body.amount:
-        raise ApiError("fromCardId, toUserId, toCurrency, and amount are required")
-    result = await wallet_service.international_transfer(
-        db, user_id,
-        from_card_id=body.from_card_id, to_user_id=body.to_user_id,
-        to_currency=body.to_currency, amount=body.amount,
-    )
-    return InternationalTransferResponse.model_validate(result)

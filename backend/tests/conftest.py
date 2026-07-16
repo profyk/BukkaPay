@@ -47,23 +47,26 @@ async def _create_schema():
 
 
 async def _seed_corridors(engine):
-    """Mirrors the seed data inserted by the 0005 migration, since tests
-    build schema from the ORM models directly rather than replaying
+    """Mirrors the seed data inserted by the 0005 + 0008 migrations, since
+    tests build schema from the ORM models directly rather than replaying
     migrations."""
     from sqlalchemy import insert
     from app.models.wallet import CurrencyCorridor
 
-    seed = [
-        ("USD", "ZAR", "18.200000"), ("ZAR", "USD", "0.054945"),
-        ("USD", "BWP", "13.500000"), ("BWP", "USD", "0.074074"),
-        ("ZAR", "BWP", "0.741758"), ("BWP", "ZAR", "1.348148"),
-    ]
+    usd_rate = {
+        "USD": 1.0, "ZAR": 18.2, "BWP": 13.5,
+        "NGN": 1550.0, "KES": 129.0, "GHS": 15.5, "EUR": 0.92, "GBP": 0.79,
+    }
     async with engine.begin() as conn:
-        for from_cur, to_cur, rate in seed:
-            await conn.execute(insert(CurrencyCorridor).values(
-                from_currency=from_cur, to_currency=to_cur, exchange_rate=rate,
-                fee_percentage="1.0", fee_fixed="0",
-            ))
+        for from_cur in usd_rate:
+            for to_cur in usd_rate:
+                if from_cur == to_cur:
+                    continue
+                rate = usd_rate[to_cur] / usd_rate[from_cur]
+                await conn.execute(insert(CurrencyCorridor).values(
+                    from_currency=from_cur, to_currency=to_cur, exchange_rate=f"{rate:.6f}",
+                    fee_percentage="1.0", fee_fixed="0",
+                ))
 
 
 @pytest_asyncio.fixture

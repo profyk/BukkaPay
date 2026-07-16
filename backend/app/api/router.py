@@ -22,6 +22,7 @@ from app.api import (
     purchase_transaction,
     rental,
     stitch,
+    travel,
     upload,
     wallet,
     webauthn,
@@ -45,10 +46,12 @@ api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
 api_router.include_router(stitch.router)
 api_router.include_router(kyc.router)
+api_router.include_router(travel.router)
 
 from app.api.admin import auth as admin_auth
 from app.api.admin import finance as admin_finance
 from app.api.admin import platform as admin_platform
+from app.api.admin import travel as admin_travel
 from app.api.admin import users as admin_users
 
 admin_router = APIRouter(prefix="/api/admin")
@@ -56,3 +59,4 @@ admin_router.include_router(admin_auth.router)
 admin_router.include_router(admin_users.router)
 admin_router.include_router(admin_finance.router)
 admin_router.include_router(admin_platform.router)
+admin_router.include_router(admin_travel.router)

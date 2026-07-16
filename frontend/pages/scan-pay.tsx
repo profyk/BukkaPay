@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
-import { transfer, fetchCards } from "../lib/api";
+import { sendMoney, fetchCards } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import { getCountries, getBanksByCountry } from "../lib/banksData";
 import { useCurrency } from "../lib/CurrencyContext";
@@ -88,11 +88,11 @@ export default function SendMoney() {
     setLoading(true);
     try {
       if (paymentMethod === "qr") {
-        await transfer(selectedCard, recipientData?.userId || recipientData?.id, amount);
+        await sendMoney(selectedCard, recipientData?.userId || recipientData?.id, amount);
       } else if (paymentMethod === "bukka" || paymentMethod === "mobile") {
-        await transfer(selectedCard, recipientData.id, amount);
+        await sendMoney(selectedCard, recipientData.id, amount);
       } else if (paymentMethod === "bank") {
-        await transfer(selectedCard, recipientData.accountNumber, amount);
+        await sendMoney(selectedCard, recipientData.accountNumber, amount);
       }
 
       setStage("success");

@@ -152,6 +152,10 @@ class AdminTransactionRow(CamelModel):
     amount: MoneyStr
     type: str
     icon: str
+    purpose_category: str | None = None
+    purpose_subcategory: str | None = None
+    destination_country_code: str | None = None
+    destination_zone: str | None = None
     created_at: JsDateTime
     user: TransactionUserSummary
 
@@ -328,6 +332,10 @@ class InternationalTransferRow(CamelModel):
     exchange_rate_applied: RateStr
     fee_amount: MoneyStr
     destination_amount: MoneyStr
+    purpose_category: str | None = None
+    purpose_subcategory: str | None = None
+    destination_country_code: str | None = None
+    destination_zone: str | None = None
     created_at: JsDateTime
     sender: TransactionUserSummary
     recipient: TransactionUserSummary

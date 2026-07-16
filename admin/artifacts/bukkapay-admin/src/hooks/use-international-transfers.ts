@@ -18,6 +18,10 @@ export interface InternationalTransfer {
   exchangeRateApplied: string
   feeAmount: string
   destinationAmount: string
+  purposeCategory: string | null
+  purposeSubcategory: string | null
+  destinationCountryCode: string | null
+  destinationZone: string | null
   createdAt: string
   sender: InternationalTransferUser
   recipient: InternationalTransferUser

@@ -38,7 +38,7 @@ export default function InternationalTransfersPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
-                    {["Sender", "Recipient", "Corridor", "Sent", "Rate", "Fee", "Received", "Date"].map((h) => (
+                    {["Sender", "Recipient", "Corridor", "Zone", "Purpose", "Sent", "Rate", "Fee", "Received", "Date"].map((h) => (
                       <th key={h} className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -58,6 +58,18 @@ export default function InternationalTransfersPage() {
                         <span className="inline-flex items-center gap-1 text-xs font-bold">
                           {t.fromCurrency}<ArrowRight className="w-3 h-3 text-muted-foreground" />{t.toCurrency}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-muted font-medium capitalize">
+                          {t.destinationZone || "—"}
+                        </span>
+                        {t.destinationCountryCode && (
+                          <span className="ml-1.5 text-muted-foreground">{t.destinationCountryCode}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-xs">
+                        <p className="font-medium capitalize">{(t.purposeCategory || "—").replace(/_/g, " ")}</p>
+                        {t.purposeSubcategory && <p className="text-muted-foreground">{t.purposeSubcategory}</p>}
                       </td>
                       <td className="px-6 py-4 font-semibold">{t.fromCurrency} {t.sourceAmount}</td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">{t.exchangeRateApplied}</td>

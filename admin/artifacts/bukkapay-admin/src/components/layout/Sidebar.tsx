@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, ArrowRightLeft, LogOut,
   FlaskConical, FileCheck, ScrollText, Wallet,
   Link2, Store, Megaphone, ChevronRight,
-  ShieldCheck, Settings2, Globe2,
+  ShieldCheck, Settings2, Globe2, PlaneTakeoff, Route as RouteIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -38,6 +38,13 @@ const SECTIONS = [
       { href: "/wallets",      label: "Wallets",         icon: Wallet },
       { href: "/payment-links",label: "Payment Links",   icon: Link2 },
       { href: "/international-transfers", label: "International Transfers", icon: Globe2 },
+    ],
+  },
+  {
+    label: "Travel",
+    links: [
+      { href: "/travel-operators", label: "Operators", icon: PlaneTakeoff },
+      { href: "/travel-routes",    label: "Routes & Pricing", icon: RouteIcon },
     ],
   },
   {

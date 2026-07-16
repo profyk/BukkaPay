@@ -9,7 +9,6 @@ export default function ActionButtons() {
 
   const actions: { icon: keyof typeof Ionicons.glyphMap; label: string; href: string; color: string }[] = [
     { icon: "send",              label: "Send",    href: "/(screens)/send-money",         color: "#3B82F6" },
-    { icon: "globe",             label: "Send Abroad", href: "/(screens)/send-abroad",    color: "#7C3AED" },
     { icon: "add-circle",        label: "Top Up",  href: "/(screens)/topup",              color: "#10B981" },
     { icon: "link",              label: "Request", href: "/(screens)/create-payment-link", color: "#8B5CF6" },
     { icon: "arrow-down-circle", label: "Receive", href: "/(screens)/my-id",              color: "#F59E0B" },

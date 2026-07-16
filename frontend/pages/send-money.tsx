@@ -7,15 +7,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
-import { transfer, fetchCards, fetchContacts } from "../lib/api";
-import { useCurrency } from "../lib/CurrencyContext";
+import { sendMoney, getTransferQuote, fetchCards, fetchContacts } from "../lib/api";
+import { AFRICA_COUNTRIES, INTERNATIONAL_COUNTRIES, Country, groupByRegion } from "../lib/countries";
+import { TRANSFER_CATEGORIES, getCategory } from "../lib/categories";
+import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 
 const PRIMARY = "#7C3AED";
 const GREEN = "#10B981";
 const NUMPAD = ["1","2","3","4","5","6","7","8","9",".","0","⌫"];
 
-type Stage = "recipient" | "amount" | "confirm" | "success";
+type Stage = "recipient" | "category" | "subcategory" | "destination" | "country" | "amount" | "confirm" | "success";
+type DestinationTab = "local" | "africa" | "international";
 
 function initials(name: string) {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
@@ -24,7 +27,6 @@ function initials(name: string) {
 export default function SendMoney() {
   const router = useRouter();
   const { toast } = useToast();
-  const { currency } = useCurrency();
   const { colors, darkMode } = useTheme();
 
   const [stage, setStage] = useState<Stage>("recipient");
@@ -32,8 +34,17 @@ export default function SendMoney() {
   const [search, setSearch] = useState("");
   const [manualId, setManualId] = useState("");
   const [recipient, setRecipient] = useState<{ name: string; username: string; color?: string } | null>(null);
+
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [subcategory, setSubcategory] = useState<string | null>(null);
+
+  const [destinationTab, setDestinationTab] = useState<DestinationTab | null>(null);
+  const [country, setCountry] = useState<Country | null>(null);
+
   const [amount, setAmount] = useState("0");
   const [selectedCardId, setSelectedCardId] = useState("");
+  const [quote, setQuote] = useState<any>(null);
+  const [quoting, setQuoting] = useState(false);
   const [sending, setSending] = useState(false);
 
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
@@ -59,17 +70,11 @@ export default function SendMoney() {
     : (contacts as any[]);
 
   const selectedCard = (cards as any[]).find(c => c.id === selectedCardId);
-
-  const handleNumpad = (key: string) => {
-    if (key === "⌫") { setAmount(p => p.length <= 1 ? "0" : p.slice(0, -1)); return; }
-    if (key === ".") { if (!amount.includes(".")) setAmount(p => p + "."); return; }
-    if (amount.includes(".") && amount.split(".")[1]?.length >= 2) return;
-    setAmount(p => p === "0" ? key : p + key);
-  };
+  const destinationCurrency = destinationTab === "local" || !country ? selectedCard?.currency : country.currency;
 
   const handleSelectContact = (contact: any) => {
     setRecipient({ name: contact.name, username: contact.username, color: contact.color });
-    setStage("amount");
+    setStage("category");
   };
 
   const handleManualContinue = () => {
@@ -78,22 +83,64 @@ export default function SendMoney() {
       return;
     }
     setRecipient({ name: manualId, username: manualId.replace("@", "") });
+    setStage("category");
+  };
+
+  const handleSelectCategory = (id: string) => {
+    setCategoryId(id);
+    setSubcategory(null);
+    const cat = getCategory(id);
+    setStage(cat && cat.subcategories.length > 0 ? "subcategory" : "destination");
+  };
+
+  const handleSelectDestinationTab = (t: DestinationTab) => {
+    setDestinationTab(t);
+    if (t === "local") {
+      setCountry(null);
+      setStage("amount");
+    } else {
+      setStage("country");
+    }
+  };
+
+  const handleSelectCountry = (c: Country) => {
+    setCountry(c);
     setStage("amount");
   };
 
-  const handleAmountContinue = () => {
-    if (parseFloat(amount) <= 0) {
+  const handleNumpad = (key: string) => {
+    if (key === "⌫") { setAmount(p => p.length <= 1 ? "0" : p.slice(0, -1)); return; }
+    if (key === ".") { if (!amount.includes(".")) setAmount(p => p + "."); return; }
+    if (amount.includes(".") && amount.split(".")[1]?.length >= 2) return;
+    setAmount(p => p === "0" ? key : p + key);
+  };
+
+  const handleReviewQuote = async () => {
+    if (!selectedCard || parseFloat(amount) <= 0) {
       toast({ title: "Enter an amount", variant: "destructive" });
       return;
     }
-    setStage("confirm");
+    setQuoting(true);
+    try {
+      const q = await getTransferQuote(selectedCard.currency, destinationCurrency, amount);
+      setQuote(q);
+      setStage("confirm");
+    } catch (e: any) {
+      toast({ title: "Could not get a quote", description: e.message, variant: "destructive" });
+    } finally {
+      setQuoting(false);
+    }
   };
 
   const handleSend = async () => {
     if (!recipient || !selectedCardId) return;
     setSending(true);
     try {
-      await transfer(selectedCardId, recipient.username, amount);
+      await sendMoney(selectedCardId, recipient.username, amount, {
+        destinationCountryCode: country?.code,
+        purposeCategory: categoryId || undefined,
+        purposeSubcategory: subcategory || undefined,
+      });
       setStage("success");
     } catch (e: any) {
       toast({ title: "Transfer failed", description: e.message, variant: "destructive" });
@@ -102,17 +149,21 @@ export default function SendMoney() {
     }
   };
 
+  const header = (title: string, onBack: () => void) => (
+    <View style={[s.headerBanner, { backgroundColor: PRIMARY }]}>
+      <TouchableOpacity onPress={onBack} style={s.backBtn}>
+        <Ionicons name="arrow-back" size={24} color="#fff" />
+      </TouchableOpacity>
+      <Text style={s.headerTitle}>{title}</Text>
+      <View style={{ width: 40 }} />
+    </View>
+  );
+
   // ── Recipient ──────────────────────────────────────────────────────────────
   if (stage === "recipient") {
     return (
       <View style={[s.container, { backgroundColor: colors.background }]}>
-        <View style={[s.headerBanner, { backgroundColor: PRIMARY }]}>
-          <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Send Money</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        {header("Send Money", () => router.back())}
 
         <View style={[s.tabRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           {(["contacts", "id"] as const).map(t => (
@@ -198,9 +249,9 @@ export default function SendMoney() {
               <View style={[s.idIconWrap, { backgroundColor: colors.primaryLight }]}>
                 <Ionicons name="wallet-outline" size={32} color={PRIMARY} />
               </View>
-              <Text style={[s.idCardTitle, { color: colors.text }]}>Send to Wallet ID</Text>
+              <Text style={[s.idCardTitle, { color: colors.text }]}>Send to BKP ID</Text>
               <Text style={[s.idCardSub, { color: colors.textMuted }]}>
-                Enter the BukkaPay username or wallet ID of the person you want to pay
+                Enter the BukkaPay username or wallet ID (BKP ID) of the person you want to pay
               </Text>
               <TextInput
                 style={[s.idInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -233,33 +284,146 @@ export default function SendMoney() {
     );
   }
 
+  // ── Category ───────────────────────────────────────────────────────────────
+  if (stage === "category") {
+    return (
+      <View style={[s.container, { backgroundColor: colors.background }]}>
+        {header("What's this for?", () => setStage("recipient"))}
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 10 }}>
+          {TRANSFER_CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[s.categoryRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => handleSelectCategory(cat.id)}
+              activeOpacity={0.75}
+            >
+              <View style={[s.categoryIcon, { backgroundColor: colors.primaryLight }]}>
+                <Ionicons name={cat.icon as any} size={20} color={PRIMARY} />
+              </View>
+              <Text style={[s.categoryLabel, { color: colors.text }]}>{cat.label}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Sub-category ─────────────────────────────────────────────────────────────
+  if (stage === "subcategory") {
+    const cat = getCategory(categoryId || "");
+    return (
+      <View style={[s.container, { backgroundColor: colors.background }]}>
+        {header(cat?.label || "Details", () => setStage("category"))}
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 10 }}>
+          {(cat?.subcategories || []).map((sub) => (
+            <TouchableOpacity
+              key={sub}
+              style={[s.categoryRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => { setSubcategory(sub); setStage("destination"); }}
+              activeOpacity={0.75}
+            >
+              <Text style={[s.categoryLabel, { color: colors.text, marginLeft: 0 }]}>{sub}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Destination (Local / Africa / International) ────────────────────────────
+  if (stage === "destination") {
+    const options: { id: DestinationTab; label: string; sub: string; icon: string }[] = [
+      { id: "local", label: "Local", sub: `Send instantly in ${selectedCard?.currency || "your currency"}`, icon: "home-outline" },
+      { id: "africa", label: "Africa", sub: "Send to any BukkaPay user across Africa", icon: "earth-outline" },
+      { id: "international", label: "International", sub: "Send worldwide, wherever BukkaPay is used", icon: "globe-outline" },
+    ];
+    return (
+      <View style={[s.container, { backgroundColor: colors.background }]}>
+        {header("Send Money", () => setStage(getCategory(categoryId || "")?.subcategories.length ? "subcategory" : "category"))}
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+          <Text style={[s.sectionLabel, { color: colors.text }]}>Where's the recipient?</Text>
+          {options.map((opt) => (
+            <TouchableOpacity
+              key={opt.id}
+              style={[s.destinationCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => handleSelectDestinationTab(opt.id)}
+              activeOpacity={0.75}
+            >
+              <View style={[s.categoryIcon, { backgroundColor: colors.primaryLight }]}>
+                <Ionicons name={opt.icon as any} size={22} color={PRIMARY} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.destinationTitle, { color: colors.text }]}>{opt.label}</Text>
+                <Text style={[s.destinationSub, { color: colors.textMuted }]}>{opt.sub}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Country picker (Africa / International) ──────────────────────────────────
+  if (stage === "country") {
+    const list = destinationTab === "africa" ? AFRICA_COUNTRIES : INTERNATIONAL_COUNTRIES;
+    const grouped = destinationTab === "international" ? groupByRegion(list) : [{ region: "Africa", countries: list }];
+    return (
+      <View style={[s.container, { backgroundColor: colors.background }]}>
+        {header(destinationTab === "africa" ? "Africa" : "International", () => setStage("destination"))}
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
+          {grouped.map((g) => (
+            <View key={g.region}>
+              {destinationTab === "international" && (
+                <Text style={[s.sectionLabel, { color: colors.textMuted, marginBottom: 8 }]}>{g.region}</Text>
+              )}
+              <View style={{ gap: 8 }}>
+                {g.countries.map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={[s.countryChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                    onPress={() => handleSelectCountry(c)}
+                  >
+                    <Text style={s.countryFlag}>{c.flag}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.countryName, { color: colors.text }]}>{c.name}</Text>
+                      <Text style={[s.countryCurrency, { color: colors.textMuted }]}>Wallet in {c.currency}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
   // ── Amount ─────────────────────────────────────────────────────────────────
   if (stage === "amount") {
     return (
       <View style={[s.container, { backgroundColor: colors.background }]}>
-        <View style={[s.headerBanner, { backgroundColor: PRIMARY }]}>
-          <TouchableOpacity onPress={() => setStage("recipient")} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Enter Amount</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        {header("Enter Amount", () => setStage(destinationTab === "local" ? "destination" : "country"))}
 
-        {/* Recipient pill */}
         <View style={[s.recipientPill, { backgroundColor: colors.primaryLight }]}>
           <View style={[s.pillAvatar, { backgroundColor: recipient?.color || PRIMARY }]}>
             <Text style={s.pillAvatarText}>{initials(recipient?.name || "?")}</Text>
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[s.pillName, { color: colors.text }]}>{recipient?.name}</Text>
-            <Text style={[s.pillUsername, { color: colors.textMuted }]}>@{recipient?.username}</Text>
+            <Text style={[s.pillUsername, { color: colors.textMuted }]}>
+              {country ? `${country.flag} ${country.name} · ` : "Local · "}
+              {selectedCard?.currency}{destinationCurrency && destinationCurrency !== selectedCard?.currency ? ` → ${destinationCurrency}` : ""}
+            </Text>
           </View>
-          <TouchableOpacity onPress={() => setStage("recipient")} style={s.pillChange}>
+          <TouchableOpacity onPress={() => setStage(destinationTab === "local" ? "destination" : "country")}>
             <Text style={[s.pillChangeText, { color: PRIMARY }]}>Change</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Card selector */}
         {cardsLoading ? (
           <ActivityIndicator color={PRIMARY} style={{ marginTop: 12 }} />
         ) : (cards as any[]).length > 1 ? (
@@ -282,18 +446,16 @@ export default function SendMoney() {
           <View style={[s.singleCard, { backgroundColor: colors.surface }]}>
             <Ionicons name="card-outline" size={15} color={PRIMARY} />
             <Text style={[s.singleCardText, { color: colors.textSecondary }]}>
-              {selectedCard.title} · Balance {currency.symbol}{parseFloat(selectedCard.balance).toFixed(2)}
+              {selectedCard.title} · Balance {getCurrency(selectedCard.currency).symbol}{parseFloat(selectedCard.balance).toFixed(2)}
             </Text>
           </View>
         ) : null}
 
-        {/* Amount display */}
         <View style={s.amountDisplay}>
-          <Text style={[s.amountSym, { color: PRIMARY }]}>{currency.symbol}</Text>
+          <Text style={[s.amountSym, { color: PRIMARY }]}>{getCurrency(selectedCard?.currency).symbol}</Text>
           <Text style={[s.amountVal, { color: colors.text }]}>{amount}</Text>
         </View>
 
-        {/* Numpad */}
         <View style={s.numpad}>
           {NUMPAD.map(key => (
             <TouchableOpacity
@@ -311,12 +473,16 @@ export default function SendMoney() {
 
         <View style={[s.amountFooter, { backgroundColor: colors.background }]}>
           <TouchableOpacity
-            style={[s.continueBtn, (parseFloat(amount) <= 0 || !selectedCardId) && { opacity: 0.4 }]}
-            onPress={handleAmountContinue}
-            disabled={parseFloat(amount) <= 0 || !selectedCardId}
+            style={[s.continueBtn, (parseFloat(amount) <= 0 || !selectedCardId || quoting) && { opacity: 0.4 }]}
+            onPress={handleReviewQuote}
+            disabled={parseFloat(amount) <= 0 || !selectedCardId || quoting}
           >
-            <Text style={s.continueBtnText}>Review Payment</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            {quoting ? <ActivityIndicator color="#fff" /> : (
+              <>
+                <Text style={s.continueBtnText}>Review Payment</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -324,22 +490,18 @@ export default function SendMoney() {
   }
 
   // ── Confirm ────────────────────────────────────────────────────────────────
-  if (stage === "confirm") {
+  if (stage === "confirm" && quote) {
+    const sameCurrency = quote.sourceCurrency === quote.destinationCurrency;
     return (
       <View style={[s.container, { backgroundColor: colors.background }]}>
-        <View style={[s.headerBanner, { backgroundColor: PRIMARY }]}>
-          <TouchableOpacity onPress={() => setStage("amount")} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Confirm Payment</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        {header("Confirm Payment", () => setStage("amount"))}
 
         <ScrollView contentContainerStyle={s.confirmContent}>
-          {/* Big amount card */}
           <View style={[s.confirmCard, { backgroundColor: colors.card }]}>
-            <Text style={[s.confirmAmountLabel, { color: colors.textMuted }]}>You're sending</Text>
-            <Text style={[s.confirmAmount, { color: PRIMARY }]}>{currency.symbol}{amount}</Text>
+            <Text style={[s.confirmAmountLabel, { color: colors.textMuted }]}>Recipient gets</Text>
+            <Text style={[s.confirmAmount, { color: PRIMARY }]}>
+              {getCurrency(quote.destinationCurrency).symbol}{quote.destinationAmount}
+            </Text>
 
             <View style={[s.confirmDivider, { backgroundColor: colors.divider }]} />
 
@@ -349,22 +511,42 @@ export default function SendMoney() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.confirmRecipientName, { color: colors.text }]}>{recipient?.name}</Text>
-                <Text style={[s.confirmRecipientSub, { color: colors.textMuted }]}>@{recipient?.username} · BukkaPay Wallet</Text>
+                <Text style={[s.confirmRecipientSub, { color: colors.textMuted }]}>
+                  {country ? `${country.flag} ${country.name}` : "Local · BukkaPay Wallet"}
+                </Text>
               </View>
             </View>
 
             <View style={[s.confirmDivider, { backgroundColor: colors.divider }]} />
 
+            {(categoryId || subcategory) && (
+              <View style={s.confirmRow}>
+                <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Purpose</Text>
+                <Text style={[s.confirmValue, { color: colors.text }]}>
+                  {getCategory(categoryId || "")?.label}{subcategory ? ` · ${subcategory}` : ""}
+                </Text>
+              </View>
+            )}
             <View style={s.confirmRow}>
-              <Text style={[s.confirmLabel, { color: colors.textMuted }]}>From card</Text>
-              <Text style={[s.confirmValue, { color: colors.text }]}>{selectedCard?.title}</Text>
-            </View>
-            <View style={s.confirmRow}>
-              <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Available</Text>
+              <Text style={[s.confirmLabel, { color: colors.textMuted }]}>You send</Text>
               <Text style={[s.confirmValue, { color: colors.text }]}>
-                {currency.symbol}{parseFloat(selectedCard?.balance || "0").toFixed(2)}
+                {getCurrency(quote.sourceCurrency).symbol}{quote.sourceAmount} {quote.sourceCurrency}
               </Text>
             </View>
+            <View style={s.confirmRow}>
+              <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Transfer fee</Text>
+              <Text style={[s.confirmValue, { color: colors.text }]}>
+                {getCurrency(quote.sourceCurrency).symbol}{quote.fee} {quote.sourceCurrency}
+              </Text>
+            </View>
+            {!sameCurrency && (
+              <View style={s.confirmRow}>
+                <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Exchange rate</Text>
+                <Text style={[s.confirmValue, { color: colors.text }]}>
+                  1 {quote.sourceCurrency} = {parseFloat(quote.exchangeRate).toFixed(4)} {quote.destinationCurrency}
+                </Text>
+              </View>
+            )}
             <View style={s.confirmRow}>
               <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Arrives</Text>
               <Text style={[s.confirmValue, { color: GREEN }]}>Instantly</Text>
@@ -387,7 +569,7 @@ export default function SendMoney() {
               ? <ActivityIndicator color="#fff" />
               : <>
                   <Ionicons name="send" size={20} color="#fff" />
-                  <Text style={s.sendBtnText}>Send {currency.symbol}{amount}</Text>
+                  <Text style={s.sendBtnText}>Send {getCurrency(quote.sourceCurrency).symbol}{quote.sourceAmount}</Text>
                 </>}
           </TouchableOpacity>
 
@@ -407,7 +589,9 @@ export default function SendMoney() {
           <Ionicons name="checkmark" size={52} color="#fff" />
         </View>
         <Text style={[s.successTitle, { color: colors.text }]}>Sent!</Text>
-        <Text style={[s.successAmount, { color: PRIMARY }]}>{currency.symbol}{amount}</Text>
+        <Text style={[s.successAmount, { color: PRIMARY }]}>
+          {quote ? `${getCurrency(quote.sourceCurrency).symbol}${quote.sourceAmount}` : ""}
+        </Text>
         <Text style={[s.successTo, { color: colors.textMuted }]}>sent to {recipient?.name}</Text>
 
         <TouchableOpacity style={s.doneBtn} onPress={() => router.push("/(tabs)" as any)}>
@@ -486,6 +670,30 @@ const s = StyleSheet.create({
   },
   securityText: { fontSize: 13, fontWeight: "500" },
 
+  sectionLabel: { fontSize: 15, fontWeight: "700" },
+
+  categoryRow: {
+    flexDirection: "row", alignItems: "center", gap: 12, padding: 16,
+    borderRadius: 16, borderWidth: 1.5,
+  },
+  categoryIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  categoryLabel: { flex: 1, fontSize: 15, fontWeight: "600", marginLeft: 2 },
+
+  destinationCard: {
+    flexDirection: "row", alignItems: "center", gap: 14, padding: 16,
+    borderRadius: 16, borderWidth: 1.5,
+  },
+  destinationTitle: { fontSize: 16, fontWeight: "700" },
+  destinationSub: { fontSize: 12, marginTop: 3 },
+
+  countryChip: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderRadius: 14, borderWidth: 1.5, padding: 12,
+  },
+  countryFlag: { fontSize: 24 },
+  countryName: { fontSize: 14, fontWeight: "700" },
+  countryCurrency: { fontSize: 11, marginTop: 2 },
+
   recipientPill: {
     flexDirection: "row", alignItems: "center", gap: 10,
     marginHorizontal: 16, marginTop: 12, marginBottom: 4,
@@ -495,7 +703,6 @@ const s = StyleSheet.create({
   pillAvatarText: { fontSize: 13, fontWeight: "700", color: "#fff" },
   pillName: { fontSize: 14, fontWeight: "700" },
   pillUsername: { fontSize: 12 },
-  pillChange: { marginLeft: "auto" },
   pillChangeText: { fontSize: 13, fontWeight: "700" },
 
   cardScroll: { marginTop: 8 },

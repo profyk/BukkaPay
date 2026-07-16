@@ -100,16 +100,6 @@ export default function Wallet() {
 
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => router.push("/(screens)/send-abroad" as any)}
-          >
-            <View style={styles.actionIcon}>
-              <Ionicons name="globe-outline" size={18} color="#7C3AED" />
-            </View>
-            <Text style={styles.actionLabel}>Send Abroad</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
             onPress={() => router.push("/(screens)/request" as any)}
           >
             <View style={styles.actionIcon}>

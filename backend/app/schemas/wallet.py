@@ -43,6 +43,10 @@ class TransactionResponse(CamelModel):
     icon: str
     exchange_rate: OptionalRateStr = None
     fee_amount: OptionalMoneyStr = None
+    purpose_category: str | None = None
+    purpose_subcategory: str | None = None
+    destination_country_code: str | None = None
+    destination_zone: str | None = None
     created_at: JsDateTime
 
 
@@ -59,6 +63,9 @@ class TransferRequest(CamelModel):
     from_card_id: str
     to_user_id: str
     amount: str
+    destination_country_code: str | None = None
+    purpose_category: str | None = None
+    purpose_subcategory: str | None = None
 
 
 class TransferRecipient(CamelModel):
@@ -68,9 +75,15 @@ class TransferRecipient(CamelModel):
 
 class TransferResponse(CamelModel):
     success: bool
-    amount: str
+    source_amount: str
+    source_currency: str
+    fee: str
+    exchange_rate: str
+    destination_amount: str
+    destination_currency: str
     recipient: TransferRecipient
     new_balance: str
+    destination_zone: str
 
 
 class TransferQuoteRequest(CamelModel):
@@ -86,22 +99,3 @@ class TransferQuoteResponse(CamelModel):
     fee: MoneyStr
     destination_amount: MoneyStr
     destination_currency: str
-
-
-class InternationalTransferRequest(CamelModel):
-    from_card_id: str
-    to_user_id: str
-    to_currency: str
-    amount: str
-
-
-class InternationalTransferResponse(CamelModel):
-    success: bool
-    source_amount: str
-    source_currency: str
-    fee: str
-    exchange_rate: str
-    destination_amount: str
-    destination_currency: str
-    recipient: TransferRecipient
-    new_balance: str
