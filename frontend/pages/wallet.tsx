@@ -17,7 +17,7 @@ const cardColors: Array<"blue" | "gold" | "black" | "purple"> = ["blue", "gold",
 
 export default function Wallet() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, darkMode } = useTheme();
   const { toast } = useToast();
   const [userName, setUserName] = useState("Card Holder");
 
@@ -147,7 +147,7 @@ export default function Wallet() {
                 {getCurrency(card.currency).symbol}{Number(card.balance).toFixed(2)}
               </Text>
               {card.frozen && (
-                <View style={styles.frozenBadge}>
+                <View style={[styles.frozenBadge, { backgroundColor: darkMode ? "rgba(59,130,246,0.2)" : "#EFF6FF" }]}>
                   <Ionicons name="snow-outline" size={11} color="#3B82F6" />
                   <Text style={styles.frozenText}>Frozen</Text>
                 </View>

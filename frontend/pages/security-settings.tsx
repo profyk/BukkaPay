@@ -4,10 +4,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function SecuritySettings() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [transactionPinEnabled, setTransactionPinEnabled] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
@@ -83,12 +85,12 @@ export default function SecuritySettings() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={20} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Security Settings</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Security Settings</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -100,102 +102,102 @@ export default function SecuritySettings() {
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>AUTHENTICATION</Text>
-      <View style={styles.settingsCard}>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>AUTHENTICATION</Text>
+      <View style={[styles.settingsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.settingRow}>
-          <Ionicons name="phone-portrait" size={20} color="#7C3AED" />
+          <Ionicons name="phone-portrait" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
-            <Text style={styles.settingTitle}>Two-Factor Authentication</Text>
-            <Text style={styles.settingDesc}>Extra security for your account</Text>
+            <Text style={[styles.settingTitle, { color: colors.text }]}>Two-Factor Authentication</Text>
+            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Extra security for your account</Text>
           </View>
           <Switch
             value={twoFactorEnabled}
             onValueChange={handle2FAToggle}
-            trackColor={{ false: "#E5E7EB", true: "#7C3AED" }}
+            trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor="#FFFFFF"
           />
         </View>
 
-        <View style={styles.settingDivider} />
+        <View style={[styles.settingDivider, { backgroundColor: colors.divider }]} />
 
         <View style={styles.settingRow}>
-          <Ionicons name="finger-print" size={20} color="#7C3AED" />
+          <Ionicons name="finger-print" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
-            <Text style={styles.settingTitle}>Transaction PIN</Text>
-            <Text style={styles.settingDesc}>Require PIN for all payments</Text>
+            <Text style={[styles.settingTitle, { color: colors.text }]}>Transaction PIN</Text>
+            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Require PIN for all payments</Text>
           </View>
           <Switch
             value={transactionPinEnabled}
             onValueChange={handleTransactionPinToggle}
-            trackColor={{ false: "#E5E7EB", true: "#7C3AED" }}
+            trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor="#FFFFFF"
           />
         </View>
 
-        <View style={styles.settingDivider} />
+        <View style={[styles.settingDivider, { backgroundColor: colors.divider }]} />
 
         <View style={styles.settingRow}>
-          <Ionicons name="warning" size={20} color="#7C3AED" />
+          <Ionicons name="warning" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
-            <Text style={styles.settingTitle}>Login Alerts</Text>
-            <Text style={styles.settingDesc}>Get notified of new logins</Text>
+            <Text style={[styles.settingTitle, { color: colors.text }]}>Login Alerts</Text>
+            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Get notified of new logins</Text>
           </View>
           <Switch
             value={loginAlerts}
             onValueChange={handleLoginAlertsToggle}
-            trackColor={{ false: "#E5E7EB", true: "#7C3AED" }}
+            trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor="#FFFFFF"
           />
         </View>
 
-        <View style={styles.settingDivider} />
+        <View style={[styles.settingDivider, { backgroundColor: colors.divider }]} />
 
         <TouchableOpacity onPress={() => setShowPinModal(true)} style={styles.settingRow}>
-          <Ionicons name="lock-closed" size={20} color="#7C3AED" />
+          <Ionicons name="lock-closed" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
-            <Text style={styles.settingTitle}>Change PIN</Text>
-            <Text style={styles.settingDesc}>Update your wallet PIN</Text>
+            <Text style={[styles.settingTitle, { color: colors.text }]}>Change PIN</Text>
+            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Update your wallet PIN</Text>
           </View>
-          <Ionicons name="key" size={18} color="#6B7280" />
+          <Ionicons name="key" size={18} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionLabel}>TRANSACTION LIMITS</Text>
-      <View style={styles.limitsCard}>
-        <Text style={styles.limitLabel}>Single Transaction Limit</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>TRANSACTION LIMITS</Text>
+      <View style={[styles.limitsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.limitLabel, { color: colors.text }]}>Single Transaction Limit</Text>
         <View style={styles.limitInputRow}>
-          <Text style={styles.dollarSign}>$</Text>
+          <Text style={[styles.dollarSign, { color: colors.textMuted }]}>$</Text>
           <TextInput
             value={transactionLimit}
             onChangeText={setTransactionLimit}
             keyboardType="numeric"
             placeholder="1000"
-            placeholderTextColor="#6B7280"
-            style={styles.limitInput}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.limitInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]}
           />
         </View>
-        <Text style={styles.limitHint}>Maximum amount per transaction</Text>
+        <Text style={[styles.limitHint, { color: colors.textMuted }]}>Maximum amount per transaction</Text>
 
-        <Text style={[styles.limitLabel, { marginTop: 16 }]}>Daily Spending Limit</Text>
+        <Text style={[styles.limitLabel, { color: colors.text, marginTop: 16 }]}>Daily Spending Limit</Text>
         <View style={styles.limitInputRow}>
-          <Text style={styles.dollarSign}>$</Text>
+          <Text style={[styles.dollarSign, { color: colors.textMuted }]}>$</Text>
           <TextInput
             value={dailyLimit}
             onChangeText={setDailyLimit}
             keyboardType="numeric"
             placeholder="5000"
-            placeholderTextColor="#6B7280"
-            style={styles.limitInput}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.limitInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]}
           />
         </View>
-        <Text style={styles.limitHint}>Maximum daily spending</Text>
+        <Text style={[styles.limitHint, { color: colors.textMuted }]}>Maximum daily spending</Text>
 
         <TouchableOpacity onPress={handleSaveLimits} style={styles.saveLimitsButton}>
           <Text style={styles.saveLimitsButtonText}>Save Limits</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionLabel}>SECURITY TIPS</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>SECURITY TIPS</Text>
       <View style={styles.tipsBox}>
         <Ionicons name="shield" size={20} color="#D97706" style={{ marginTop: 2 }} />
         <View style={{ marginLeft: 12, flex: 1 }}>
@@ -209,55 +211,55 @@ export default function SecuritySettings() {
 
       <Modal visible={showPinModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change PIN</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Change PIN</Text>
               <TouchableOpacity onPress={() => setShowPinModal(false)}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalLabel}>Current PIN</Text>
-            <View style={styles.pinInputRow}>
+            <Text style={[styles.modalLabel, { color: colors.text }]}>Current PIN</Text>
+            <View style={[styles.pinInputRow, { borderColor: colors.border }]}>
               <TextInput
                 value={currentPin}
                 onChangeText={setCurrentPin}
                 secureTextEntry={!showCurrentPin}
                 placeholder="Enter current PIN"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={colors.textMuted}
                 maxLength={6}
-                style={styles.pinInput}
+                style={[styles.pinInput, { color: colors.text }]}
               />
               <TouchableOpacity onPress={() => setShowCurrentPin(!showCurrentPin)}>
-                <Ionicons name={showCurrentPin ? "eye-off" : "eye"} size={20} color="#6B7280" />
+                <Ionicons name={showCurrentPin ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalLabel}>New PIN</Text>
-            <View style={styles.pinInputRow}>
+            <Text style={[styles.modalLabel, { color: colors.text }]}>New PIN</Text>
+            <View style={[styles.pinInputRow, { borderColor: colors.border }]}>
               <TextInput
                 value={newPin}
                 onChangeText={setNewPin}
                 secureTextEntry={!showNewPin}
                 placeholder="Enter new PIN"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={colors.textMuted}
                 maxLength={6}
-                style={styles.pinInput}
+                style={[styles.pinInput, { color: colors.text }]}
               />
               <TouchableOpacity onPress={() => setShowNewPin(!showNewPin)}>
-                <Ionicons name={showNewPin ? "eye-off" : "eye"} size={20} color="#6B7280" />
+                <Ionicons name={showNewPin ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalLabel}>Confirm New PIN</Text>
+            <Text style={[styles.modalLabel, { color: colors.text }]}>Confirm New PIN</Text>
             <TextInput
               value={confirmPin}
               onChangeText={setConfirmPin}
               secureTextEntry
               placeholder="Confirm new PIN"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               maxLength={6}
-              style={styles.modalInput}
+              style={[styles.modalInput, { borderColor: colors.border, color: colors.text }]}
             />
 
             <TouchableOpacity onPress={handleChangePin} style={styles.updatePinButton}>

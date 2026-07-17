@@ -135,8 +135,8 @@ export default function AppBar() {
             <View style={styles.qrBrandRow}>
               <Image source={logoImage} style={styles.qrBrandLogo} />
               <View>
-                <Text style={styles.qrBrandName}>BukkaPay</Text>
-                <Text style={styles.qrBrandTag}>Payment QR Code</Text>
+                <Text style={[styles.qrBrandName, { color: colors.text }]}>BukkaPay</Text>
+                <Text style={[styles.qrBrandTag, { color: colors.textMuted }]}>Payment QR Code</Text>
               </View>
             </View>
 
@@ -157,12 +157,12 @@ export default function AppBar() {
             </View>
 
             <Text style={[styles.qrUserName, { color: colors.text }]}>{userName}</Text>
-            <View style={styles.qrBkpBadge}>
-              <Text style={styles.qrBkpLabel}>BKP</Text>
+            <View style={[styles.qrBkpBadge, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.qrBkpLabel, { color: colors.primary }]}>BKP</Text>
               <Text style={[styles.qrBkpValue, { color: colors.text }]}>{walletId || "Not available"}</Text>
             </View>
 
-            <Text style={styles.qrScanHint}>Scan to pay me instantly</Text>
+            <Text style={[styles.qrScanHint, { color: colors.textMuted }]}>Scan to pay me instantly</Text>
 
             <TouchableOpacity
               style={[styles.qrViewFullBtn, { borderColor: colors.border }]}

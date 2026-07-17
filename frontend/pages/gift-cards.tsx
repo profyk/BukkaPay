@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { apiRequest, queryClient } from "../lib/queryClient";
 import * as Clipboard from "expo-clipboard";
+import { useTheme } from "../lib/ThemeContext";
 
 interface GiftCard {
   id: string;
@@ -51,6 +52,7 @@ function GiftCardPreview({ amount, recipientName, message, design }: { amount: s
 function GiftCardItem({ card, type }: { card: GiftCard; type: "sent" | "received" }) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const { colors } = useTheme();
   const selectedDesign = designs.find(d => d.id === card.design) || designs[5];
 
   const redeemMutation = useMutation({
@@ -79,31 +81,31 @@ function GiftCardItem({ card, type }: { card: GiftCard; type: "sent" | "received
   const isExpired = card.expiresAt && new Date(card.expiresAt) < new Date();
 
   return (
-    <View style={[styles.giftItemCard, isRedeemed && { opacity: 0.6 }]}>
+    <View style={[styles.giftItemCard, { backgroundColor: colors.surface, borderColor: colors.border }, isRedeemed && { opacity: 0.6 }]}>
       <View style={[styles.giftItemStripe, { backgroundColor: selectedDesign.colors[0] }]} />
       <View style={styles.giftItemContent}>
         <View style={styles.giftItemRow}>
           <View style={{ flex: 1 }}>
             <View style={styles.giftCodeRow}>
-              <Ionicons name="gift" size={16} color="#6B7280" />
-              <Text style={styles.giftCodeText}>{card.code}</Text>
+              <Ionicons name="gift" size={16} color={colors.textMuted} />
+              <Text style={[styles.giftCodeText, { color: colors.text }]}>{card.code}</Text>
               <TouchableOpacity onPress={copyCode}>
-                <Ionicons name={copied ? "checkmark" : "copy"} size={14} color={copied ? "#10B981" : "#6B7280"} />
+                <Ionicons name={copied ? "checkmark" : "copy"} size={14} color={copied ? "#10B981" : colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.giftAmountText}>${card.amount}</Text>
-            <Text style={styles.giftRecipientText}>
+            <Text style={[styles.giftAmountText, { color: colors.text }]}>${card.amount}</Text>
+            <Text style={[styles.giftRecipientText, { color: colors.textMuted }]}>
               {type === "sent" ? `To: ${card.recipientName}` : `From: Gift`}
             </Text>
             {card.message ? (
-              <Text style={styles.giftMessageText}>"{card.message}"</Text>
+              <Text style={[styles.giftMessageText, { color: colors.textMuted }]}>"{card.message}"</Text>
             ) : null}
           </View>
 
           <View style={styles.giftItemRight}>
             {isRedeemed ? (
-              <View style={styles.statusBadgeMuted}>
-                <Text style={styles.statusBadgeMutedText}>Redeemed</Text>
+              <View style={[styles.statusBadgeMuted, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.statusBadgeMutedText, { color: colors.textMuted }]}>Redeemed</Text>
               </View>
             ) : isExpired ? (
               <View style={styles.statusBadgeDanger}>
@@ -140,6 +142,7 @@ export default function GiftCards() {
   const [message, setMessage] = useState("");
   const [design, setDesign] = useState("default");
   const { toast } = useToast();
+  const { colors } = useTheme();
 
   const { data, isLoading } = useQuery<{ sent: GiftCard[]; received: GiftCard[] }>({
     queryKey: ["/api/gift-cards"],
@@ -213,12 +216,12 @@ export default function GiftCards() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerSimple}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Gift Cards</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Gift Cards</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -227,7 +230,7 @@ export default function GiftCards() {
           <View style={styles.giftIconCircle}>
             <Ionicons name="gift" size={32} color="#FFFFFF" />
           </View>
-          <Text style={styles.subtitleText}>Send love with digital gift cards</Text>
+          <Text style={[styles.subtitleText, { color: colors.textMuted }]}>Send love with digital gift cards</Text>
         </View>
 
         <TouchableOpacity style={styles.createButton} onPress={() => setCreateModalVisible(true)}>
@@ -235,15 +238,15 @@ export default function GiftCards() {
           <Text style={styles.createButtonText}>Create Gift Card</Text>
         </TouchableOpacity>
 
-        <View style={styles.redeemCard}>
-          <Text style={styles.redeemLabel}>Redeem a Gift Card</Text>
+        <View style={[styles.redeemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.redeemLabel, { color: colors.text }]}>Redeem a Gift Card</Text>
           <View style={styles.redeemRow}>
             <TextInput
               placeholder="Enter gift card code"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={redeemCode}
               onChangeText={(text) => setRedeemCode(text.toUpperCase())}
-              style={styles.redeemInput}
+              style={[styles.redeemInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]}
               autoCapitalize="characters"
             />
             <TouchableOpacity
@@ -256,22 +259,22 @@ export default function GiftCards() {
           </View>
         </View>
 
-        <View style={styles.tabBar}>
+        <View style={[styles.tabBar, { backgroundColor: colors.surface }]}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === "sent" && styles.tabActive]}
+            style={[styles.tab, activeTab === "sent" && { backgroundColor: colors.card }]}
             onPress={() => setActiveTab("sent")}
           >
-            <Ionicons name="send" size={16} color={activeTab === "sent" ? "#7C3AED" : "#6B7280"} />
-            <Text style={[styles.tabText, activeTab === "sent" && styles.tabTextActive]}>
+            <Ionicons name="send" size={16} color={activeTab === "sent" ? colors.primary : colors.textMuted} />
+            <Text style={[styles.tabText, { color: colors.textMuted }, activeTab === "sent" && styles.tabTextActive]}>
               Sent ({data?.sent?.length || 0})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === "received" && styles.tabActive]}
+            style={[styles.tab, activeTab === "received" && { backgroundColor: colors.card }]}
             onPress={() => setActiveTab("received")}
           >
-            <Ionicons name="gift" size={16} color={activeTab === "received" ? "#7C3AED" : "#6B7280"} />
-            <Text style={[styles.tabText, activeTab === "received" && styles.tabTextActive]}>
+            <Ionicons name="gift" size={16} color={activeTab === "received" ? colors.primary : colors.textMuted} />
+            <Text style={[styles.tabText, { color: colors.textMuted }, activeTab === "received" && styles.tabTextActive]}>
               Received ({data?.received?.length || 0})
             </Text>
           </TouchableOpacity>
@@ -279,13 +282,13 @@ export default function GiftCards() {
 
         {isLoading ? (
           <View style={styles.emptyState}>
-            <ActivityIndicator color="#7C3AED" />
+            <ActivityIndicator color={colors.primary} />
           </View>
         ) : activeTab === "sent" ? (
           data?.sent?.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="gift" size={48} color="#E5E7EB" />
-              <Text style={styles.emptyText}>No gift cards sent yet</Text>
+              <Ionicons name="gift" size={48} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>No gift cards sent yet</Text>
             </View>
           ) : (
             data?.sent?.map((card) => (
@@ -295,8 +298,8 @@ export default function GiftCards() {
         ) : (
           data?.received?.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="gift" size={48} color="#E5E7EB" />
-              <Text style={styles.emptyText}>No gift cards received yet</Text>
+              <Ionicons name="gift" size={48} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>No gift cards received yet</Text>
             </View>
           ) : (
             data?.received?.map((card) => (
@@ -309,70 +312,70 @@ export default function GiftCards() {
       </View>
 
       <Modal visible={createModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.container}>
+        <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => { setCreateModalVisible(false); resetForm(); }}>
-              <Ionicons name="close" size={24} color="#1A1A2E" />
+              <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Create Gift Card</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Create Gift Card</Text>
             <View style={{ width: 24 }} />
           </View>
 
           <View style={styles.body}>
             <GiftCardPreview amount={amount} recipientName={recipientName} message={message} design={design} />
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Amount ($)</Text>
+            <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>Amount ($)</Text>
             <TextInput
               placeholder="Enter amount"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={amount}
               onChangeText={setAmount}
               keyboardType="numeric"
-              style={styles.textInput}
+              style={[styles.textInput, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
             />
             <View style={styles.presetRow}>
               {[10, 25, 50, 100, 200].map((preset) => (
                 <TouchableOpacity
                   key={preset}
-                  style={styles.presetButton}
+                  style={[styles.presetButton, { borderColor: colors.border }]}
                   onPress={() => setAmount(preset.toString())}
                 >
-                  <Text style={styles.presetText}>${preset}</Text>
+                  <Text style={[styles.presetText, { color: colors.text }]}>${preset}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Recipient Name</Text>
+            <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>Recipient Name</Text>
             <TextInput
               placeholder="Who is this for?"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={recipientName}
               onChangeText={setRecipientName}
-              style={styles.textInput}
+              style={[styles.textInput, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
             />
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Recipient Email (optional)</Text>
+            <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>Recipient Email (optional)</Text>
             <TextInput
               placeholder="Send via email"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={recipientEmail}
               onChangeText={setRecipientEmail}
               keyboardType="email-address"
-              style={styles.textInput}
+              style={[styles.textInput, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
             />
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Personal Message (optional)</Text>
+            <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>Personal Message (optional)</Text>
             <TextInput
               placeholder="Add a personal note..."
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={message}
               onChangeText={setMessage}
               multiline
               numberOfLines={2}
-              style={[styles.textInput, { height: 64, textAlignVertical: "top" }]}
+              style={[styles.textInput, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, height: 64, textAlignVertical: "top" }]}
             />
 
-            <Text style={[styles.inputLabel, { marginTop: 16 }]}>Design</Text>
+            <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>Design</Text>
             <View style={styles.designGrid}>
               {designs.map((d) => (
                 <TouchableOpacity

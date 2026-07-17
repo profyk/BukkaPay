@@ -5,12 +5,14 @@ import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { fetchContacts, createContact } from "../lib/api";
+import { useTheme } from "../lib/ThemeContext";
 
 const COLORS = ["#8B5CF6", "#EC4899", "#10B981", "#F59E0B", "#3B82F6", "#EF4444"];
 
 export default function Contacts() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
@@ -50,35 +52,35 @@ export default function Contacts() {
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Contacts</Text>
-        <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.addButton}>
-          <Ionicons name="add" size={24} color="#7C3AED" />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Contacts</Text>
+        <TouchableOpacity onPress={() => setShowAddModal(true)} style={[styles.addButton, { borderColor: colors.border }]}>
+          <Ionicons name="add" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchBox}>
-        <Ionicons name="search" size={18} color="#6B7280" style={{ marginRight: 8 }} />
+      <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
         <TextInput
           placeholder="Search contacts..."
-          placeholderTextColor="#6B7280"
+          placeholderTextColor={colors.textMuted}
           value={searchTerm}
           onChangeText={setSearchTerm}
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.text }]}
         />
       </View>
 
       {isLoading ? (
-        <ActivityIndicator size="large" color="#7C3AED" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
       ) : filteredContacts.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="people" size={48} color="#E5E7EB" />
-          <Text style={styles.emptyTitle}>{searchTerm ? "No contacts found" : "No contacts yet"}</Text>
-          <Text style={styles.emptySubtitle}>Add your first contact to get started</Text>
+          <Ionicons name="people" size={48} color={colors.border} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>{searchTerm ? "No contacts found" : "No contacts yet"}</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>Add your first contact to get started</Text>
         </View>
       ) : (
         filteredContacts.map((contact: any) => {
@@ -87,19 +89,19 @@ export default function Contacts() {
             <TouchableOpacity
               key={contact.id}
               onPress={() => router.push("/(tabs)/transfer" as any)}
-              style={styles.contactCard}
+              style={[styles.contactCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
-              <View style={[styles.avatar, { backgroundColor: contact.color || "#7C3AED" }]}>
+              <View style={[styles.avatar, { backgroundColor: contact.color || colors.primary }]}>
                 <Text style={styles.avatarText}>{initials}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.contactName}>{contact.name}</Text>
+                  <Text style={[styles.contactName, { color: colors.text }]}>{contact.name}</Text>
                   {contact.isFavorite && <Ionicons name="star" size={14} color="#F59E0B" />}
                 </View>
-                <Text style={styles.contactUsername}>@{contact.username}</Text>
+                <Text style={[styles.contactUsername, { color: colors.textMuted }]}>@{contact.username}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           );
         })
@@ -107,28 +109,28 @@ export default function Contacts() {
 
       <Modal visible={showAddModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Contact</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Add Contact</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.inputLabel}>Name *</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Name *</Text>
             <TextInput
               placeholder="Contact name"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={newName}
               onChangeText={setNewName}
-              style={styles.modalInput}
+              style={[styles.modalInput, { borderColor: colors.border, color: colors.text }]}
             />
-            <Text style={styles.inputLabel}>Username/Wallet ID *</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Username/Wallet ID *</Text>
             <TextInput
               placeholder="@username or wallet ID"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={newUsername}
               onChangeText={setNewUsername}
-              style={styles.modalInput}
+              style={[styles.modalInput, { borderColor: colors.border, color: colors.text }]}
             />
             <TouchableOpacity
               onPress={handleCreate}

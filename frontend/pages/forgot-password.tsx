@@ -4,12 +4,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { API_BASE } from "../lib/config";
+import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
 
 export default function ForgotPassword() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [resetLink, setResetLink] = useState("");
@@ -48,28 +50,28 @@ export default function ForgotPassword() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.logoRow}>
           <Image source={logoImage} style={styles.logoImage} />
         </View>
 
         {!sent ? (
           <>
-            <Text style={styles.title}>Forgot Password?</Text>
-            <Text style={styles.subtitle}>Enter your email and we'll send you instructions to reset your password</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Forgot Password?</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Enter your email and we'll send you instructions to reset your password</Text>
 
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <View style={styles.inputRow}>
-              <Ionicons name="mail" size={20} color="#6B7280" style={{ marginRight: 10 }} />
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Email Address</Text>
+            <View style={[styles.inputRow, { borderColor: colors.border }]}>
+              <Ionicons name="mail" size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
               <TextInput
                 value={email}
                 onChangeText={setEmail}
                 placeholder="you@example.com"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                style={styles.textInput}
+                style={[styles.textInput, { color: colors.text }]}
               />
             </View>
 
@@ -86,36 +88,36 @@ export default function ForgotPassword() {
             <View style={styles.successCircle}>
               <Ionicons name="checkmark-circle" size={32} color="#10B981" />
             </View>
-            <Text style={styles.sentTitle}>Check Your Email</Text>
-            <Text style={styles.sentSubtitle}>
+            <Text style={[styles.sentTitle, { color: colors.text }]}>Check Your Email</Text>
+            <Text style={[styles.sentSubtitle, { color: colors.textMuted }]}>
               We've sent password reset instructions to{" "}
-              <Text style={{ fontWeight: "700" }}>{email}</Text>
+              <Text style={{ fontWeight: "700", color: colors.text }}>{email}</Text>
             </Text>
 
             {resetLink ? (
-              <View style={styles.demoBox}>
-                <Text style={styles.demoLabel}>Demo Mode: Tap below to reset your password</Text>
+              <View style={[styles.demoBox, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.demoLabel, { color: colors.textMuted }]}>Demo Mode: Tap below to reset your password</Text>
                 <TouchableOpacity onPress={() => router.push(("/(screens)/reset-password?token=" + resetLink.split("token=")[1]) as any)}>
                   <Text style={styles.demoLink}>Reset Password Now</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
 
-            <TouchableOpacity onPress={() => { setSent(false); setEmail(""); setResetLink(""); }} style={styles.outlineButton}>
-              <Text style={styles.outlineButtonText}>Try Different Email</Text>
+            <TouchableOpacity onPress={() => { setSent(false); setEmail(""); setResetLink(""); }} style={[styles.outlineButton, { borderColor: colors.border }]}>
+              <Text style={[styles.outlineButtonText, { color: colors.text }]}>Try Different Email</Text>
             </TouchableOpacity>
           </View>
         )}
 
         <TouchableOpacity onPress={() => router.push("/(screens)/login" as any)} style={styles.backToLogin}>
-          <Ionicons name="arrow-back" size={16} color="#6B7280" style={{ marginRight: 8 }} />
-          <Text style={styles.backToLoginText}>Back to Login</Text>
+          <Ionicons name="arrow-back" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
+          <Text style={[styles.backToLoginText, { color: colors.textMuted }]}>Back to Login</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.brandRow}>
-        <Text style={styles.brandName}>BukkaPay</Text>
-        <Text style={styles.brandTagline}>The Pulse of African Finance</Text>
+        <Text style={[styles.brandName, { color: colors.text }]}>BukkaPay</Text>
+        <Text style={[styles.brandTagline, { color: colors.textMuted }]}>The Pulse of African Finance</Text>
       </View>
     </View>
   );

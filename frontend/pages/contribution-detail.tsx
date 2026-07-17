@@ -7,6 +7,7 @@ import { useToast } from "../hooks/use-toast";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
 import type { ContributionGroup, Contribution } from "../../shared/schema";
+import { useTheme } from "../lib/ThemeContext";
 
 const categories = [
   { id: "funeral", label: "Funeral", icon: "heart" as const, color: "#475569" },
@@ -20,6 +21,7 @@ const categories = [
 function ShareSection({ group }: { group: ContributionGroup }) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const { colors } = useTheme();
 
   const shareUrl = `https://bukkapay.com/contribute/${group.shareCode}`;
   const shareText = `Help contribute to "${group.title}". Every amount counts! Click here to contribute: ${shareUrl}`;
@@ -52,13 +54,13 @@ function ShareSection({ group }: { group: ContributionGroup }) {
         <Text style={styles.primaryButtonText}>Share Group</Text>
       </TouchableOpacity>
 
-      <View style={styles.shareCodeBox}>
-        <Text style={styles.shareCodeText}>{group.shareCode}</Text>
+      <View style={[styles.shareCodeBox, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.shareCodeText, { color: colors.text }]}>{group.shareCode}</Text>
       </View>
 
-      <TouchableOpacity style={styles.outlineButton} onPress={copyLink}>
-        <Ionicons name={copied ? "checkmark" : "copy"} size={16} color="#1A1A2E" style={{ marginRight: 8 }} />
-        <Text style={styles.outlineButtonText}>Copy Link</Text>
+      <TouchableOpacity style={[styles.outlineButton, { borderColor: colors.border }]} onPress={copyLink}>
+        <Ionicons name={copied ? "checkmark" : "copy"} size={16} color={colors.text} style={{ marginRight: 8 }} />
+        <Text style={[styles.outlineButtonText, { color: colors.text }]}>Copy Link</Text>
       </TouchableOpacity>
 
       <View style={styles.shareButtonRow}>
@@ -79,6 +81,7 @@ export default function ContributionDetail() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const id = (params.id as string) || "";
+  const { colors } = useTheme();
 
   const { data, isLoading, error } = useQuery<{ group: ContributionGroup; contributions: Contribution[] }>({
     queryKey: ["/api/contributions", id],
@@ -92,18 +95,18 @@ export default function ContributionDetail() {
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#7C3AED" />
-        <Text style={styles.mutedText}>Loading...</Text>
+        <Text style={[styles.mutedText, { color: colors.textMuted }]}>Loading...</Text>
       </View>
     );
   }
 
   if (error || !data) {
     return (
-      <View style={styles.centerContainer}>
-        <Ionicons name="people" size={48} color="#6B7280" />
-        <Text style={styles.errorTitle}>Group Not Found</Text>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+        <Ionicons name="people" size={48} color={colors.textMuted} />
+        <Text style={[styles.errorTitle, { color: colors.text }]}>Group Not Found</Text>
         <TouchableOpacity style={[styles.primaryButton, { marginTop: 16 }]} onPress={() => router.push("/(screens)/contributions" as any)}>
           <Text style={styles.primaryButtonText}>Back to Contributions</Text>
         </TouchableOpacity>
@@ -118,7 +121,7 @@ export default function ContributionDetail() {
     : 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
       <View style={[styles.heroHeader, { backgroundColor: categoryInfo.color }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.heroBackButton}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
@@ -151,28 +154,28 @@ export default function ContributionDetail() {
       <View style={styles.section}>
         <ShareSection group={group} />
 
-        <Text style={styles.sectionLabel}>All Contributions ({contributions.length})</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>All Contributions ({contributions.length})</Text>
 
         {contributions.length === 0 ? (
-          <View style={styles.emptyCard}>
+          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="people" size={32} color="rgba(107,114,128,0.5)" />
-            <Text style={styles.mutedText}>No contributions yet</Text>
-            <Text style={styles.mutedSmall}>Share your group to start receiving contributions</Text>
+            <Text style={[styles.mutedText, { color: colors.textMuted }]}>No contributions yet</Text>
+            <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>Share your group to start receiving contributions</Text>
           </View>
         ) : (
           contributions.map((c) => (
-            <View key={c.id} style={styles.contributionCard}>
+            <View key={c.id} style={[styles.contributionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.contributorName}>
+                <Text style={[styles.contributorName, { color: colors.text }]}>
                   {c.isAnonymous ? "Anonymous" : c.contributorName}
                 </Text>
                 {c.contributorPhone && !c.isAnonymous && (
-                  <Text style={styles.mutedSmall}>{c.contributorPhone}</Text>
+                  <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>{c.contributorPhone}</Text>
                 )}
                 {c.message && (
-                  <Text style={styles.contributionMessage}>"{c.message}"</Text>
+                  <Text style={[styles.contributionMessage, { color: colors.textMuted }]}>"{c.message}"</Text>
                 )}
-                <Text style={[styles.mutedSmall, { marginTop: 4 }]}>
+                <Text style={[styles.mutedSmall, { color: colors.textMuted, marginTop: 4 }]}>
                   {new Date(c.createdAt).toLocaleDateString()}
                 </Text>
               </View>

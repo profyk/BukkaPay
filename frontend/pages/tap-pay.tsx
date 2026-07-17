@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchCards } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTheme } from "../lib/ThemeContext";
 
 interface CardData {
   id: string;
@@ -19,6 +20,7 @@ interface CardData {
 export default function TapPay() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [step, setStep] = useState<"select" | "auth" | "ready" | "processing" | "success">("select");
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [pin, setPin] = useState("");
@@ -89,12 +91,12 @@ export default function TapPay() {
 
   if (step === "select") {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tap to Pay</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Tap to Pay</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -102,8 +104,8 @@ export default function TapPay() {
           <View style={styles.heroCircle}>
             <Ionicons name="phone-portrait" size={40} color="#FFFFFF" />
           </View>
-          <Text style={styles.selectTitle}>Select Payment Card</Text>
-          <Text style={styles.selectSubtitle}>Choose a card for contactless payment</Text>
+          <Text style={[styles.selectTitle, { color: colors.text }]}>Select Payment Card</Text>
+          <Text style={[styles.selectSubtitle, { color: colors.textMuted }]}>Choose a card for contactless payment</Text>
         </View>
 
         {mappedCards.length > 0 ? (
@@ -122,14 +124,14 @@ export default function TapPay() {
           ))
         ) : (
           <View style={styles.emptyCards}>
-            <Ionicons name="card" size={48} color="#E5E7EB" />
-            <Text style={styles.emptyCardsText}>No cards available</Text>
-            <Text style={styles.emptyCardsSubtext}>Add a card to use Tap to Pay</Text>
+            <Ionicons name="card" size={48} color={colors.border} />
+            <Text style={[styles.emptyCardsText, { color: colors.textMuted }]}>No cards available</Text>
+            <Text style={[styles.emptyCardsSubtext, { color: colors.textMuted }]}>Add a card to use Tap to Pay</Text>
           </View>
         )}
 
-        <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.cancelBtn}>
-          <Text style={styles.cancelBtnText}>Cancel</Text>
+        <TouchableOpacity onPress={() => router.push("/(tabs)")} style={[styles.cancelBtn, { borderColor: colors.border }]}>
+          <Text style={[styles.cancelBtnText, { color: colors.text }]}>Cancel</Text>
         </TouchableOpacity>
       </ScrollView>
     );
@@ -137,12 +139,12 @@ export default function TapPay() {
 
   if (step === "auth") {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header2}>
           <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Verify Identity</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Verify Identity</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -157,27 +159,27 @@ export default function TapPay() {
             </View>
           )}
 
-          <Text style={styles.pinPrompt}>Enter your 4-digit PIN</Text>
+          <Text style={[styles.pinPrompt, { color: colors.textMuted }]}>Enter your 4-digit PIN</Text>
           <View style={styles.pinDots}>
             {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={styles.pinDot}>
-                <Text style={styles.pinDotText}>{pin[i] ? "●" : "○"}</Text>
+              <View key={i} style={[styles.pinDot, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.pinDotText, { color: colors.text }]}>{pin[i] ? "●" : "○"}</Text>
               </View>
             ))}
           </View>
 
           <View style={styles.pinPad}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <TouchableOpacity key={num} onPress={() => handleNumberClick(num.toString())} style={styles.pinKey}>
-                <Text style={styles.pinKeyText}>{num}</Text>
+              <TouchableOpacity key={num} onPress={() => handleNumberClick(num.toString())} style={[styles.pinKey, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.pinKeyText, { color: colors.text }]}>{num}</Text>
               </TouchableOpacity>
             ))}
-            <View style={styles.pinKey} />
-            <TouchableOpacity onPress={() => handleNumberClick("0")} style={styles.pinKey}>
-              <Text style={styles.pinKeyText}>0</Text>
+            <View style={[styles.pinKey, { backgroundColor: colors.surface }]} />
+            <TouchableOpacity onPress={() => handleNumberClick("0")} style={[styles.pinKey, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.pinKeyText, { color: colors.text }]}>0</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleBackspace} style={styles.pinKey}>
-              <Ionicons name="backspace" size={24} color="#1A1A2E" />
+            <TouchableOpacity onPress={handleBackspace} style={[styles.pinKey, { backgroundColor: colors.surface }]}>
+              <Ionicons name="backspace" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -246,40 +248,40 @@ export default function TapPay() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.successContent}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.successContent}>
       <View style={styles.successCircle}>
         <Ionicons name="checkmark" size={48} color="#FFFFFF" />
       </View>
-      <Text style={styles.successTitle}>Payment Successful!</Text>
-      <Text style={styles.successSubtitle}>Transaction completed</Text>
+      <Text style={[styles.successTitle, { color: colors.text }]}>Payment Successful!</Text>
+      <Text style={[styles.successSubtitle, { color: colors.textMuted }]}>Transaction completed</Text>
 
-      <View style={styles.successCard}>
-        <Text style={styles.successAmountLabel}>Amount Paid</Text>
+      <View style={[styles.successCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.successAmountLabel, { color: colors.textMuted }]}>Amount Paid</Text>
         <Text style={styles.successAmount}>{amount}</Text>
-        <View style={styles.successDivider} />
+        <View style={[styles.successDivider, { backgroundColor: colors.border }]} />
         <View style={styles.successDetailRow}>
-          <Text style={styles.successDetailLabel}>Merchant</Text>
-          <Text style={styles.successDetailValue}>{storeName}</Text>
+          <Text style={[styles.successDetailLabel, { color: colors.textMuted }]}>Merchant</Text>
+          <Text style={[styles.successDetailValue, { color: colors.text }]}>{storeName}</Text>
         </View>
         <View style={styles.successDetailRow}>
-          <Text style={styles.successDetailLabel}>Card</Text>
-          <Text style={styles.successDetailValue}>{selectedCard?.title || "Payment Card"}</Text>
+          <Text style={[styles.successDetailLabel, { color: colors.textMuted }]}>Card</Text>
+          <Text style={[styles.successDetailValue, { color: colors.text }]}>{selectedCard?.title || "Payment Card"}</Text>
         </View>
         <View style={styles.successDetailRow}>
-          <Text style={styles.successDetailLabel}>Reference</Text>
-          <Text style={[styles.successDetailValue, { fontFamily: "monospace", fontSize: 12 }]}>TX-{Date.now().toString().slice(-8)}</Text>
+          <Text style={[styles.successDetailLabel, { color: colors.textMuted }]}>Reference</Text>
+          <Text style={[styles.successDetailValue, { color: colors.text, fontFamily: "monospace", fontSize: 12 }]}>TX-{Date.now().toString().slice(-8)}</Text>
         </View>
         <View style={styles.successDetailRow}>
-          <Text style={styles.successDetailLabel}>Date</Text>
-          <Text style={styles.successDetailValue}>{new Date().toLocaleDateString()}</Text>
+          <Text style={[styles.successDetailLabel, { color: colors.textMuted }]}>Date</Text>
+          <Text style={[styles.successDetailValue, { color: colors.text }]}>{new Date().toLocaleDateString()}</Text>
         </View>
       </View>
 
       <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.homeBtn}>
         <Text style={styles.homeBtnText}>Back to Home</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={resetPayment} style={styles.cancelBtn}>
-        <Text style={styles.cancelBtnText}>Make Another Payment</Text>
+      <TouchableOpacity onPress={resetPayment} style={[styles.cancelBtn, { borderColor: colors.border }]}>
+        <Text style={[styles.cancelBtnText, { color: colors.text }]}>Make Another Payment</Text>
       </TouchableOpacity>
     </ScrollView>
   );

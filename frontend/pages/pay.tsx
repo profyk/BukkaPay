@@ -5,11 +5,13 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { getCurrentUser, getAuthToken } from "../lib/auth";
 import { API_BASE } from "../lib/config";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function Pay() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [requester, setRequester] = useState<any>(null);
@@ -47,18 +49,18 @@ export default function Pay() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#7C3AED" />
-        <Text style={styles.loadingText}>Loading payment request...</Text>
+        <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading payment request...</Text>
       </View>
     );
   }
 
   if (!request) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.notFoundTitle}>Payment Request Not Found</Text>
-        <Text style={styles.notFoundSubtitle}>This request may have expired or been cancelled.</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.notFoundTitle, { color: colors.text }]}>Payment Request Not Found</Text>
+        <Text style={[styles.notFoundSubtitle, { color: colors.textMuted }]}>This request may have expired or been cancelled.</Text>
         <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.homeButton}>
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </TouchableOpacity>
@@ -95,22 +97,22 @@ export default function Pay() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payment Request</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Payment Request</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.requesterCard}>
+      <View style={[styles.requesterCard, { backgroundColor: colors.surface }]}>
         <View style={styles.requesterAvatar}>
           <Text style={styles.requesterAvatarText}>{requester?.name?.charAt(0).toUpperCase()}</Text>
         </View>
-        <Text style={styles.requesterLabel}>Payment Request from</Text>
-        <Text style={styles.requesterName}>{requester?.name}</Text>
-        <Text style={styles.requesterUsername}>@{requester?.username}</Text>
+        <Text style={[styles.requesterLabel, { color: colors.textMuted }]}>Payment Request from</Text>
+        <Text style={[styles.requesterName, { color: colors.text }]}>{requester?.name}</Text>
+        <Text style={[styles.requesterUsername, { color: colors.textMuted }]}>@{requester?.username}</Text>
       </View>
 
       <View style={styles.amountCard}>
@@ -119,10 +121,10 @@ export default function Pay() {
         <Text style={styles.amountCurrency}>{request.currency}</Text>
       </View>
 
-      <View style={styles.detailsCard}>
-        <Text style={styles.detailSectionLabel}>FOR</Text>
-        <Text style={styles.detailValue}>{request.recipientName}</Text>
-        <Text style={[styles.detailSectionLabel, { marginTop: 12 }]}>STATUS</Text>
+      <View style={[styles.detailsCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.detailSectionLabel, { color: colors.textMuted }]}>FOR</Text>
+        <Text style={[styles.detailValue, { color: colors.text }]}>{request.recipientName}</Text>
+        <Text style={[styles.detailSectionLabel, { color: colors.textMuted, marginTop: 12 }]}>STATUS</Text>
         <Text style={[styles.detailValue, { color: request.status === "paid" ? "#10B981" : "#EAB308" }]}>
           {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
         </Text>
@@ -139,8 +141,8 @@ export default function Pay() {
               {request.status === "paid" ? "Already Paid" : "Confirm Payment"}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.cancelPayButton}>
-            <Text style={styles.cancelPayButtonText}>Cancel</Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)")} style={[styles.cancelPayButton, { borderColor: colors.border }]}>
+            <Text style={[styles.cancelPayButtonText, { color: colors.text }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -149,9 +151,9 @@ export default function Pay() {
             <Ionicons name="download" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
             <Text style={styles.confirmButtonText}>Download BukkaPay</Text>
           </TouchableOpacity>
-          <Text style={styles.downloadHint}>Download the app to accept this payment request</Text>
-          <TouchableOpacity onPress={() => router.push("/(screens)/login" as any)} style={styles.cancelPayButton}>
-            <Text style={styles.cancelPayButtonText}>Already have an account? Login</Text>
+          <Text style={[styles.downloadHint, { color: colors.textMuted }]}>Download the app to accept this payment request</Text>
+          <TouchableOpacity onPress={() => router.push("/(screens)/login" as any)} style={[styles.cancelPayButton, { borderColor: colors.border }]}>
+            <Text style={[styles.cancelPayButtonText, { color: colors.text }]}>Already have an account? Login</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -161,10 +161,10 @@ export default function Notifications() {
       ) : notifications.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
-            <Ionicons name="notifications-off" size={32} color="#6B7280" />
+            <Ionicons name="notifications-off" size={32} color={colors.textMuted} />
           </View>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No Notifications</Text>
-          <Text style={styles.emptySubtitle}>You're all caught up! Notifications will appear here as you use the app.</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>You're all caught up! Notifications will appear here as you use the app.</Text>
         </View>
       ) : (
         <>
@@ -200,7 +200,7 @@ export default function Notifications() {
                     </View>
                     {!notification.read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
                   </View>
-                  <Text style={styles.notificationTime}>{timeAgo(notification.createdAt)}</Text>
+                  <Text style={[styles.notificationTime, { color: colors.textMuted }]}>{timeAgo(notification.createdAt)}</Text>
                   <View style={styles.actionRow}>
                     {notification.relatedType === "transaction" && (
                       <TouchableOpacity
@@ -212,7 +212,7 @@ export default function Notifications() {
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity onPress={() => handleDelete(notification.id)} style={styles.deleteButton}>
-                      <Ionicons name="trash" size={16} color="#6B7280" />
+                      <Ionicons name="trash" size={16} color={colors.textMuted} />
                     </TouchableOpacity>
                   </View>
                 </View>

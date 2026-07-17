@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { View, Text, StyleSheet } from "react-native";
+import { useTheme } from "../lib/ThemeContext";
 
 const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
   "arrow-up-right": "arrow-up-outline",
@@ -26,6 +27,7 @@ const getIconName = (tx: any): keyof typeof Ionicons.glyphMap => {
 };
 
 export default function TransactionList({ transactions }: { transactions: any[] }) {
+  const { colors, darkMode } = useTheme();
   return (
     <View style={styles.container}>
       {transactions.map((tx) => (
@@ -33,24 +35,24 @@ export default function TransactionList({ transactions }: { transactions: any[] 
           <View style={styles.leftSection}>
             <View style={[
               styles.iconCircle,
-              tx.type === "income" && styles.iconCircleIncome,
+              { backgroundColor: tx.type === "income" ? (darkMode ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.1)") : colors.surface },
             ]}>
               <Ionicons
                 name={getIconName(tx)}
                 size={20}
-                color={tx.type === "income" ? "#10B981" : "#6B7280"}
+                color={tx.type === "income" ? colors.success : colors.textSecondary}
               />
             </View>
             <View>
-              <Text style={styles.txTitle}>{tx.title}</Text>
-              <Text style={styles.txMeta}>
+              <Text style={[styles.txTitle, { color: colors.text }]}>{tx.title}</Text>
+              <Text style={[styles.txMeta, { color: colors.textMuted }]}>
                 {tx.date} {tx.category ? `• ${tx.category}` : ""}
               </Text>
             </View>
           </View>
           <Text style={[
             styles.txAmount,
-            tx.type === "income" ? styles.txAmountIncome : styles.txAmountExpense,
+            { color: tx.type === "income" ? colors.success : colors.text },
           ]}>
             {tx.type === "income" ? "+" : ""}{tx.amount.toFixed(2)}
           </Text>
@@ -79,31 +81,19 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#F8F9FA",
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconCircleIncome: {
-    backgroundColor: "rgba(16,185,129,0.1)",
   },
   txTitle: {
     fontWeight: "600",
     fontSize: 14,
-    color: "#1A1A2E",
   },
   txMeta: {
     fontSize: 12,
-    color: "#6B7280",
     marginTop: 2,
   },
   txAmount: {
     fontWeight: "600",
     fontSize: 14,
-  },
-  txAmountIncome: {
-    color: "#10B981",
-  },
-  txAmountExpense: {
-    color: "#1A1A2E",
   },
 });

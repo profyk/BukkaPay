@@ -80,7 +80,7 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        {cardsLoading && <View style={styles.skeleton} />}
+        {cardsLoading && <View style={[styles.skeleton, { backgroundColor: colors.surface }]} />}
         {mainCard && (
           <WalletCard
             {...mainCard}
@@ -90,7 +90,7 @@ export default function Home() {
         )}
         {!cardsLoading && !mainCard && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No cards yet. Add sample data to get started!</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No cards yet. Add sample data to get started!</Text>
             <TouchableOpacity
               style={[styles.seedButton, seedMutation.isPending && styles.disabledButton]}
               onPress={() => seedMutation.mutate()}
@@ -114,7 +114,7 @@ export default function Home() {
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Activity</Text>
           <TouchableOpacity>
-            <Text style={styles.seeAllText}>See All</Text>
+            <Text style={[styles.seeAllText, { color: colors.primary }]}>See All</Text>
           </TouchableOpacity>
         </View>
         {txLoading && (
@@ -142,7 +142,7 @@ export default function Home() {
                 <Text style={[styles.currencyItemSymbol, { color: colors.text }]}>{currency.symbol}</Text>
                 <Text style={[styles.currencyItemName, { color: colors.text }]}>{currency.name} ({currency.code})</Text>
                 {currentCurrency.code === currency.code && (
-                  <Ionicons name="checkmark" size={20} color="#7C3AED" />
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
                 )}
               </TouchableOpacity>
             ))}

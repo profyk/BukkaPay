@@ -1,7 +1,8 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, useColorScheme } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { lightColors, darkColors } from "../lib/theme";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -49,11 +50,17 @@ function ErrorScreen({
   onTryAgain: () => void;
   onGoHome: () => void;
 }) {
-  const primary = "#7C3AED";
-  const primaryLight = "#EDE9FE";
-  const background = "#FFFFFF";
-  const text = "#1F2937";
-  const textSecondary = "#6B7280";
+  // This boundary wraps ThemeProvider itself (see app/_layout.tsx), so an
+  // error inside that subtree can take the provider down with it —
+  // useTheme() isn't safe to call here. Fall back to the OS-level scheme
+  // (always available) against the same palettes ThemeProvider uses.
+  const scheme = useColorScheme();
+  const c = scheme === "dark" ? darkColors : lightColors;
+  const primary = c.primary;
+  const primaryLight = c.primaryLight;
+  const background = c.background;
+  const text = c.text;
+  const textSecondary = c.textSecondary;
 
   return (
     <View

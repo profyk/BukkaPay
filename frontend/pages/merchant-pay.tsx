@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "../lib/queryClient";
+import { useTheme } from "../lib/ThemeContext";
 
 interface MerchantInfo {
   merchantId: string;
@@ -16,6 +17,7 @@ interface MerchantInfo {
 export default function MerchantPay() {
   const router = useRouter();
   const params = useLocalSearchParams<{ paymentLink: string }>();
+  const { colors } = useTheme();
   const [amount, setAmount] = useState("");
   const [payerName, setPayerName] = useState("");
   const [reference, setReference] = useState("");
@@ -54,7 +56,7 @@ export default function MerchantPay() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#7C3AED" />
       </View>
     );
@@ -62,12 +64,12 @@ export default function MerchantPay() {
 
   if (error || !merchant) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.headerSimple}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Pay Merchant</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Pay Merchant</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -75,8 +77,8 @@ export default function MerchantPay() {
           <View style={styles.errorIcon}>
             <Ionicons name="storefront" size={40} color="#EF4444" />
           </View>
-          <Text style={styles.errorTitle}>Merchant Not Found</Text>
-          <Text style={styles.errorSubtitle}>This payment link is invalid or expired</Text>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Merchant Not Found</Text>
+          <Text style={[styles.errorSubtitle, { color: colors.textMuted }]}>This payment link is invalid or expired</Text>
         </View>
       </View>
     );
@@ -84,12 +86,12 @@ export default function MerchantPay() {
 
   if (isSuccess) {
     return (
-      <View style={styles.successContainer}>
+      <View style={[styles.successContainer, { backgroundColor: colors.background }]}>
         <View style={styles.successCircle}>
           <Ionicons name="checkmark-circle" size={48} color="#FFFFFF" />
         </View>
-        <Text style={styles.successTitle}>Payment Successful!</Text>
-        <Text style={styles.successSubtitle}>
+        <Text style={[styles.successTitle, { color: colors.text }]}>Payment Successful!</Text>
+        <Text style={[styles.successSubtitle, { color: colors.textMuted }]}>
           You paid ${parseFloat(amount).toFixed(2)} to {merchant.businessName}
         </Text>
         <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)")}>
@@ -100,57 +102,57 @@ export default function MerchantPay() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerSimple}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pay Merchant</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Pay Merchant</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.body}>
-        <View style={styles.merchantCard}>
+        <View style={[styles.merchantCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.merchantRow}>
             <View style={styles.merchantIcon}>
               <Ionicons name="storefront" size={28} color="#7C3AED" />
             </View>
             <View>
-              <Text style={styles.merchantName}>{merchant.businessName}</Text>
-              <Text style={styles.merchantType}>{merchant.businessType.replace("_", " ")}</Text>
+              <Text style={[styles.merchantName, { color: colors.text }]}>{merchant.businessName}</Text>
+              <Text style={[styles.merchantType, { color: colors.textMuted }]}>{merchant.businessType.replace("_", " ")}</Text>
             </View>
           </View>
         </View>
 
-        <Text style={styles.inputLabel}>Amount *</Text>
-        <View style={styles.amountInputContainer}>
-          <Text style={styles.currencyPrefix}>$</Text>
+        <Text style={[styles.inputLabel, { color: colors.text }]}>Amount *</Text>
+        <View style={[styles.amountInputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.currencyPrefix, { color: colors.textMuted }]}>$</Text>
           <TextInput
             placeholder="0.00"
-            placeholderTextColor="#6B7280"
+            placeholderTextColor={colors.textMuted}
             value={amount}
             onChangeText={setAmount}
             keyboardType="numeric"
-            style={styles.amountInput}
+            style={[styles.amountInput, { color: colors.text }]}
           />
         </View>
 
-        <Text style={[styles.inputLabel, { marginTop: 16 }]}>Your Name (Optional)</Text>
+        <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>Your Name (Optional)</Text>
         <TextInput
           placeholder="Enter your name"
-          placeholderTextColor="#6B7280"
+          placeholderTextColor={colors.textMuted}
           value={payerName}
           onChangeText={setPayerName}
-          style={styles.textInput}
+          style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
         />
 
-        <Text style={[styles.inputLabel, { marginTop: 16 }]}>Reference (Optional)</Text>
+        <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>Reference (Optional)</Text>
         <TextInput
           placeholder="e.g. Order #123"
-          placeholderTextColor="#6B7280"
+          placeholderTextColor={colors.textMuted}
           value={reference}
           onChangeText={setReference}
-          style={styles.textInput}
+          style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
         />
 
         <TouchableOpacity

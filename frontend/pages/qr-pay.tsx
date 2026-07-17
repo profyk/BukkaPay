@@ -6,12 +6,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { sendMoney, fetchCards } from "../lib/api";
 import { useCurrency } from "../lib/CurrencyContext";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function QRPay() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { toast } = useToast();
   const { currency } = useCurrency();
+  const { colors } = useTheme();
   const [stage, setStage] = useState<"scan" | "amount" | "confirm" | "success">("scan");
   const [amount, setAmount] = useState("0");
   const [selectedCard, setSelectedCard] = useState("");
@@ -249,62 +251,62 @@ export default function QRPay() {
 
   if (stage === "amount") {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => setStage("scan")}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Payment Amount</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Payment Amount</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.recipientBox}>
-          <Text style={styles.recipientLabel}>Sending to</Text>
-          <Text style={styles.recipientName}>{scannedData?.username}</Text>
+        <View style={[styles.recipientBox, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.recipientLabel, { color: colors.textMuted }]}>Sending to</Text>
+          <Text style={[styles.recipientName, { color: colors.text }]}>{scannedData?.username}</Text>
         </View>
 
         <View style={styles.amountDisplay}>
-          <Text style={styles.amountDollar}>{currency.symbol}</Text>
-          <Text style={styles.amountValue}>{amount}</Text>
+          <Text style={[styles.amountDollar, { color: colors.textMuted }]}>{currency.symbol}</Text>
+          <Text style={[styles.amountValue, { color: colors.text }]}>{amount}</Text>
         </View>
 
         <View style={styles.numpad}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-            <TouchableOpacity key={num} style={styles.numKey} onPress={() => handleNumberClick(num.toString())}>
-              <Text style={styles.numKeyText}>{num}</Text>
+            <TouchableOpacity key={num} style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={() => handleNumberClick(num.toString())}>
+              <Text style={[styles.numKeyText, { color: colors.text }]}>{num}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={styles.numKey} onPress={() => handleNumberClick(".")}>
-            <Text style={styles.numKeyText}>.</Text>
+          <TouchableOpacity style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={() => handleNumberClick(".")}>
+            <Text style={[styles.numKeyText, { color: colors.text }]}>.</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.numKey} onPress={() => handleNumberClick("0")}>
-            <Text style={styles.numKeyText}>0</Text>
+          <TouchableOpacity style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={() => handleNumberClick("0")}>
+            <Text style={[styles.numKeyText, { color: colors.text }]}>0</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.numKey} onPress={handleBackspace}>
-            <Ionicons name="backspace-outline" size={24} color="#1A1A2E" />
+          <TouchableOpacity style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={handleBackspace}>
+            <Ionicons name="backspace-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.cardPickerContainer}>
-          <Text style={styles.cardPickerLabel}>From Card</Text>
-          <TouchableOpacity style={styles.cardPickerButton} onPress={() => setShowCardPicker(!showCardPicker)}>
-            <Text style={styles.cardPickerText}>
+          <Text style={[styles.cardPickerLabel, { color: colors.text }]}>From Card</Text>
+          <TouchableOpacity style={[styles.cardPickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => setShowCardPicker(!showCardPicker)}>
+            <Text style={[styles.cardPickerText, { color: colors.text }]}>
               {selectedCard ? cards.find((c: any) => c.id === selectedCard)?.title || "Selected" : "Select a card"}
             </Text>
-            <Ionicons name="chevron-down" size={20} color="#6B7280" />
+            <Ionicons name="chevron-down" size={20} color={colors.textMuted} />
           </TouchableOpacity>
           {showCardPicker && (
-            <View style={styles.cardPickerDropdown}>
+            <View style={[styles.cardPickerDropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {cards.map((card: any) => (
                 <TouchableOpacity
                   key={card.id}
-                  style={styles.cardPickerItem}
+                  style={[styles.cardPickerItem, { borderBottomColor: colors.divider }]}
                   onPress={() => {
                     setSelectedCard(card.id);
                     setShowCardPicker(false);
                   }}
                 >
-                  <Text style={styles.cardPickerItemText}>{card.title}</Text>
+                  <Text style={[styles.cardPickerItemText, { color: colors.text }]}>{card.title}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -322,29 +324,29 @@ export default function QRPay() {
     const selectedCardData = cards.find((c: any) => c.id === selectedCard);
 
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => setStage("amount")}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Confirm Payment</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Confirm Payment</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.confirmCard}>
+        <View style={[styles.confirmCard, { backgroundColor: colors.surface }]}>
           <View style={styles.confirmRow}>
-            <Text style={styles.confirmLabel}>To</Text>
-            <Text style={styles.confirmValue}>{scannedData?.username}</Text>
-            <Text style={styles.confirmSub}>{scannedData?.walletId}</Text>
+            <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>To</Text>
+            <Text style={[styles.confirmValue, { color: colors.text }]}>{scannedData?.username}</Text>
+            <Text style={[styles.confirmSub, { color: colors.textMuted }]}>{scannedData?.walletId}</Text>
           </View>
           <View style={styles.confirmRow}>
-            <Text style={styles.confirmLabel}>From</Text>
-            <Text style={styles.confirmValue}>{selectedCardData?.title}</Text>
+            <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>From</Text>
+            <Text style={[styles.confirmValue, { color: colors.text }]}>{selectedCardData?.title}</Text>
           </View>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <View style={styles.confirmRow}>
-            <Text style={styles.confirmLabel}>Amount</Text>
-            <Text style={styles.confirmAmount}>{currency.symbol}{amount}</Text>
+            <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>Amount</Text>
+            <Text style={[styles.confirmAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
           </View>
         </View>
 
@@ -361,24 +363,24 @@ export default function QRPay() {
             <Text style={styles.sendButtonText}>Send Payment</Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => setStage("amount")}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+        <TouchableOpacity style={[styles.cancelButton, { borderColor: colors.border }]} onPress={() => setStage("amount")}>
+          <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, styles.centerContent]}>
+    <View style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
       <View style={styles.successCircle}>
         <Ionicons name="checkmark" size={48} color="#FFFFFF" />
       </View>
-      <Text style={styles.successTitle}>Payment Sent!</Text>
-      <Text style={styles.successSubtitle}>Your payment has been completed</Text>
+      <Text style={[styles.successTitle, { color: colors.text }]}>Payment Sent!</Text>
+      <Text style={[styles.successSubtitle, { color: colors.textMuted }]}>Your payment has been completed</Text>
 
-      <View style={styles.successCard}>
-        <Text style={styles.successAmount}>{currency.symbol}{amount}</Text>
-        <Text style={styles.successTo}>to {scannedData?.username}</Text>
+      <View style={[styles.successCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.successAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
+        <Text style={[styles.successTo, { color: colors.textMuted }]}>to {scannedData?.username}</Text>
       </View>
 
       <TouchableOpacity style={styles.homeButton} onPress={() => router.push("/(tabs)")}>

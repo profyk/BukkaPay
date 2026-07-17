@@ -5,12 +5,14 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { signup } from "../lib/auth";
 import { COUNTRY_CODES } from "../lib/countryData";
+import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
 
 export default function Signup() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors, darkMode } = useTheme();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -72,40 +74,40 @@ export default function Signup() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
-      <View style={styles.card}>
+    <ScrollView style={[styles.container, { backgroundColor: darkMode ? colors.background : "#F5F3FF" }]} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.logoContainer}>
           <Image source={logoImage} style={styles.logoImage} />
         </View>
 
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join BukkaPay and manage your finances</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>Join BukkaPay and manage your finances</Text>
 
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <Text style={[styles.label, { color: colors.text }]}>Full Name</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="person-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={formData.name}
                 onChangeText={(t) => updateField("name", t)}
                 placeholder="Alex Morgan"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <Text style={[styles.label, { color: colors.text }]}>Email</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={formData.email}
                 onChangeText={(t) => updateField("email", t)}
                 placeholder="you@example.com"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -114,91 +116,91 @@ export default function Signup() {
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Username</Text>
-            <View style={styles.inputContainer}>
+            <Text style={[styles.label, { color: colors.text }]}>Username</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
               <TextInput
-                style={[styles.input, { paddingLeft: 16 }]}
+                style={[styles.input, { color: colors.text, paddingLeft: 16 }]}
                 value={formData.username}
                 onChangeText={(t) => updateField("username", t)}
                 placeholder="alex_morgan"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
               />
             </View>
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Phone Number</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Phone Number</Text>
             <View style={styles.phoneRow}>
-              <TouchableOpacity style={styles.countryCodeButton} onPress={() => setShowCountryPicker(!showCountryPicker)}>
-                <Text style={styles.countryCodeText}>{selectedCountry?.flag} {formData.countryCode}</Text>
-                <Ionicons name="chevron-down" size={14} color="#6B7280" />
+              <TouchableOpacity style={[styles.countryCodeButton, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => setShowCountryPicker(!showCountryPicker)}>
+                <Text style={[styles.countryCodeText, { color: colors.text }]}>{selectedCountry?.flag} {formData.countryCode}</Text>
+                <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
               </TouchableOpacity>
-              <View style={[styles.inputContainer, { flex: 1 }]}>
-                <Ionicons name="call-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg, flex: 1 }]}>
+                <Ionicons name="call-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   value={formData.phone}
                   onChangeText={(t) => updateField("phone", t)}
                   placeholder="1234567890"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.textMuted}
                   keyboardType="phone-pad"
                 />
               </View>
             </View>
             {showCountryPicker && (
-              <ScrollView style={styles.countryList} nestedScrollEnabled>
+              <ScrollView style={[styles.countryList, { borderColor: colors.border, backgroundColor: colors.card }]} nestedScrollEnabled>
                 {COUNTRY_CODES.map((item, index) => (
                   <TouchableOpacity
                     key={`${item.code}-${index}`}
-                    style={styles.countryItem}
+                    style={[styles.countryItem, { borderBottomColor: colors.divider }]}
                     onPress={() => {
                       updateField("countryCode", item.code);
                       setShowCountryPicker(false);
                     }}
                   >
-                    <Text style={styles.countryItemText}>{item.flag} {item.country} ({item.code})</Text>
+                    <Text style={[styles.countryItemText, { color: colors.text }]}>{item.flag} {item.country} ({item.code})</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             )}
-            <Text style={styles.helperText}>Selected: {selectedCountry?.flag} {selectedCountry?.country}</Text>
+            <Text style={[styles.helperText, { color: colors.textMuted }]}>Selected: {selectedCountry?.flag} {selectedCountry?.country}</Text>
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <Text style={[styles.label, { color: colors.text }]}>Password</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={formData.password}
                 onChangeText={(t) => updateField("password", t)}
                 placeholder="••••••••"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#6B7280" />
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Confirm Password</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <Text style={[styles.label, { color: colors.text }]}>Confirm Password</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={formData.confirmPassword}
                 onChangeText={(t) => updateField("confirmPassword", t)}
                 placeholder="••••••••"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeButton}>
-                <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#6B7280" />
+                <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
           </View>
@@ -217,14 +219,14 @@ export default function Signup() {
         </View>
 
         <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already have an account? </Text>
+          <Text style={[styles.loginText, { color: colors.textMuted }]}>Already have an account? </Text>
           <TouchableOpacity onPress={() => router.push({ pathname: "/(auth)/login" as any, params: returnTo ? { returnTo } : {} })}>
             <Text style={styles.loginLink}>Sign In</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.termsContainer}>
-          <Text style={styles.termsText}>By signing up, you agree to our Terms & Conditions</Text>
+        <View style={[styles.termsContainer, { borderTopColor: colors.border }]}>
+          <Text style={[styles.termsText, { color: colors.textMuted }]}>By signing up, you agree to our Terms & Conditions</Text>
         </View>
       </View>
     </ScrollView>

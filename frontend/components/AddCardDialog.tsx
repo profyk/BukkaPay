@@ -17,6 +17,7 @@ import { queryClient } from "../lib/queryClient";
 import { createCard } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import { CURRENCIES, CurrencyCode, getCurrency } from "../lib/currency";
+import { useTheme } from "../lib/ThemeContext";
 import PremiumCard from "./PremiumCard";
 
 const PREVIEW_NUMBER = "5399 •••• •••• ••••";
@@ -27,6 +28,7 @@ export default function AddCardDialog() {
   const [currency, setCurrency] = useState<CurrencyCode>("ZAR");
   const [userName, setUserName] = useState("Card Holder");
   const { toast } = useToast();
+  const { colors } = useTheme();
 
   useEffect(() => {
     (async () => {
@@ -63,9 +65,9 @@ export default function AddCardDialog() {
 
   return (
     <>
-      <TouchableOpacity style={styles.trigger} onPress={() => setOpen(true)}>
-        <Ionicons name="add" size={20} color="#6B7280" />
-        <Text style={styles.triggerText}>Add New Card</Text>
+      <TouchableOpacity style={[styles.trigger, { borderColor: colors.border }]} onPress={() => setOpen(true)}>
+        <Ionicons name="add" size={20} color={colors.textSecondary} />
+        <Text style={[styles.triggerText, { color: colors.textSecondary }]}>Add New Card</Text>
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
@@ -73,15 +75,15 @@ export default function AddCardDialog() {
           style={styles.overlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { backgroundColor: colors.card }]}>
             {/* Handle */}
-            <View style={styles.handle} />
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>New Virtual Card</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-                <Ionicons name="close" size={22} color="#6B7280" />
+              <Text style={[styles.title, { color: colors.text }]}>New Virtual Card</Text>
+              <TouchableOpacity onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -95,43 +97,47 @@ export default function AddCardDialog() {
                 color="blue"
                 showBalanceToggle={false}
               />
-              <View style={styles.stitchBadge}>
-                <Ionicons name="shield-checkmark" size={12} color="#7C3AED" />
-                <Text style={styles.stitchBadgeText}>Issued by Stitch · Mastercard</Text>
+              <View style={[styles.stitchBadge, { backgroundColor: colors.primaryLight }]}>
+                <Ionicons name="shield-checkmark" size={12} color={colors.primary} />
+                <Text style={[styles.stitchBadgeText, { color: colors.primary }]}>Issued by Stitch · Mastercard</Text>
               </View>
             </View>
 
             {/* Card Name Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Card Name</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Card Name</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { borderColor: colors.primary, backgroundColor: colors.inputBg, color: colors.text }]}
                 value={cardName}
                 onChangeText={setCardName}
                 placeholder="e.g. Travel Fund, Shopping"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 autoFocus
                 maxLength={32}
               />
-              <Text style={styles.hint}>A real Mastercard virtual card will be issued for your account.</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>A real Mastercard virtual card will be issued for your account.</Text>
             </View>
 
             {/* Currency Picker */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Currency</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Currency</Text>
               <View style={styles.currencyRow}>
                 {CURRENCIES.map((c) => (
                   <TouchableOpacity
                     key={c.code}
-                    style={[styles.currencyOption, currency === c.code && styles.currencyOptionActive]}
+                    style={[
+                      styles.currencyOption,
+                      { borderColor: colors.border, backgroundColor: colors.surface },
+                      currency === c.code && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+                    ]}
                     onPress={() => setCurrency(c.code)}
                   >
-                    <Text style={[styles.currencyOptionSymbol, currency === c.code && styles.currencyOptionTextActive]}>{c.symbol}</Text>
-                    <Text style={[styles.currencyOptionCode, currency === c.code && styles.currencyOptionTextActive]}>{c.code}</Text>
+                    <Text style={[styles.currencyOptionSymbol, { color: currency === c.code ? colors.primary : colors.text }]}>{c.symbol}</Text>
+                    <Text style={[styles.currencyOptionCode, { color: currency === c.code ? colors.primary : colors.textSecondary }]}>{c.code}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.hint}>This wallet will hold and settle balances in {getCurrency(currency).name}.</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>This wallet will hold and settle balances in {getCurrency(currency).name}.</Text>
             </View>
 
             {/* Create Button */}
@@ -169,12 +175,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 2,
     borderStyle: "dashed",
-    borderColor: "#E5E7EB",
   },
   triggerText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#6B7280",
   },
   overlay: {
     flex: 1,
@@ -182,7 +186,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -191,7 +194,6 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 4,
-    backgroundColor: "#E5E7EB",
     borderRadius: 2,
     alignSelf: "center",
     marginTop: 10,
@@ -206,13 +208,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1A1A2E",
   },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -225,7 +225,6 @@ const styles = StyleSheet.create({
     gap: 5,
     marginTop: 10,
     alignSelf: "center",
-    backgroundColor: "#F4F3FF",
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -233,7 +232,6 @@ const styles = StyleSheet.create({
   stitchBadgeText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#7C3AED",
   },
   inputGroup: {
     marginBottom: 20,
@@ -242,21 +240,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1A1A2E",
   },
   input: {
     borderWidth: 1.5,
-    borderColor: "#7C3AED",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: "#1A1A2E",
-    backgroundColor: "#FAFAFE",
   },
   hint: {
     fontSize: 12,
-    color: "#9CA3AF",
   },
   currencyRow: {
     flexDirection: "row",
@@ -268,26 +261,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FAFAFE",
-  },
-  currencyOptionActive: {
-    borderColor: "#7C3AED",
-    backgroundColor: "#F4F3FF",
   },
   currencyOptionSymbol: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1A1A2E",
   },
   currencyOptionCode: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#6B7280",
     marginTop: 2,
-  },
-  currencyOptionTextActive: {
-    color: "#7C3AED",
   },
   createBtn: {
     flexDirection: "row",

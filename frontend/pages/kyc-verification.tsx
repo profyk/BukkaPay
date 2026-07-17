@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { getCurrentUser } from "../lib/auth";
 import { submitKyc } from "../lib/api";
+import { useTheme } from "../lib/ThemeContext";
 
 const DOCUMENT_TYPES: { value: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { value: "national_id", label: "National ID", icon: "card-outline" },
@@ -15,6 +16,7 @@ const DOCUMENT_TYPES: { value: string; label: string; icon: keyof typeof Ionicon
 export default function KycVerification() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors, darkMode } = useTheme();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
 
   const [fullName, setFullName] = useState("");
@@ -47,44 +49,48 @@ export default function KycVerification() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
-      <View style={styles.card}>
-        <View style={styles.iconWrap}>
-          <Ionicons name="shield-checkmark" size={32} color="#7C3AED" />
+    <ScrollView style={[styles.container, { backgroundColor: darkMode ? colors.background : "#F5F3FF" }]} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.iconWrap, { backgroundColor: colors.primaryLight }]}>
+          <Ionicons name="shield-checkmark" size={32} color={colors.primary} />
         </View>
 
-        <Text style={styles.title}>Verify Your Identity</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.text }]}>Verify Your Identity</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
           BukkaPay requires identity verification (KYC) to protect your account and comply with financial
           regulations. This only takes a minute.
         </Text>
 
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Full Legal Name</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <Text style={[styles.label, { color: colors.text }]}>Full Legal Name</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="person-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={fullName}
                 onChangeText={setFullName}
                 placeholder="As it appears on your ID"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Document Type</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Document Type</Text>
             <View style={styles.docTypeRow}>
               {DOCUMENT_TYPES.map((d) => (
                 <TouchableOpacity
                   key={d.value}
-                  style={[styles.docTypeOption, documentType === d.value && styles.docTypeOptionActive]}
+                  style={[
+                    styles.docTypeOption,
+                    { borderColor: colors.border, backgroundColor: colors.surface },
+                    documentType === d.value && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+                  ]}
                   onPress={() => setDocumentType(d.value)}
                 >
-                  <Ionicons name={d.icon} size={20} color={documentType === d.value ? "#7C3AED" : "#6B7280"} />
-                  <Text style={[styles.docTypeLabel, documentType === d.value && styles.docTypeLabelActive]}>
+                  <Ionicons name={d.icon} size={20} color={documentType === d.value ? colors.primary : colors.textMuted} />
+                  <Text style={[styles.docTypeLabel, { color: colors.textMuted }, documentType === d.value && { color: colors.primary }]}>
                     {d.label}
                   </Text>
                 </TouchableOpacity>
@@ -93,15 +99,15 @@ export default function KycVerification() {
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Document Number</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="document-text-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <Text style={[styles.label, { color: colors.text }]}>Document Number</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="document-text-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={documentNumber}
                 onChangeText={setDocumentNumber}
                 placeholder="Enter the document number"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="characters"
               />
             </View>
@@ -120,9 +126,9 @@ export default function KycVerification() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.securityRow}>
+        <View style={[styles.securityRow, { borderTopColor: colors.border }]}>
           <Ionicons name="lock-closed" size={14} color="#10B981" />
-          <Text style={styles.securityText}>Your information is encrypted and only used for verification</Text>
+          <Text style={[styles.securityText, { color: colors.textMuted }]}>Your information is encrypted and only used for verification</Text>
         </View>
       </View>
     </ScrollView>

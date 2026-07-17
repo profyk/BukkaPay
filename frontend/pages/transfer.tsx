@@ -7,11 +7,13 @@ import { useToast } from "../hooks/use-toast";
 import { fetchCards } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import { useCurrency } from "../lib/CurrencyContext";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function Transfer() {
   const router = useRouter();
   const { toast } = useToast();
   const { currency } = useCurrency();
+  const { colors } = useTheme();
   const [step, setStep] = useState<"select" | "amount" | "confirm" | "success">("select");
   const [amount, setAmount] = useState("0");
   const [fromCardId, setFromCardId] = useState("");
@@ -89,9 +91,9 @@ export default function Transfer() {
 
   const renderCardSelector = (label: string, selectedCard: any, showDropdown: boolean, setShowDropdown: (v: boolean) => void, setCardId: (id: string) => void) => (
     <View style={styles.selectorContainer}>
-      <Text style={styles.selectorLabel}>{label}</Text>
+      <Text style={[styles.selectorLabel, { color: colors.textMuted }]}>{label}</Text>
       <TouchableOpacity
-        style={styles.selectorButton}
+        style={[styles.selectorButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
         onPress={() => setShowDropdown(!showDropdown)}
       >
         {selectedCard ? (
@@ -100,21 +102,21 @@ export default function Transfer() {
               <Ionicons name="card" size={16} color="#FFFFFF" />
             </View>
             <View>
-              <Text style={styles.cardName}>{selectedCard.title}</Text>
-              <Text style={styles.cardBalance}>${selectedCard.balance}</Text>
+              <Text style={[styles.cardName, { color: colors.text }]}>{selectedCard.title}</Text>
+              <Text style={[styles.cardBalance, { color: colors.textMuted }]}>${selectedCard.balance}</Text>
             </View>
           </View>
         ) : (
-          <Text style={styles.placeholderText}>Select card...</Text>
+          <Text style={[styles.placeholderText, { color: colors.textMuted }]}>Select card...</Text>
         )}
-        <Ionicons name="chevron-down" size={20} color="#6B7280" />
+        <Ionicons name="chevron-down" size={20} color={colors.textMuted} />
       </TouchableOpacity>
       {showDropdown && (
-        <View style={styles.dropdown}>
+        <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {mappedCards.map((card: any) => (
             <TouchableOpacity
               key={card.id}
-              style={styles.dropdownItem}
+              style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
               onPress={() => {
                 setCardId(card.id);
                 setShowDropdown(false);
@@ -124,8 +126,8 @@ export default function Transfer() {
                 <Ionicons name="card" size={12} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.dropdownCardName}>{card.title}</Text>
-                <Text style={styles.dropdownCardBalance}>${card.balance}</Text>
+                <Text style={[styles.dropdownCardName, { color: colors.text }]}>{card.title}</Text>
+                <Text style={[styles.dropdownCardBalance, { color: colors.textMuted }]}>${card.balance}</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -136,16 +138,16 @@ export default function Transfer() {
 
   if (step === "select") {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Transfer Money</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Transfer Money</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <Text style={styles.subtitle}>Choose cards to transfer between</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>Choose cards to transfer between</Text>
 
         {renderCardSelector("FROM", fromCard, showFromDropdown, (v) => { setShowFromDropdown(v); setShowToDropdown(false); }, setFromCardId)}
 
@@ -170,32 +172,32 @@ export default function Transfer() {
 
   if (step === "amount") {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => setStep("select")}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Transfer Amount</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Transfer Amount</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.transferPreview}>
-          <Text style={styles.previewText}>{fromCard?.title}</Text>
-          <Ionicons name="arrow-forward" size={16} color="#7C3AED" />
-          <Text style={styles.previewText}>{toCard?.title}</Text>
+        <View style={[styles.transferPreview, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.previewText, { color: colors.text }]}>{fromCard?.title}</Text>
+          <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+          <Text style={[styles.previewText, { color: colors.text }]}>{toCard?.title}</Text>
         </View>
 
         <View style={styles.amountContainer}>
-          <Text style={styles.amountDollar}>$</Text>
-          <Text style={styles.amountValue}>{amount}</Text>
+          <Text style={[styles.amountDollar, { color: colors.textMuted }]}>$</Text>
+          <Text style={[styles.amountValue, { color: colors.text }]}>{amount}</Text>
         </View>
 
-        <View style={styles.quickAmounts}>
-          <Text style={styles.quickAmountsLabel}>QUICK AMOUNTS</Text>
+        <View style={[styles.quickAmounts, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.quickAmountsLabel, { color: colors.textMuted }]}>QUICK AMOUNTS</Text>
           <View style={styles.quickAmountsRow}>
             {["25", "50", "100", "250"].map((val) => (
-              <TouchableOpacity key={val} style={styles.quickAmountBtn} onPress={() => setAmount(val)}>
-                <Text style={styles.quickAmountText}>${val}</Text>
+              <TouchableOpacity key={val} style={[styles.quickAmountBtn, { backgroundColor: colors.card }]} onPress={() => setAmount(val)}>
+                <Text style={[styles.quickAmountText, { color: colors.text }]}>${val}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -203,18 +205,18 @@ export default function Transfer() {
 
         <View style={styles.numpad}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-            <TouchableOpacity key={num} style={styles.numKey} onPress={() => handleNumberClick(num.toString())}>
-              <Text style={styles.numKeyText}>{num}</Text>
+            <TouchableOpacity key={num} style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={() => handleNumberClick(num.toString())}>
+              <Text style={[styles.numKeyText, { color: colors.text }]}>{num}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={styles.numKey} onPress={() => handleNumberClick(".")}>
-            <Text style={styles.numKeyText}>.</Text>
+          <TouchableOpacity style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={() => handleNumberClick(".")}>
+            <Text style={[styles.numKeyText, { color: colors.text }]}>.</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.numKey} onPress={() => handleNumberClick("0")}>
-            <Text style={styles.numKeyText}>0</Text>
+          <TouchableOpacity style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={() => handleNumberClick("0")}>
+            <Text style={[styles.numKeyText, { color: colors.text }]}>0</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.numKey} onPress={handleBackspace}>
-            <Ionicons name="backspace-outline" size={24} color="#1A1A2E" />
+          <TouchableOpacity style={[styles.numKey, { backgroundColor: colors.surface }]} onPress={handleBackspace}>
+            <Ionicons name="backspace-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -227,39 +229,39 @@ export default function Transfer() {
 
   if (step === "confirm") {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => setStep("amount")}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Confirm Transfer</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Confirm Transfer</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.confirmCard}>
-          <Text style={styles.confirmSubtitle}>Transfer Summary</Text>
+        <View style={[styles.confirmCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.confirmSubtitle, { color: colors.textMuted }]}>Transfer Summary</Text>
 
           <View style={styles.confirmRow}>
-            <Text style={styles.confirmLabel}>From</Text>
-            <Text style={styles.confirmValue}>{fromCard?.title}</Text>
+            <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>From</Text>
+            <Text style={[styles.confirmValue, { color: colors.text }]}>{fromCard?.title}</Text>
           </View>
 
           <View style={styles.confirmArrow}>
             <View style={styles.arrowCircle}>
-              <Ionicons name="arrow-down" size={20} color="#7C3AED" />
+              <Ionicons name="arrow-down" size={20} color={colors.primary} />
             </View>
           </View>
 
           <View style={styles.confirmRow}>
-            <Text style={styles.confirmLabel}>To</Text>
-            <Text style={styles.confirmValue}>{toCard?.title}</Text>
+            <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>To</Text>
+            <Text style={[styles.confirmValue, { color: colors.text }]}>{toCard?.title}</Text>
           </View>
 
-          <View style={styles.confirmDivider} />
+          <View style={[styles.confirmDivider, { backgroundColor: colors.divider }]} />
 
           <View style={styles.confirmRow}>
-            <Text style={styles.confirmLabel}>Amount</Text>
-            <Text style={styles.confirmAmount}>{currency.symbol}{amount}</Text>
+            <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>Amount</Text>
+            <Text style={[styles.confirmAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
           </View>
 
           <View style={styles.warningBox}>
@@ -272,44 +274,44 @@ export default function Transfer() {
         <TouchableOpacity style={styles.successButton} onPress={handleConfirm}>
           <Text style={styles.primaryButtonText}>Complete Transfer</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.outlineButton} onPress={() => setStep("amount")}>
-          <Text style={styles.outlineButtonText}>Cancel</Text>
+        <TouchableOpacity style={[styles.outlineButton, { borderColor: colors.border }]} onPress={() => setStep("amount")}>
+          <Text style={[styles.outlineButtonText, { color: colors.text }]}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, styles.centerContent]}>
+    <View style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
       <View style={styles.successCircle}>
         <Ionicons name="checkmark" size={48} color="#FFFFFF" />
       </View>
-      <Text style={styles.successTitle}>Transfer Complete!</Text>
-      <Text style={styles.successSubtitle}>Your money has been transferred</Text>
+      <Text style={[styles.successTitle, { color: colors.text }]}>Transfer Complete!</Text>
+      <Text style={[styles.successSubtitle, { color: colors.textMuted }]}>Your money has been transferred</Text>
 
-      <View style={styles.successCard}>
-        <Text style={styles.successCardLabel}>Amount Transferred</Text>
-        <Text style={styles.successAmount}>{currency.symbol}{amount}</Text>
-        <View style={styles.confirmDivider} />
+      <View style={[styles.successCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.successCardLabel, { color: colors.textMuted }]}>Amount Transferred</Text>
+        <Text style={[styles.successAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
+        <View style={[styles.confirmDivider, { backgroundColor: colors.divider }]} />
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>From</Text>
-          <Text style={styles.confirmValue}>{fromCard?.title}</Text>
+          <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>From</Text>
+          <Text style={[styles.confirmValue, { color: colors.text }]}>{fromCard?.title}</Text>
         </View>
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>To</Text>
-          <Text style={styles.confirmValue}>{toCard?.title}</Text>
+          <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>To</Text>
+          <Text style={[styles.confirmValue, { color: colors.text }]}>{toCard?.title}</Text>
         </View>
         <View style={styles.confirmRow}>
-          <Text style={styles.confirmLabel}>Reference</Text>
-          <Text style={styles.refText}>TRF-{Date.now().toString().slice(-8)}</Text>
+          <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>Reference</Text>
+          <Text style={[styles.refText, { color: colors.text }]}>TRF-{Date.now().toString().slice(-8)}</Text>
         </View>
       </View>
 
       <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)")}>
         <Text style={styles.primaryButtonText}>Back to Home</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.outlineButton} onPress={() => { setStep("select"); setAmount("0"); setFromCardId(""); setToCardId(""); }}>
-        <Text style={styles.outlineButtonText}>Make Another Transfer</Text>
+      <TouchableOpacity style={[styles.outlineButton, { borderColor: colors.border }]} onPress={() => { setStep("select"); setAmount("0"); setFromCardId(""); setToCardId(""); }}>
+        <Text style={[styles.outlineButtonText, { color: colors.text }]}>Make Another Transfer</Text>
       </TouchableOpacity>
     </View>
   );

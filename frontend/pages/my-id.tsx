@@ -7,12 +7,14 @@ import { useToast } from "../hooks/use-toast";
 import * as Clipboard from "expo-clipboard";
 import QRCode from "react-native-qrcode-svg";
 import { Image } from "react-native";
+import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
 
 export default function MyID() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -49,24 +51,26 @@ export default function MyID() {
 
   if (!user) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My BKP Code</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>My BKP Code</Text>
         <TouchableOpacity onPress={shareWalletId} style={styles.backButton}>
-          <Ionicons name="share-social" size={22} color="#7C3AED" />
+          <Ionicons name="share-social" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
+      {/* QR card intentionally stays light regardless of theme — a QR code
+          needs light-background/dark-module contrast to scan reliably. */}
       <View style={styles.qrCard}>
         <View style={styles.qrBrandRow}>
           <Image source={logoImage} style={styles.qrBrandLogo} />
@@ -102,50 +106,50 @@ export default function MyID() {
       </View>
 
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={copyToClipboard}>
-          <View style={styles.actionIconWrap}>
-            <Ionicons name="copy" size={20} color="#7C3AED" />
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={copyToClipboard}>
+          <View style={[styles.actionIconWrap, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="copy" size={20} color={colors.primary} />
           </View>
-          <Text style={styles.actionLabel}>Copy ID</Text>
+          <Text style={[styles.actionLabel, { color: colors.text }]}>Copy ID</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={shareWalletId}>
-          <View style={styles.actionIconWrap}>
-            <Ionicons name="share-social" size={20} color="#7C3AED" />
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={shareWalletId}>
+          <View style={[styles.actionIconWrap, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="share-social" size={20} color={colors.primary} />
           </View>
-          <Text style={styles.actionLabel}>Share</Text>
+          <Text style={[styles.actionLabel, { color: colors.text }]}>Share</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.detailsCard}>
-        <Text style={styles.detailsTitle}>Account Details</Text>
+      <View style={[styles.detailsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.detailsTitle, { color: colors.text }]}>Account Details</Text>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Username</Text>
-          <Text style={styles.detailValue}>@{user.username}</Text>
+          <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Username</Text>
+          <Text style={[styles.detailValue, { color: colors.text }]}>@{user.username}</Text>
         </View>
-        <View style={styles.detailDivider} />
+        <View style={[styles.detailDivider, { backgroundColor: colors.divider }]} />
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Display Name</Text>
-          <Text style={styles.detailValue}>{user.name}</Text>
+          <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Display Name</Text>
+          <Text style={[styles.detailValue, { color: colors.text }]}>{user.name}</Text>
         </View>
-        <View style={styles.detailDivider} />
+        <View style={[styles.detailDivider, { backgroundColor: colors.divider }]} />
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Email</Text>
-          <Text style={styles.detailValue}>{user.email}</Text>
+          <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Email</Text>
+          <Text style={[styles.detailValue, { color: colors.text }]}>{user.email}</Text>
         </View>
         {user.phone && (
           <>
-            <View style={styles.detailDivider} />
+            <View style={[styles.detailDivider, { backgroundColor: colors.divider }]} />
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Phone</Text>
-              <Text style={styles.detailValue}>{user.countryCode} {user.phone}</Text>
+              <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Phone</Text>
+              <Text style={[styles.detailValue, { color: colors.text }]}>{user.countryCode} {user.phone}</Text>
             </View>
           </>
         )}
       </View>
 
       <View style={styles.tipBox}>
-        <Ionicons name="bulb" size={18} color="#7C3AED" style={{ marginRight: 8, marginTop: 2 }} />
-        <Text style={styles.tipText}>Share your BKP code with friends so they can pay you instantly. This code is unique to your account.</Text>
+        <Ionicons name="bulb" size={18} color={colors.primary} style={{ marginRight: 8, marginTop: 2 }} />
+        <Text style={[styles.tipText, { color: colors.text }]}>Share your BKP code with friends so they can pay you instantly. This code is unique to your account.</Text>
       </View>
     </ScrollView>
   );

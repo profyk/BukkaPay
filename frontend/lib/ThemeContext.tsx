@@ -1,4 +1,5 @@
 import React, { createContext, useContext, ReactNode } from "react";
+import { StatusBar } from "react-native";
 import { useDarkMode } from "./useDarkMode";
 import { lightColors, darkColors, ThemeColors } from "./theme";
 
@@ -20,6 +21,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ colors, darkMode, setDarkMode }}>
+      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.headerBg} />
       {children}
     </ThemeContext.Provider>
   );

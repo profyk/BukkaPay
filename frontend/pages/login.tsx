@@ -11,12 +11,14 @@ import {
   biometricLogin,
   enableBiometricLogin,
 } from "../lib/auth";
+import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
 
 export default function Login() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors, darkMode } = useTheme();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [loading, setLoading] = useState(false);
   const [biometricLoading, setBiometricLoading] = useState(false);
@@ -93,30 +95,30 @@ export default function Login() {
   const biometricIconName = biometricLabel === "Face ID" ? "scan-outline" : "finger-print-outline";
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
-      <View style={styles.card}>
+    <ScrollView style={[styles.container, { backgroundColor: darkMode ? colors.background : "#F5F3FF" }]} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.logoContainer}>
           <Image source={logoImage} style={styles.logoImage} />
         </View>
 
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to your BukkaPay account</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>Sign in to your BukkaPay account</Text>
 
         {biometricReady && (
           <TouchableOpacity
-            style={styles.biometricButton}
+            style={[styles.biometricButton, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}
             onPress={handleBiometricLogin}
             disabled={biometricLoading}
           >
             {biometricLoading ? (
-              <ActivityIndicator color="#7C3AED" />
+              <ActivityIndicator color={colors.primary} />
             ) : (
               <>
-                <View style={styles.biometricIconWrap}>
-                  <Ionicons name={biometricIconName} size={32} color="#7C3AED" />
+                <View style={[styles.biometricIconWrap, { backgroundColor: colors.card }]}>
+                  <Ionicons name={biometricIconName} size={32} color={colors.primary} />
                 </View>
-                <Text style={styles.biometricText}>Sign in with {biometricLabel}</Text>
-                <Text style={styles.biometricHint}>Touch the sensor or look at your phone</Text>
+                <Text style={[styles.biometricText, { color: colors.text }]}>Sign in with {biometricLabel}</Text>
+                <Text style={[styles.biometricHint, { color: colors.textMuted }]}>Touch the sensor or look at your phone</Text>
               </>
             )}
           </TouchableOpacity>
@@ -124,23 +126,23 @@ export default function Login() {
 
         {biometricReady && (
           <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or use password</Text>
-            <View style={styles.dividerLine} />
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.textMuted }]}>or use password</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
           </View>
         )}
 
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <Text style={[styles.label, { color: colors.text }]}>Email</Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={formData.email}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
                 placeholder="you@example.com"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -150,24 +152,24 @@ export default function Login() {
 
           <View style={styles.fieldGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Password</Text>
               <TouchableOpacity onPress={() => router.push("/(screens)/forgot-password")}>
                 <Text style={styles.forgotText}>Forgot?</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+            <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 value={formData.password}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, password: text }))}
                 placeholder="••••••••"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#6B7280" />
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
           </View>
@@ -186,13 +188,13 @@ export default function Login() {
         </View>
 
         <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.dividerText, { color: colors.textMuted }]}>or</Text>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
         </View>
 
         <View style={styles.signupContainer}>
-          <Text style={styles.signupText}>Don't have an account? </Text>
+          <Text style={[styles.signupText, { color: colors.textMuted }]}>Don't have an account? </Text>
           <TouchableOpacity onPress={() => router.push({ pathname: "/(auth)/signup" as any, params: returnTo ? { returnTo } : {} })}>
             <Text style={styles.signupLink}>Sign Up</Text>
           </TouchableOpacity>
@@ -200,9 +202,9 @@ export default function Login() {
       </View>
 
       <View style={styles.brandingFooter}>
-        <Text style={styles.brandingTitle}>BukkaPay</Text>
-        <Text style={styles.brandingSubtitle}>The Pulse of African Finance</Text>
-        <Text style={{ fontSize: 9, color: "#D1D5DB", marginTop: 8 }}>monorepo-deploy-check-20260716</Text>
+        <Text style={[styles.brandingTitle, { color: colors.text }]}>BukkaPay</Text>
+        <Text style={[styles.brandingSubtitle, { color: colors.textMuted }]}>The Pulse of African Finance</Text>
+        <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 8 }}>monorepo-deploy-check-20260716</Text>
       </View>
     </ScrollView>
   );

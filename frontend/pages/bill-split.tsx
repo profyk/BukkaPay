@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "../hooks/use-toast";
+import { useTheme } from "../lib/ThemeContext";
 
 interface Participant {
   id: string;
@@ -28,6 +29,7 @@ type SplitType = "equal" | "custom" | "percentage";
 export default function BillSplitPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedBill, setSelectedBill] = useState<BillSplit | null>(null);
 
@@ -141,56 +143,56 @@ export default function BillSplitPage() {
     const progress = totalAmt > 0 ? (paidAmount / totalAmt) * 100 : 0;
 
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setSelectedBill(null)} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{selectedBill.title}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{selectedBill.title}</Text>
         </View>
 
         <View style={styles.section}>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.centerBlock}>
-              <Text style={styles.mutedSmall}>Total Bill</Text>
-              <Text style={styles.bigAmount}>${parseFloat(selectedBill.totalAmount).toFixed(2)}</Text>
+              <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>Total Bill</Text>
+              <Text style={[styles.bigAmount, { color: colors.text }]}>${parseFloat(selectedBill.totalAmount).toFixed(2)}</Text>
             </View>
 
             <View style={styles.row}>
-              <Text style={styles.mutedSmall}>Collected</Text>
+              <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>Collected</Text>
               <Text style={[styles.fontSemibold, { color: "#059669" }]}>${paidAmount.toFixed(2)}</Text>
             </View>
-            <View style={styles.progressBar}>
+            <View style={[styles.progressBar, { backgroundColor: colors.card }]}>
               <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
             </View>
-            <Text style={[styles.mutedSmall, { textAlign: "center", marginTop: 4 }]}>
+            <Text style={[styles.mutedSmall, { color: colors.textMuted, textAlign: "center", marginTop: 4 }]}>
               {getPaidCount(selectedBill)} of {(selectedBill.participants || []).length} people have paid
             </Text>
           </View>
 
-          <Text style={styles.sectionLabel}>PARTICIPANTS</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>PARTICIPANTS</Text>
           {(selectedBill.participants || []).map((participant: Participant) => (
             <View
               key={participant.id}
-              style={[styles.card, participant.paid && styles.cardPaid]}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, participant.paid && styles.cardPaid]}
             >
               <View style={styles.participantRow}>
                 <View style={styles.participantLeft}>
                   <View
                     style={[
                       styles.avatar,
-                      { backgroundColor: participant.paid ? "#10B981" : "#F3F4F6" },
+                      { backgroundColor: participant.paid ? "#10B981" : colors.card },
                     ]}
                   >
                     {participant.paid ? (
                       <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.avatarText}>{participant.name.charAt(0).toUpperCase()}</Text>
+                      <Text style={[styles.avatarText, { color: colors.textMuted }]}>{participant.name.charAt(0).toUpperCase()}</Text>
                     )}
                   </View>
                   <View>
-                    <Text style={styles.participantName}>{participant.name}</Text>
-                    <Text style={styles.mutedSmall}>${parseFloat(participant.amount).toFixed(2)}</Text>
+                    <Text style={[styles.participantName, { color: colors.text }]}>{participant.name}</Text>
+                    <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>${parseFloat(participant.amount).toFixed(2)}</Text>
                   </View>
                 </View>
 
@@ -201,7 +203,7 @@ export default function BillSplitPage() {
                 ) : (
                   <View style={styles.actionRow}>
                     <TouchableOpacity
-                      style={styles.outlineButtonSmall}
+                      style={[styles.outlineButtonSmall, { borderColor: colors.border }]}
                       onPress={() => sendReminder(participant.name)}
                     >
                       <Ionicons name="chatbubble" size={14} color="#7C3AED" />
@@ -226,35 +228,35 @@ export default function BillSplitPage() {
 
   if (showCreate) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>
           <TouchableOpacity onPress={resetForm} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Bill Split</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Create Bill Split</Text>
         </View>
 
         <View style={styles.section}>
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Bill Title</Text>
+            <Text style={[styles.label, { color: colors.textMuted }]}>Bill Title</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
               placeholder="e.g., Dinner at Restaurant"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={title}
               onChangeText={setTitle}
             />
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Total Amount</Text>
-            <View style={styles.inputWithIcon}>
-              <Ionicons name="cash" size={18} color="#6B7280" style={{ marginRight: 8 }} />
+            <Text style={[styles.label, { color: colors.textMuted }]}>Total Amount</Text>
+            <View style={[styles.inputWithIcon, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+              <Ionicons name="cash" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
               <TextInput
-                style={styles.inputInner}
+                style={[styles.inputInner, { color: colors.text }]}
                 keyboardType="numeric"
                 placeholder="0.00"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={colors.textMuted}
                 value={totalAmount}
                 onChangeText={setTotalAmount}
               />
@@ -262,7 +264,7 @@ export default function BillSplitPage() {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Split Type</Text>
+            <Text style={[styles.label, { color: colors.textMuted }]}>Split Type</Text>
             <View style={styles.splitTypeRow}>
               {([
                 { type: "equal" as SplitType, icon: "reorder-two" as const, label: "Equal" },
@@ -274,17 +276,19 @@ export default function BillSplitPage() {
                   onPress={() => setSplitType(type)}
                   style={[
                     styles.splitTypeButton,
+                    { borderColor: colors.border },
                     splitType === type && styles.splitTypeButtonActive,
                   ]}
                 >
                   <Ionicons
                     name={icon}
                     size={20}
-                    color={splitType === type ? "#7C3AED" : "#6B7280"}
+                    color={splitType === type ? "#7C3AED" : colors.textMuted}
                   />
                   <Text
                     style={[
                       styles.splitTypeLabel,
+                      { color: colors.textMuted },
                       splitType === type && { color: "#7C3AED" },
                     ]}
                   >
@@ -297,7 +301,7 @@ export default function BillSplitPage() {
 
           <View style={styles.formGroup}>
             <View style={styles.rowBetween}>
-              <Text style={styles.label}>Participants</Text>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Participants</Text>
               <TouchableOpacity onPress={addParticipant} style={styles.addButton}>
                 <Ionicons name="add" size={16} color="#7C3AED" />
                 <Text style={styles.addButtonText}>Add</Text>
@@ -307,22 +311,22 @@ export default function BillSplitPage() {
             {participants.map((participant, index) => (
               <View key={participant.id} style={styles.participantInputRow}>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={[styles.input, { flex: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
                   placeholder={`Person ${index + 1}`}
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor={colors.textMuted}
                   value={participant.name}
                   onChangeText={(v) => updateParticipant(participant.id, "name", v)}
                 />
                 {splitType !== "equal" && (
-                  <View style={styles.amountInputWrap}>
-                    <Text style={styles.amountPrefix}>
+                  <View style={[styles.amountInputWrap, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                    <Text style={[styles.amountPrefix, { color: colors.textMuted }]}>
                       {splitType === "percentage" ? "%" : "$"}
                     </Text>
                     <TextInput
-                      style={styles.amountInput}
+                      style={[styles.amountInput, { color: colors.text }]}
                       keyboardType="numeric"
                       placeholder="0"
-                      placeholderTextColor="#6B7280"
+                      placeholderTextColor={colors.textMuted}
                       value={participant.amount}
                       onChangeText={(v) => updateParticipant(participant.id, "amount", v)}
                     />
@@ -330,7 +334,7 @@ export default function BillSplitPage() {
                 )}
                 {participants.length > 1 && (
                   <TouchableOpacity onPress={() => removeParticipant(participant.id)} style={{ padding: 8 }}>
-                    <Ionicons name="close" size={18} color="#6B7280" />
+                    <Ionicons name="close" size={18} color={colors.textMuted} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -340,7 +344,7 @@ export default function BillSplitPage() {
           {splitType === "equal" && totalAmount && participants.filter((p) => p.name.trim()).length > 0 && (
             <View style={styles.equalSplitCard}>
               <View style={styles.rowBetween}>
-                <Text style={styles.mutedSmall}>Each person pays:</Text>
+                <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>Each person pays:</Text>
                 <Text style={styles.splitAmount}>
                   ${(parseFloat(totalAmount) / participants.filter((p) => p.name.trim()).length).toFixed(2)}
                 </Text>
@@ -363,12 +367,12 @@ export default function BillSplitPage() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Bill Splitting</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Bill Splitting</Text>
       </View>
 
       <View style={styles.section}>
@@ -387,20 +391,20 @@ export default function BillSplitPage() {
         {isLoading ? (
           <View style={styles.loadingBlock}>
             {[1, 2, 3].map((i) => (
-              <View key={i} style={styles.skeleton} />
+              <View key={i} style={[styles.skeleton, { backgroundColor: colors.surface }]} />
             ))}
           </View>
         ) : billSplits.length === 0 ? (
           <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Ionicons name="people" size={32} color="#6B7280" />
+            <View style={[styles.emptyIcon, { backgroundColor: colors.surface }]}>
+              <Ionicons name="people" size={32} color={colors.textMuted} />
             </View>
-            <Text style={styles.emptyTitle}>No Bills Yet</Text>
-            <Text style={styles.emptyDesc}>Create your first bill split to get started</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Bills Yet</Text>
+            <Text style={[styles.emptyDesc, { color: colors.textMuted }]}>Create your first bill split to get started</Text>
           </View>
         ) : (
           <View>
-            <Text style={styles.sectionLabel}>YOUR BILLS</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>YOUR BILLS</Text>
             {billSplits.map((bill) => {
               const paidCount = getPaidCount(bill);
               const totalCount = (bill.participants || []).length;
@@ -410,7 +414,7 @@ export default function BillSplitPage() {
                 <TouchableOpacity
                   key={bill.id}
                   onPress={() => setSelectedBill(bill)}
-                  style={styles.card}
+                  style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 >
                   <View style={styles.billRow}>
                     <View style={styles.billLeft}>
@@ -427,13 +431,13 @@ export default function BillSplitPage() {
                         />
                       </View>
                       <View>
-                        <Text style={styles.billTitle}>{bill.title}</Text>
-                        <Text style={styles.mutedSmall}>
+                        <Text style={[styles.billTitle, { color: colors.text }]}>{bill.title}</Text>
+                        <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>
                           ${parseFloat(bill.totalAmount).toFixed(2)} • {paidCount}/{totalCount} paid
                         </Text>
                       </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+                    <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
                   </View>
                 </TouchableOpacity>
               );

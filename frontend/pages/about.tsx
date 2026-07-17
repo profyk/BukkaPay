@@ -1,6 +1,7 @@
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
 
@@ -28,69 +29,70 @@ const audiences = [
 
 export default function About() {
   const router = useRouter();
+  const { colors } = useTheme();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>About BukkaPay</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>About BukkaPay</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.heroSection}>
         <Image source={logoImage} style={styles.heroLogo} />
         <Text style={styles.heroTitle}>BukkaPay</Text>
-        <Text style={styles.heroTagline}>Simplifying how the world pays and gets paid</Text>
+        <Text style={[styles.heroTagline, { color: colors.textMuted }]}>Simplifying how the world pays and gets paid</Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.bodyText}>
+        <Text style={[styles.bodyText, { color: colors.text }]}>
           BukkaPay is a global fintech platform building modern payment and commerce infrastructure for individuals and businesses everywhere. We enable people to send, receive, and manage money seamlessly through secure, affordable, and easy-to-use digital solutions.
         </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>What We Do</Text>
-        <Text style={styles.bodyText}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>What We Do</Text>
+        <Text style={[styles.bodyText, { color: colors.text }]}>
           BukkaPay provides an all-in-one payments ecosystem designed for real-world use cases across markets and borders. Through our platform, users and businesses can accept payments, manage transactions, and move money efficiently \u2014 locally and internationally.
         </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Core Solutions</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Core Solutions</Text>
         {coreFeatures.map((feat, i) => (
-          <View key={i} style={styles.featureCard}>
+          <View key={i} style={[styles.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.featureIconWrap}>
               <Ionicons name={feat.icon} size={22} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.featureTitle}>{feat.title}</Text>
-              <Text style={styles.featureDesc}>{feat.desc}</Text>
+              <Text style={[styles.featureTitle, { color: colors.text }]}>{feat.title}</Text>
+              <Text style={[styles.featureDesc, { color: colors.textMuted }]}>{feat.desc}</Text>
             </View>
           </View>
         ))}
       </View>
 
       <View style={styles.highlightBox}>
-        <Text style={styles.highlightText}>
+        <Text style={[styles.highlightText, { color: colors.text }]}>
           By unifying these services into a single platform, BukkaPay removes complexity from payments and enables businesses and individuals to operate more efficiently in a connected global economy.
         </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Why BukkaPay Exists</Text>
-        <Text style={styles.bodyText}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Why BukkaPay Exists</Text>
+        <Text style={[styles.bodyText, { color: colors.text }]}>
           Payments should be simple, transparent, and accessible \u2014 yet for many people and businesses around the world, they remain fragmented, expensive, or difficult to manage. BukkaPay exists to change that.
         </Text>
-        <Text style={[styles.bodyText, { marginTop: 12, marginBottom: 8 }]}>We are building financial tools that:</Text>
+        <Text style={[styles.bodyText, { color: colors.text, marginTop: 12, marginBottom: 8 }]}>We are building financial tools that:</Text>
         {values.map((v, i) => (
           <View key={i} style={styles.valueRow}>
             <View style={styles.valueIconWrap}>
               <Ionicons name={v.icon} size={16} color="#7C3AED" />
             </View>
-            <Text style={styles.valueText}>{v.text}</Text>
+            <Text style={[styles.valueText, { color: colors.text }]}>{v.text}</Text>
           </View>
         ))}
       </View>
@@ -116,21 +118,21 @@ export default function About() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Who We Serve</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Who We Serve</Text>
         {audiences.map((a, i) => (
           <View key={i} style={styles.audienceRow}>
             <View style={styles.audienceDot} />
-            <Text style={styles.audienceText}>{a}</Text>
+            <Text style={[styles.audienceText, { color: colors.text }]}>{a}</Text>
           </View>
         ))}
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Built for a Connected World</Text>
-        <Text style={styles.bodyText}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Built for a Connected World</Text>
+        <Text style={[styles.bodyText, { color: colors.text }]}>
           BukkaPay is designed with a global-first approach \u2014 mobile-ready, scalable, and adaptable to different markets, currencies, and payment behaviors.
         </Text>
-        <Text style={[styles.bodyText, { marginTop: 12 }]}>
+        <Text style={[styles.bodyText, { color: colors.text, marginTop: 12 }]}>
           As commerce becomes increasingly digital and borderless, BukkaPay is committed to building the infrastructure that powers everyday transactions around the world.
         </Text>
       </View>

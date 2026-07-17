@@ -24,7 +24,7 @@ export default function TopUp() {
   const params = useLocalSearchParams<{ section?: string }>();
   const { toast } = useToast();
   const { currency } = useCurrency();
-  const { colors } = useTheme();
+  const { colors, darkMode } = useTheme();
 
   const [section, setSection] = useState<Section>((params.section as Section) || "select");
 
@@ -221,7 +221,7 @@ export default function TopUp() {
               <Text style={[s.optionTitle, { color: BLUE }]}>Instant Bank Pay</Text>
               <Text style={[s.optionSub, { color: MUTED }]}>Pay via your bank · Powered by Stitch</Text>
             </View>
-            <View style={s.badge}>
+            <View style={[s.badge, { backgroundColor: darkMode ? "rgba(22,163,74,0.2)" : "#DCFCE7" }]}>
               <Text style={s.badgeText}>Instant</Text>
             </View>
           </TouchableOpacity>
@@ -273,9 +273,9 @@ export default function TopUp() {
           <Text style={s.heroTitle}>Instant Bank Payment</Text>
         </View>
 
-        <View style={s.infoBox}>
+        <View style={[s.infoBox, { backgroundColor: darkMode ? "rgba(59,130,246,0.15)" : "#EFF6FF" }]}>
           <Ionicons name="information-circle" size={18} color={BLUE} />
-          <Text style={s.infoText}>
+          <Text style={[s.infoText, { color: darkMode ? "#93C5FD" : "#1E40AF" }]}>
             You'll be redirected to your bank's secure login page. No card details needed.
           </Text>
         </View>
@@ -318,7 +318,7 @@ export default function TopUp() {
 
         <View style={s.trustRow}>
           <Ionicons name="shield-checkmark" size={14} color={GREEN} />
-          <Text style={s.trustText}>Secured by Stitch · Bank-grade encryption</Text>
+          <Text style={[s.trustText, { color: MUTED }]}>Secured by Stitch · Bank-grade encryption</Text>
         </View>
       </ScrollView>
     );
@@ -435,7 +435,7 @@ export default function TopUp() {
           {(["savings", "current", "transmission"] as AccountType[]).map((t) => (
             <TouchableOpacity
               key={t}
-              style={[s.toggleBtn, { borderColor: BORDER }, accountType === t && s.toggleBtnActive]}
+              style={[s.toggleBtn, { borderColor: BORDER }, accountType === t && [s.toggleBtnActive, { backgroundColor: darkMode ? "rgba(29,78,216,0.2)" : "#EFF6FF" }]]}
               onPress={() => setAccountType(t)}
             >
               <Text style={[s.toggleTxt, { color: MUTED }, accountType === t && s.toggleTxtActive]}>

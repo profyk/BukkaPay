@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { apiRequest, queryClient } from "../lib/queryClient";
 import type { ContributionGroup, Contribution } from "../../shared/schema";
+import { useTheme } from "../lib/ThemeContext";
 
 const categories = [
   { id: "funeral", label: "Funeral", icon: "heart" as const, color: "#475569" },
@@ -20,6 +21,7 @@ export default function Contribute() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const code = (params.code as string) || "";
+  const { colors } = useTheme();
 
   const [contributorName, setContributorName] = useState("");
   const [contributorPhone, setContributorPhone] = useState("");
@@ -78,19 +80,19 @@ export default function Contribute() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#7C3AED" />
-        <Text style={styles.mutedText}>Loading...</Text>
+        <Text style={[styles.mutedText, { color: colors.textMuted }]}>Loading...</Text>
       </View>
     );
   }
 
   if (error || !data) {
     return (
-      <View style={styles.loadingContainer}>
-        <Ionicons name="people" size={48} color="#6B7280" />
-        <Text style={styles.errorTitle}>Group Not Found</Text>
-        <Text style={styles.mutedText}>This contribution link may be invalid or expired.</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <Ionicons name="people" size={48} color={colors.textMuted} />
+        <Text style={[styles.errorTitle, { color: colors.text }]}>Group Not Found</Text>
+        <Text style={[styles.mutedText, { color: colors.textMuted }]}>This contribution link may be invalid or expired.</Text>
         <TouchableOpacity style={[styles.primaryButton, { marginTop: 16 }]} onPress={() => router.push("/" as any)}>
           <Text style={styles.primaryButtonText}>Go Home</Text>
         </TouchableOpacity>
@@ -106,21 +108,21 @@ export default function Contribute() {
 
   if (contributed) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <View style={styles.thankYouCircle}>
           <Ionicons name="checkmark" size={40} color="#059669" />
         </View>
-        <Text style={styles.thankYouTitle}>Thank You!</Text>
-        <Text style={styles.mutedText}>Your contribution to "{group.title}" has been received.</Text>
-        <TouchableOpacity style={styles.outlineButton} onPress={() => setContributed(false)}>
-          <Text style={styles.outlineButtonText}>Make Another Contribution</Text>
+        <Text style={[styles.thankYouTitle, { color: colors.text }]}>Thank You!</Text>
+        <Text style={[styles.mutedText, { color: colors.textMuted }]}>Your contribution to "{group.title}" has been received.</Text>
+        <TouchableOpacity style={[styles.outlineButton, { borderColor: colors.border }]} onPress={() => setContributed(false)}>
+          <Text style={[styles.outlineButtonText, { color: colors.text }]}>Make Another Contribution</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
       <View style={[styles.heroHeader, { backgroundColor: categoryInfo.color }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.heroBackButton}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
@@ -148,16 +150,16 @@ export default function Contribute() {
       </View>
 
       <View style={styles.section}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Make a Contribution</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Make a Contribution</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Amount ($) *</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Amount ($) *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.text }]}
               keyboardType="numeric"
               placeholder="Enter amount"
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={amount}
               onChangeText={setAmount}
             />
@@ -165,10 +167,10 @@ export default function Contribute() {
               {[10, 25, 50, 100, 200].map((preset) => (
                 <TouchableOpacity
                   key={preset}
-                  style={styles.presetButton}
+                  style={[styles.presetButton, { borderColor: colors.border }]}
                   onPress={() => setAmount(preset.toString())}
                 >
-                  <Text style={styles.presetText}>${preset}</Text>
+                  <Text style={[styles.presetText, { color: colors.text }]}>${preset}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -181,28 +183,28 @@ export default function Contribute() {
               trackColor={{ false: "#E5E7EB", true: "#7C3AED" }}
               thumbColor="#FFFFFF"
             />
-            <Text style={styles.switchLabel}>Contribute anonymously</Text>
+            <Text style={[styles.switchLabel, { color: colors.text }]}>Contribute anonymously</Text>
           </View>
 
           {!isAnonymous && (
             <>
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Your Name *</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Your Name *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.text }]}
                   placeholder="Enter your name"
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor={colors.textMuted}
                   value={contributorName}
                   onChangeText={setContributorName}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Phone (optional)</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Phone (optional)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.text }]}
                   placeholder="Your phone number"
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor={colors.textMuted}
                   value={contributorPhone}
                   onChangeText={setContributorPhone}
                   keyboardType="phone-pad"
@@ -212,11 +214,11 @@ export default function Contribute() {
           )}
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Message (optional)</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Message (optional)</Text>
             <TextInput
-              style={[styles.input, { height: 64, textAlignVertical: "top" }]}
+              style={[styles.input, { height: 64, textAlignVertical: "top", borderColor: colors.border, backgroundColor: colors.card, color: colors.text }]}
               placeholder="Leave a message of support..."
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               value={message}
               onChangeText={setMessage}
               multiline
@@ -236,12 +238,12 @@ export default function Contribute() {
 
         {contributions.length > 0 && (
           <View>
-            <Text style={styles.sectionLabel}>Recent Contributions ({contributions.length})</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Recent Contributions ({contributions.length})</Text>
             {contributions.slice(0, 10).map((c) => (
-              <View key={c.id} style={styles.contributionCard}>
+              <View key={c.id} style={[styles.contributionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.contributorName}>{c.isAnonymous ? "Anonymous" : c.contributorName}</Text>
-                  {c.message && <Text style={styles.contributionMessage}>"{c.message}"</Text>}
+                  <Text style={[styles.contributorName, { color: colors.text }]}>{c.isAnonymous ? "Anonymous" : c.contributorName}</Text>
+                  {c.message && <Text style={[styles.contributionMessage, { color: colors.textMuted }]}>"{c.message}"</Text>}
                 </View>
                 <Text style={styles.contributionAmount}>${c.amount}</Text>
               </View>

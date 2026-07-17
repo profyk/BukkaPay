@@ -179,7 +179,7 @@ export default function PaymentLinkDetail() {
   if (!link) {
     return (
       <View style={[s.centered, { backgroundColor: colors.surface }]}>
-        <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
+        <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
         <Text style={[s.notFound, { color: colors.text }]}>Payment link not found</Text>
         <TouchableOpacity onPress={() => router.back()} style={s.backFallbackBtn}>
           <Text style={s.backFallbackText}>Go Back</Text>
@@ -322,7 +322,7 @@ export default function PaymentLinkDetail() {
           </Text>
           {payments.length === 0 ? (
             <View style={s.emptyPayments}>
-              <Ionicons name="receipt-outline" size={36} color="#D1D5DB" />
+              <Ionicons name="receipt-outline" size={36} color={colors.textMuted} />
               <Text style={[s.emptyPaymentsText, { color: colors.textSecondary }]}>No payments yet</Text>
               <Text style={s.emptyPaymentsSub}>Payments will appear here as they come in</Text>
             </View>

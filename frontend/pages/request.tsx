@@ -7,11 +7,13 @@ import { getCurrentUser, getAuthToken } from "../lib/auth";
 import { API_BASE } from "../lib/config";
 import * as Clipboard from "expo-clipboard";
 import { useCurrency } from "../lib/CurrencyContext";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function Request() {
   const router = useRouter();
   const { toast } = useToast();
   const { currency } = useCurrency();
+  const { colors } = useTheme();
   const [amount, setAmount] = useState("0");
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
@@ -97,48 +99,48 @@ export default function Request() {
 
   if (step === "input") {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Request Money</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Request Money</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.inputContent}>
-          <Text style={styles.inputLabel}>Recipient Name</Text>
+          <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Recipient Name</Text>
           <TextInput
             value={recipientName}
             onChangeText={setRecipientName}
             placeholder="Enter name or contact"
-            placeholderTextColor="#6B7280"
-            style={styles.textInput}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
           />
 
-          <Text style={styles.inputLabel}>Phone Number (Optional)</Text>
+          <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Phone Number (Optional)</Text>
           <TextInput
             value={recipientPhone}
             onChangeText={setRecipientPhone}
             placeholder="+1234567890"
-            placeholderTextColor="#6B7280"
+            placeholderTextColor={colors.textMuted}
             keyboardType="phone-pad"
-            style={styles.textInput}
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
           />
 
           <View style={styles.amountDisplay}>
-            <Text style={styles.amountDollar}>$</Text>
-            <Text style={styles.amountValue}>{amount}</Text>
+            <Text style={[styles.amountDollar, { color: colors.textMuted }]}>$</Text>
+            <Text style={[styles.amountValue, { color: colors.text }]}>{amount}</Text>
           </View>
 
           <View style={styles.numpad}>
             {numpadKeys.map((num) => (
-              <TouchableOpacity key={num.toString()} onPress={() => handleNumberClick(num.toString())} style={styles.numpadKey}>
-                <Text style={styles.numpadText}>{num}</Text>
+              <TouchableOpacity key={num.toString()} onPress={() => handleNumberClick(num.toString())} style={[styles.numpadKey, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.numpadText, { color: colors.text }]}>{num}</Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity onPress={handleBackspace} style={styles.numpadKey}>
-              <Ionicons name="backspace" size={24} color="#6B7280" />
+            <TouchableOpacity onPress={handleBackspace} style={[styles.numpadKey, { backgroundColor: colors.surface }]}>
+              <Ionicons name="backspace" size={24} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -152,30 +154,30 @@ export default function Request() {
 
   if (step === "confirm") {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setStep("input")} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Confirm Request</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Confirm Request</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.confirmContent}>
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmLabel}>Amount</Text>
-            <Text style={styles.confirmAmount}>{currency.symbol}{amount}</Text>
-            <View style={styles.divider} />
-            <Text style={styles.confirmDetailLabel}>Recipient</Text>
-            <Text style={styles.confirmDetailValue}>{recipientName}</Text>
+          <View style={[styles.confirmCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>Amount</Text>
+            <Text style={[styles.confirmAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+            <Text style={[styles.confirmDetailLabel, { color: colors.textMuted }]}>Recipient</Text>
+            <Text style={[styles.confirmDetailValue, { color: colors.text }]}>{recipientName}</Text>
             {recipientPhone ? (
               <>
-                <Text style={styles.confirmDetailLabel}>Phone</Text>
-                <Text style={styles.confirmDetailValue}>{recipientPhone}</Text>
+                <Text style={[styles.confirmDetailLabel, { color: colors.textMuted }]}>Phone</Text>
+                <Text style={[styles.confirmDetailValue, { color: colors.text }]}>{recipientPhone}</Text>
               </>
             ) : null}
-            <Text style={styles.confirmDetailLabel}>From</Text>
-            <Text style={styles.confirmDetailValue}>{user?.name}</Text>
+            <Text style={[styles.confirmDetailLabel, { color: colors.textMuted }]}>From</Text>
+            <Text style={[styles.confirmDetailValue, { color: colors.text }]}>{user?.name}</Text>
           </View>
 
           <View style={{ flex: 1 }} />
@@ -183,8 +185,8 @@ export default function Request() {
           <TouchableOpacity onPress={handleCreateRequest} style={styles.continueButton}>
             <Text style={styles.continueButtonText}>Create Request</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setStep("input")} style={styles.outlineButton}>
-            <Text style={styles.outlineButtonText}>Edit</Text>
+          <TouchableOpacity onPress={() => setStep("input")} style={[styles.outlineButton, { borderColor: colors.border }]}>
+            <Text style={[styles.outlineButtonText, { color: colors.text }]}>Edit</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -192,12 +194,12 @@ export default function Request() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Share Request</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Share Request</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -208,30 +210,30 @@ export default function Request() {
           <Text style={styles.shareFrom}>From {user?.name}</Text>
         </View>
 
-        <View style={styles.linkBox}>
-          <Text style={styles.linkLabel}>SHARE LINK</Text>
-          <View style={styles.linkRow}>
-            <Text style={styles.linkText} numberOfLines={1}>{requestLink}</Text>
+        <View style={[styles.linkBox, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.linkLabel, { color: colors.textMuted }]}>SHARE LINK</Text>
+          <View style={[styles.linkRow, { backgroundColor: colors.card }]}>
+            <Text style={[styles.linkText, { color: colors.textMuted }]} numberOfLines={1}>{requestLink}</Text>
             <TouchableOpacity onPress={handleCopyLink}>
-              <Ionicons name="copy" size={18} color="#6B7280" />
+              <Ionicons name="copy" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
 
-        <Text style={styles.shareViaLabel}>Share via:</Text>
+        <Text style={[styles.shareViaLabel, { color: colors.textMuted }]}>Share via:</Text>
 
         <TouchableOpacity onPress={handleShareLink} style={[styles.shareButton, { backgroundColor: "#10B981" }]}>
           <Ionicons name="share-social" size={20} color="#FFFFFF" />
           <Text style={styles.shareButtonText}>Share Link</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={handleCopyLink} style={styles.outlineButton}>
-          <Ionicons name="copy" size={20} color="#1A1A2E" style={{ marginRight: 8 }} />
-          <Text style={styles.outlineButtonText}>Copy Link</Text>
+        <TouchableOpacity onPress={handleCopyLink} style={[styles.outlineButton, { borderColor: colors.border }]}>
+          <Ionicons name="copy" size={20} color={colors.text} style={{ marginRight: 8 }} />
+          <Text style={[styles.outlineButtonText, { color: colors.text }]}>Copy Link</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/(tabs)")} style={[styles.outlineButton, { backgroundColor: "#F8F9FA", marginTop: 16 }]}>
-          <Text style={styles.outlineButtonText}>Done</Text>
+        <TouchableOpacity onPress={() => router.push("/(tabs)")} style={[styles.outlineButton, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
+          <Text style={[styles.outlineButtonText, { color: colors.text }]}>Done</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

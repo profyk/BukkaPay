@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import * as Clipboard from "expo-clipboard";
 import { useCurrency } from "../lib/CurrencyContext";
+import { useTheme } from "../lib/ThemeContext";
 
 interface Transaction {
   id: string;
@@ -24,6 +25,7 @@ export default function TransactionSlip() {
   const router = useRouter();
   const { toast } = useToast();
   const { currency } = useCurrency();
+  const { colors } = useTheme();
   const [copied, setCopied] = useState(false);
 
   const transaction: Transaction = {
@@ -73,12 +75,12 @@ export default function TransactionSlip() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push("/(screens)/notifications")} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Transaction Receipt</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Transaction Receipt</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -134,16 +136,16 @@ export default function TransactionSlip() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.shareTitle}>Share Receipt</Text>
+      <Text style={[styles.shareTitle, { color: colors.textMuted }]}>Share Receipt</Text>
 
       <TouchableOpacity onPress={handleShare} style={[styles.actionButton, { backgroundColor: "#2563EB" }]}>
         <Ionicons name="share-social" size={20} color="#FFFFFF" />
         <Text style={styles.actionButtonText}>Share Receipt</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={copyToClipboard} style={[styles.actionButton, { backgroundColor: "#F8F9FA" }]}>
-        <Ionicons name="copy" size={20} color="#1A1A2E" />
-        <Text style={[styles.actionButtonText, { color: "#1A1A2E" }]}>Copy Receipt</Text>
+      <TouchableOpacity onPress={copyToClipboard} style={[styles.actionButton, { backgroundColor: colors.surface }]}>
+        <Ionicons name="copy" size={20} color={colors.text} />
+        <Text style={[styles.actionButtonText, { color: colors.text }]}>Copy Receipt</Text>
       </TouchableOpacity>
 
       <View style={styles.infoBox}>

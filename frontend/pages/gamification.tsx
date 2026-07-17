@@ -2,9 +2,11 @@ import { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function Gamification() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<"challenges" | "achievements">("challenges");
 
   const challenges = [
@@ -26,12 +28,12 @@ export default function Gamification() {
   const stats = { streak: 12, totalPoints: 2850, badges: 6, rank: "Silver" };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Gamification</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Gamification</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -51,17 +53,17 @@ export default function Gamification() {
       <View style={styles.tabRow}>
         <TouchableOpacity
           onPress={() => setActiveTab("challenges")}
-          style={[styles.tabButton, activeTab === "challenges" && styles.tabActive]}
+          style={[styles.tabButton, { backgroundColor: colors.surface }, activeTab === "challenges" && styles.tabActive]}
         >
-          <Ionicons name="flash" size={18} color={activeTab === "challenges" ? "#FFFFFF" : "#1A1A2E"} />
-          <Text style={[styles.tabText, activeTab === "challenges" && styles.tabActiveText]}>Challenges</Text>
+          <Ionicons name="flash" size={18} color={activeTab === "challenges" ? "#FFFFFF" : colors.text} />
+          <Text style={[styles.tabText, { color: colors.text }, activeTab === "challenges" && styles.tabActiveText]}>Challenges</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setActiveTab("achievements")}
-          style={[styles.tabButton, activeTab === "achievements" && styles.tabActive]}
+          style={[styles.tabButton, { backgroundColor: colors.surface }, activeTab === "achievements" && styles.tabActive]}
         >
-          <Ionicons name="ribbon" size={18} color={activeTab === "achievements" ? "#FFFFFF" : "#1A1A2E"} />
-          <Text style={[styles.tabText, activeTab === "achievements" && styles.tabActiveText]}>Achievements</Text>
+          <Ionicons name="ribbon" size={18} color={activeTab === "achievements" ? "#FFFFFF" : colors.text} />
+          <Text style={[styles.tabText, { color: colors.text }, activeTab === "achievements" && styles.tabActiveText]}>Achievements</Text>
         </TouchableOpacity>
       </View>
 
@@ -69,24 +71,28 @@ export default function Gamification() {
         challenges.map((challenge, idx) => (
           <View
             key={challenge.id}
-            style={[styles.challengeCard, challenge.completed && styles.challengeCompleted]}
+            style={[
+              styles.challengeCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              challenge.completed && styles.challengeCompleted,
+            ]}
           >
             <View style={styles.challengeHeader}>
               <View style={styles.challengeLeft}>
                 <Ionicons name={challenge.icon} size={24} color={challenge.completed ? "#10B981" : "#7C3AED"} />
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.challengeTitle}>{challenge.title}</Text>
-                  <Text style={styles.challengeDesc}>{challenge.description}</Text>
+                  <Text style={[styles.challengeTitle, { color: colors.text }]}>{challenge.title}</Text>
+                  <Text style={[styles.challengeDesc, { color: colors.textMuted }]}>{challenge.description}</Text>
                 </View>
               </View>
               {challenge.completed && <Ionicons name="checkmark" size={20} color="#10B981" />}
             </View>
-            <View style={styles.progressBg}>
+            <View style={[styles.progressBg, { backgroundColor: colors.card }]}>
               <View style={[styles.progressFill, { width: `${challenge.progress}%` }]} />
             </View>
-            <Text style={styles.progressText}>{challenge.progress}% Complete</Text>
+            <Text style={[styles.progressText, { color: colors.textMuted }]}>{challenge.progress}% Complete</Text>
             <View style={styles.challengeFooter}>
-              <Text style={styles.rewardText}>+{challenge.reward} points</Text>
+              <Text style={[styles.rewardText, { color: colors.text }]}>+{challenge.reward} points</Text>
               <TouchableOpacity
                 style={[styles.claimButton, challenge.completed && styles.claimButtonDisabled]}
                 disabled={challenge.completed}
@@ -99,10 +105,10 @@ export default function Gamification() {
       ) : (
         <View style={styles.achievementsGrid}>
           {achievements.map((achievement, idx) => (
-            <View key={idx} style={styles.achievementCard}>
+            <View key={idx} style={[styles.achievementCard, { backgroundColor: colors.surface }]}>
               <Ionicons name={achievement.icon} size={32} color="#7C3AED" />
-              <Text style={styles.achievementTitle}>{achievement.title}</Text>
-              <Text style={styles.achievementDesc}>{achievement.description}</Text>
+              <Text style={[styles.achievementTitle, { color: colors.text }]}>{achievement.title}</Text>
+              <Text style={[styles.achievementDesc, { color: colors.textMuted }]}>{achievement.description}</Text>
               <Text style={styles.achievementDate}>{achievement.date}</Text>
             </View>
           ))}

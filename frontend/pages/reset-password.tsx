@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { API_BASE } from "../lib/config";
+import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
 
@@ -11,6 +12,7 @@ export default function ResetPassword() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -68,13 +70,13 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <View style={styles.container}>
-        <View style={styles.card}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.errorCircle}>
             <Ionicons name="close-circle" size={32} color="#EF4444" />
           </View>
-          <Text style={styles.title}>Invalid Link</Text>
-          <Text style={styles.subtitle}>This password reset link is invalid or has expired.</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Invalid Link</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>This password reset link is invalid or has expired.</Text>
           <TouchableOpacity onPress={() => router.push("/(screens)/forgot-password" as any)} style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>Request New Link</Text>
           </TouchableOpacity>
@@ -84,16 +86,16 @@ export default function ResetPassword() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.logoRow}>
           <Image source={logoImage} style={styles.logoImage} />
         </View>
 
         {!success ? (
           <>
-            <Text style={styles.title}>Reset Password</Text>
-            <Text style={styles.subtitle}>Enter your new password below</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Reset Password</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Enter your new password below</Text>
 
             {error ? (
               <View style={styles.errorBox}>
@@ -101,35 +103,35 @@ export default function ResetPassword() {
               </View>
             ) : null}
 
-            <Text style={styles.inputLabel}>New Password</Text>
-            <View style={styles.inputRow}>
-              <Ionicons name="lock-closed" size={20} color="#6B7280" style={{ marginRight: 10 }} />
+            <Text style={[styles.inputLabel, { color: colors.text }]}>New Password</Text>
+            <View style={[styles.inputRow, { borderColor: colors.border }]}>
+              <Ionicons name="lock-closed" size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 placeholder="Enter new password"
-                placeholderTextColor="#6B7280"
-                style={styles.textInput}
+                placeholderTextColor={colors.textMuted}
+                style={[styles.textInput, { color: colors.text }]}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#6B7280" />
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Confirm New Password</Text>
-            <View style={styles.inputRow}>
-              <Ionicons name="lock-closed" size={20} color="#6B7280" style={{ marginRight: 10 }} />
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Confirm New Password</Text>
+            <View style={[styles.inputRow, { borderColor: colors.border }]}>
+              <Ionicons name="lock-closed" size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
               <TextInput
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
                 placeholder="Confirm new password"
-                placeholderTextColor="#6B7280"
-                style={styles.textInput}
+                placeholderTextColor={colors.textMuted}
+                style={[styles.textInput, { color: colors.text }]}
               />
               <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color="#6B7280" />
+                <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -146,8 +148,8 @@ export default function ResetPassword() {
             <View style={styles.successCircle}>
               <Ionicons name="checkmark-circle" size={32} color="#10B981" />
             </View>
-            <Text style={styles.successTitle}>Password Reset!</Text>
-            <Text style={styles.successSubtitle}>Your password has been successfully reset. You can now log in with your new password.</Text>
+            <Text style={[styles.successTitle, { color: colors.text }]}>Password Reset!</Text>
+            <Text style={[styles.successSubtitle, { color: colors.textMuted }]}>Your password has been successfully reset. You can now log in with your new password.</Text>
             <TouchableOpacity onPress={() => router.push("/(screens)/login" as any)} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Go to Login</Text>
             </TouchableOpacity>
@@ -156,8 +158,8 @@ export default function ResetPassword() {
       </View>
 
       <View style={styles.brandRow}>
-        <Text style={styles.brandName}>BukkaPay</Text>
-        <Text style={styles.brandTagline}>The Pulse of African Finance</Text>
+        <Text style={[styles.brandName, { color: colors.text }]}>BukkaPay</Text>
+        <Text style={[styles.brandTagline, { color: colors.textMuted }]}>The Pulse of African Finance</Text>
       </View>
     </View>
   );

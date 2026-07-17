@@ -13,6 +13,7 @@ import { convertAmount } from "../lib/currency";
 import { apiRequest, queryClient } from "../lib/queryClient";
 import { cancelTravelBooking } from "../lib/api";
 import { useToast } from "../hooks/use-toast";
+import { useTheme } from "../lib/ThemeContext";
 
 const PRIMARY = "#7C3AED";
 const SURFACE = "#F8F9FA";
@@ -56,6 +57,7 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
   transaction: any; onToggleUsed: () => void; onCancel: () => void; cancelling: boolean;
 }) {
   const { currency } = useCurrency();
+  const { colors, darkMode } = useTheme();
   const meta = transaction.metadata || {};
   const isBus = meta.ticketType === "bus";
   const isUsed = meta.ticketStatus === "used";
@@ -184,38 +186,38 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
       </View>
 
       <View style={t.tearLine}>
-        <View style={t.tearCircleLeft} />
-        <View style={{ flex: 1, borderTopWidth: 1.5, borderTopColor: BORDER, borderStyle: "dashed" }} />
-        <View style={t.tearCircleRight} />
+        <View style={[t.tearCircleLeft, { backgroundColor: colors.background }]} />
+        <View style={{ flex: 1, borderTopWidth: 1.5, borderTopColor: colors.border, borderStyle: "dashed" }} />
+        <View style={[t.tearCircleRight, { backgroundColor: colors.background }]} />
       </View>
 
       <View style={t.body}>
         <View style={t.refRow}>
           <View style={t.refBox}>
-            <Text style={t.refLabel}>Booking Reference</Text>
+            <Text style={[t.refLabel, { color: colors.textMuted }]}>Booking Reference</Text>
             <Text style={t.refCode}>{meta.bookingRef || transaction.reference}</Text>
           </View>
           <View style={t.refRight}>
-            <Text style={t.refLabel}>Passengers</Text>
-            <Text style={t.refVal}>{meta.passengerCount || 1}</Text>
+            <Text style={[t.refLabel, { color: colors.textMuted }]}>Passengers</Text>
+            <Text style={[t.refVal, { color: colors.text }]}>{meta.passengerCount || 1}</Text>
           </View>
         </View>
 
         <View style={t.infoGrid}>
-          <View style={t.infoCell}>
-            <Text style={t.infoLabel}>From</Text>
-            <Text style={t.infoVal}>{fromFull}</Text>
+          <View style={[t.infoCell, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[t.infoLabel, { color: colors.textMuted }]}>From</Text>
+            <Text style={[t.infoVal, { color: colors.text }]}>{fromFull}</Text>
           </View>
-          <View style={t.infoCell}>
-            <Text style={t.infoLabel}>To</Text>
-            <Text style={t.infoVal}>{toFull}</Text>
+          <View style={[t.infoCell, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[t.infoLabel, { color: colors.textMuted }]}>To</Text>
+            <Text style={[t.infoVal, { color: colors.text }]}>{toFull}</Text>
           </View>
-          <View style={t.infoCell}>
-            <Text style={t.infoLabel}>Class / Type</Text>
-            <Text style={t.infoVal}>{meta.seatClass}</Text>
+          <View style={[t.infoCell, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[t.infoLabel, { color: colors.textMuted }]}>Class / Type</Text>
+            <Text style={[t.infoVal, { color: colors.text }]}>{meta.seatClass}</Text>
           </View>
-          <View style={t.infoCell}>
-            <Text style={t.infoLabel}>Total Paid</Text>
+          <View style={[t.infoCell, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[t.infoLabel, { color: colors.textMuted }]}>Total Paid</Text>
             <Text style={[t.infoVal, { color: PRIMARY, fontWeight: "700" }]}>
               R{Number(transaction.amount).toFixed(2)}
             </Text>
@@ -224,20 +226,20 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
 
         {passengers.length > 0 && (
           <View style={t.section}>
-            <Text style={t.sectionTitle}>Passengers</Text>
+            <Text style={[t.sectionTitle, { color: colors.text }]}>Passengers</Text>
             {passengers.map((p: any, i: number) => (
-              <View key={i} style={t.passengerCard}>
+              <View key={i} style={[t.passengerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={t.passengerNumber}>
                   <Text style={t.passengerNumberText}>{i + 1}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={t.passengerName}>{p.name}</Text>
+                  <Text style={[t.passengerName, { color: colors.text }]}>{p.name}</Text>
                   <View style={{ flexDirection: "row", gap: 12, marginTop: 2, flexWrap: "wrap" }}>
                     {p.idNumber ? (
-                      <Text style={t.passengerSub}>ID: {p.idNumber}</Text>
+                      <Text style={[t.passengerSub, { color: colors.textMuted }]}>ID: {p.idNumber}</Text>
                     ) : null}
                     {p.phone ? (
-                      <Text style={t.passengerSub}>{p.phone}</Text>
+                      <Text style={[t.passengerSub, { color: colors.textMuted }]}>{p.phone}</Text>
                     ) : null}
                   </View>
                 </View>
@@ -247,23 +249,23 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
         )}
 
         <View style={t.section}>
-          <Text style={t.sectionTitle}>Booking Details</Text>
-          <View style={t.detailRow}>
-            <Text style={t.detailLabel}>Booked on</Text>
-            <Text style={t.detailVal}>{format(new Date(transaction.createdAt), "MMM d, yyyy 'at' h:mm a")}</Text>
+          <Text style={[t.sectionTitle, { color: colors.text }]}>Booking Details</Text>
+          <View style={[t.detailRow, { borderBottomColor: colors.border }]}>
+            <Text style={[t.detailLabel, { color: colors.textMuted }]}>Booked on</Text>
+            <Text style={[t.detailVal, { color: colors.text }]}>{format(new Date(transaction.createdAt), "MMM d, yyyy 'at' h:mm a")}</Text>
           </View>
-          <View style={t.detailRow}>
-            <Text style={t.detailLabel}>Price per person</Text>
-            <Text style={t.detailVal}>R{Number(meta.pricePerPerson || 0).toFixed(2)}</Text>
+          <View style={[t.detailRow, { borderBottomColor: colors.border }]}>
+            <Text style={[t.detailLabel, { color: colors.textMuted }]}>Price per person</Text>
+            <Text style={[t.detailVal, { color: colors.text }]}>R{Number(meta.pricePerPerson || 0).toFixed(2)}</Text>
           </View>
-          <View style={t.detailRow}>
-            <Text style={t.detailLabel}>Currency</Text>
-            <Text style={t.detailVal}>{transaction.currency || "ZAR"}</Text>
+          <View style={[t.detailRow, { borderBottomColor: colors.border }]}>
+            <Text style={[t.detailLabel, { color: colors.textMuted }]}>Currency</Text>
+            <Text style={[t.detailVal, { color: colors.text }]}>{transaction.currency || "ZAR"}</Text>
           </View>
-          <View style={t.detailRow}>
-            <Text style={t.detailLabel}>Status</Text>
-            <View style={[t.statusPill, { backgroundColor: isRefunded ? "#F3F4F6" : isUsed ? "#F3F4F6" : "#EDE9FE" }]}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: isRefunded || isUsed ? MUTED : PRIMARY }}>
+          <View style={[t.detailRow, { borderBottomColor: colors.border }]}>
+            <Text style={[t.detailLabel, { color: colors.textMuted }]}>Status</Text>
+            <View style={[t.statusPill, { backgroundColor: isRefunded || isUsed ? colors.surface : colors.primaryLight }]}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: isRefunded || isUsed ? colors.textMuted : colors.primary }}>
                 {isRefunded ? "CANCELLED" : isUsed ? "USED" : "UNUSED"}
               </Text>
             </View>
@@ -272,15 +274,15 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
 
         {!isRefunded && (
           <TouchableOpacity
-            style={[t.toggleBtn, { backgroundColor: isUsed ? "#F3F4F6" : "#EDE9FE", borderColor: isUsed ? BORDER : PRIMARY }]}
+            style={[t.toggleBtn, { backgroundColor: isUsed ? colors.surface : colors.primaryLight, borderColor: isUsed ? colors.border : colors.primary }]}
             onPress={onToggleUsed}
           >
             <Ionicons
               name={isUsed ? "refresh-outline" : "checkmark-circle-outline"}
               size={20}
-              color={isUsed ? MUTED : PRIMARY}
+              color={isUsed ? colors.textMuted : colors.primary}
             />
-            <Text style={[t.toggleBtnText, { color: isUsed ? MUTED : PRIMARY }]}>
+            <Text style={[t.toggleBtnText, { color: isUsed ? colors.textMuted : colors.primary }]}>
               {isUsed ? "Mark as Unused" : "Mark as Used"}
             </Text>
           </TouchableOpacity>
@@ -321,6 +323,7 @@ export default function PurchaseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { currency } = useCurrency();
   const { toast } = useToast();
+  const { colors } = useTheme();
   const [copied, setCopied] = useState(false);
 
   const { data: transaction, isLoading, error, refetch } = useQuery<any>({
@@ -377,7 +380,7 @@ export default function PurchaseDetail() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={PRIMARY} />
       </View>
     );
@@ -385,17 +388,17 @@ export default function PurchaseDetail() {
 
   if (error || !transaction) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.push("/purchases-hub" as any)} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={TEXT} />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Details</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Details</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={MUTED} />
-          <Text style={styles.mutedText}>Transaction not found</Text>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.mutedText, { color: colors.textMuted }]}>Transaction not found</Text>
           <TouchableOpacity onPress={() => router.push("/purchases-hub" as any)} style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>Go Back</Text>
           </TouchableOpacity>
@@ -413,12 +416,12 @@ export default function PurchaseDetail() {
   const catLabels = metadataLabels[transaction.category] || {};
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push("/purchases-hub" as any)} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={TEXT} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
           {isTravel ? "Your Ticket" : "Transaction Details"}
         </Text>
         <View style={{ width: 40 }} />
@@ -452,40 +455,40 @@ export default function PurchaseDetail() {
             </View>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Transaction Details</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Transaction Details</Text>
             <View style={styles.detailRow}>
-              <Text style={styles.mutedText}>Reference</Text>
+              <Text style={[styles.mutedText, { color: colors.textMuted }]}>Reference</Text>
               <View style={styles.referenceRow}>
-                <Text style={styles.monoText}>{transaction.reference}</Text>
+                <Text style={[styles.monoText, { color: colors.text }]}>{transaction.reference}</Text>
                 <TouchableOpacity onPress={handleCopyReference} style={styles.copyButton}>
                   <Ionicons name={copied ? "checkmark-circle" : "copy-outline"} size={16} color={copied ? "#10B981" : MUTED} />
                 </TouchableOpacity>
               </View>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.mutedText}>Date</Text>
-              <Text style={styles.detailValue}>{format(new Date(transaction.createdAt), "MMM d, yyyy")}</Text>
+              <Text style={[styles.mutedText, { color: colors.textMuted }]}>Date</Text>
+              <Text style={[styles.detailValue, { color: colors.text }]}>{format(new Date(transaction.createdAt), "MMM d, yyyy")}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.mutedText}>Time</Text>
-              <Text style={styles.detailValue}>{format(new Date(transaction.createdAt), "h:mm a")}</Text>
+              <Text style={[styles.mutedText, { color: colors.textMuted }]}>Time</Text>
+              <Text style={[styles.detailValue, { color: colors.text }]}>{format(new Date(transaction.createdAt), "h:mm a")}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.mutedText}>Category</Text>
-              <Text style={[styles.detailValue, { textTransform: "capitalize" }]}>{transaction.category}</Text>
+              <Text style={[styles.mutedText, { color: colors.textMuted }]}>Category</Text>
+              <Text style={[styles.detailValue, { color: colors.text, textTransform: "capitalize" }]}>{transaction.category}</Text>
             </View>
           </View>
 
           {Object.keys(meta).length > 0 && (
-            <View style={styles.card}>
-              <Text style={[styles.cardTitle, { textTransform: "capitalize" }]}>{transaction.category} Details</Text>
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.cardTitle, { color: colors.text, textTransform: "capitalize" }]}>{transaction.category} Details</Text>
               {Object.entries(meta).map(([key, value]) => (
                 <View key={key} style={styles.detailRow}>
-                  <Text style={styles.mutedText}>
+                  <Text style={[styles.mutedText, { color: colors.textMuted }]}>
                     {catLabels[key] || key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
                   </Text>
-                  <Text style={styles.monoText}>{String(value)}</Text>
+                  <Text style={[styles.monoText, { color: colors.text }]}>{String(value)}</Text>
                 </View>
               ))}
             </View>

@@ -13,6 +13,8 @@ import { apiRequest } from "../lib/queryClient";
 import { getKycStatus } from "../lib/api";
 import { useToast } from "../hooks/use-toast";
 import { useTheme } from "../lib/ThemeContext";
+import { useCurrency } from "../lib/CurrencyContext";
+import { CURRENCIES, CurrencyCode } from "../lib/currency";
 import * as Clipboard from "expo-clipboard";
 
 const languages = [
@@ -50,10 +52,12 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { darkMode, setDarkMode, colors } = useTheme();
+  const { currency, setCurrency } = useCurrency();
   const [user, setUser] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -173,6 +177,13 @@ export default function Profile() {
     return languages.find((l) => l.code === selectedLanguage)?.name || "English (US)";
   };
 
+  const handleCurrencySelect = async (code: CurrencyCode) => {
+    await setCurrency(code);
+    const c = CURRENCIES.find((cur) => cur.code === code);
+    toast({ title: "Success", description: `Currency changed to ${c?.name || code}` });
+    setShowCurrencyModal(false);
+  };
+
   const copyWalletID = async () => {
     if (user?.walletId) {
       await Clipboard.setStringAsync(user.walletId);
@@ -249,8 +260,8 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C3AED" />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -258,17 +269,17 @@ export default function Profile() {
   const renderSettingRow = (icon: string, label: string, subtitle: string, value: boolean, onToggle: (v: boolean) => void, disabled?: boolean) => (
     <View style={styles.settingRow}>
       <View style={styles.settingLeft}>
-        <Ionicons name={icon as any} size={20} color="#7C3AED" />
+        <Ionicons name={icon as any} size={20} color={colors.primary} />
         <View>
-          <Text style={styles.settingLabel}>{label}</Text>
-          <Text style={styles.settingSubtitle}>{subtitle}</Text>
+          <Text style={[styles.settingLabel, { color: colors.text }]}>{label}</Text>
+          <Text style={[styles.settingSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
         </View>
       </View>
       <Switch
         value={value}
         onValueChange={onToggle}
         disabled={disabled}
-        trackColor={{ false: "#E5E7EB", true: "#7C3AED" }}
+        trackColor={{ false: colors.border, true: colors.primary }}
         thumbColor="#FFFFFF"
       />
     </View>
@@ -294,13 +305,13 @@ export default function Profile() {
   const renderNavRow = (icon: string, label: string, subtitle: string, onPress: () => void) => (
     <TouchableOpacity style={styles.settingRow} onPress={onPress}>
       <View style={styles.settingLeft}>
-        <Ionicons name={icon as any} size={20} color="#7C3AED" />
+        <Ionicons name={icon as any} size={20} color={colors.primary} />
         <View>
-          <Text style={styles.settingLabel}>{label}</Text>
-          <Text style={styles.settingSubtitle}>{subtitle}</Text>
+          <Text style={[styles.settingLabel, { color: colors.text }]}>{label}</Text>
+          <Text style={[styles.settingSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </TouchableOpacity>
   );
 
@@ -351,112 +362,114 @@ export default function Profile() {
       </View>
 
       <View style={styles.statsRow}>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>{hideBalance ? "****" : `$${totalBalance.toFixed(2)}`}</Text>
-          <Text style={styles.statLabel}>Wallet Balance</Text>
+        <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.statValue, { color: colors.text }]}>{hideBalance ? "****" : `${currency.symbol}${totalBalance.toFixed(2)}`}</Text>
+          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Wallet Balance</Text>
         </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>{transactionCount}</Text>
-          <Text style={styles.statLabel}>Transactions</Text>
+        <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.statValue, { color: colors.text }]}>{transactionCount}</Text>
+          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Transactions</Text>
         </View>
-        <View style={styles.statBox}>
+        <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
           <Text style={[styles.statValue, { color: "#F59E0B" }]}>{loyaltyPoints}</Text>
-          <Text style={styles.statLabel}>Loyalty Points</Text>
+          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Loyalty Points</Text>
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>WALLET SETTINGS</Text>
-      <View style={styles.settingsCard}>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>WALLET SETTINGS</Text>
+      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {renderSettingRow("finger-print", biometricLabel, biometricSupported ? "Use fingerprint or Face ID to sign in" : "Not available on this device", biometricEnabled, handleBiometricToggle, !biometricSupported)}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("shield-checkmark-outline", "Identity Verification (KYC)", kycLabels[kycStatusValue] || kycStatusValue, handleVerificationPress)}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderSettingRow(hideBalance ? "eye-off" : "eye", "Hide Balance", "Hide your wallet balance", hideBalance, handleHideBalanceToggle)}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderSettingRow("phone-portrait", "Quick Pay", "Enable NFC tap to pay", quickPayEnabled, handleQuickPayToggle)}
       </View>
 
-      <Text style={styles.sectionLabel}>APPEARANCE</Text>
-      <View style={styles.settingsCard}>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>APPEARANCE</Text>
+      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {renderSettingRow(darkMode ? "moon" : "sunny", "Dark Mode", "Switch between light and dark theme", darkMode, handleDarkModeToggle)}
       </View>
 
-      <Text style={styles.sectionLabel}>SECURITY & NOTIFICATIONS</Text>
-      <View style={styles.settingsCard}>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>SECURITY & NOTIFICATIONS</Text>
+      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {renderSettingRow("notifications", "Push Notifications", "Transaction alerts & updates", notificationsEnabled, handleNotificationsToggle)}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("shield-checkmark", "Security Settings", "PIN, 2FA & transaction limits", () => router.push("/(screens)/security-settings"))}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("lock-closed", "Change PIN", "Update your wallet PIN", () => router.push("/(screens)/security-settings"))}
       </View>
 
-      <Text style={styles.sectionLabel}>MERCHANT</Text>
-      <View style={styles.settingsCard}>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>MERCHANT</Text>
+      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {renderNavRow("storefront", "Merchant Dashboard", "Manage your businesses", () => router.push("/(screens)/merchant-dashboard"))}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("add-circle", "Become a Merchant", "Create a merchant account", () => router.push("/(screens)/become-merchant"))}
       </View>
 
-      <Text style={styles.sectionLabel}>ACCOUNT</Text>
-      <View style={styles.settingsCard}>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>ACCOUNT</Text>
+      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {renderNavRow("qr-code", "My BKP Code", "View your unique payment QR code", () => router.push("/(screens)/my-id"))}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("globe", "Language & Region", getCurrentLanguageName(), () => setShowLanguageModal(true))}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+        {renderNavRow("cash", "Currency", `${currency.name} (${currency.code})`, () => setShowCurrencyModal(true))}
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("information-circle", "About BukkaPay", "Learn about our mission and services", () => router.push("/(screens)/about" as any))}
       </View>
 
-      <View style={styles.loyaltyBanner}>
+      <View style={[styles.loyaltyBanner, { backgroundColor: darkMode ? "rgba(245,158,11,0.15)" : "rgba(245,158,11,0.1)", borderColor: darkMode ? "rgba(245,158,11,0.4)" : "rgba(245,158,11,0.3)" }]}>
         <Ionicons name="flash" size={24} color="#F59E0B" />
         <View style={{ flex: 1 }}>
-          <Text style={styles.loyaltyTitle}>
+          <Text style={[styles.loyaltyTitle, { color: colors.text }]}>
             {loyalty?.tier === "gold" ? "Gold Member" : loyalty?.tier === "silver" ? "Silver Member" : "Bronze Member"}
           </Text>
-          <Text style={styles.loyaltySubtitle}>Exclusive rewards & higher limits</Text>
+          <Text style={[styles.loyaltySubtitle, { color: colors.textMuted }]}>Exclusive rewards & higher limits</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+      <TouchableOpacity style={[styles.logoutButton, { backgroundColor: darkMode ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.1)" }]} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color="#EF4444" />
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
 
       <Modal visible={showEditModal} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowEditModal(false)}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalField}>
               <View style={styles.modalLabelRow}>
-                <Ionicons name="person-outline" size={16} color="#6B7280" />
-                <Text style={styles.modalLabel}>Full Name</Text>
+                <Ionicons name="person-outline" size={16} color={colors.textMuted} />
+                <Text style={[styles.modalLabel, { color: colors.text }]}>Full Name</Text>
               </View>
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text }]}
                 value={editName}
                 onChangeText={setEditName}
                 placeholder="Enter your name"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
 
             <View style={styles.modalField}>
               <View style={styles.modalLabelRow}>
-                <Ionicons name="call-outline" size={16} color="#6B7280" />
-                <Text style={styles.modalLabel}>Phone Number</Text>
+                <Ionicons name="call-outline" size={16} color={colors.textMuted} />
+                <Text style={[styles.modalLabel, { color: colors.text }]}>Phone Number</Text>
               </View>
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text }]}
                 value={editPhone}
                 onChangeText={setEditPhone}
                 placeholder="Enter your phone number"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
               />
             </View>
@@ -472,8 +485,8 @@ export default function Profile() {
                 <Text style={styles.saveButtonText}>Save Changes</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setShowEditModal(false)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
+            <TouchableOpacity style={[styles.modalCancelButton, { borderColor: colors.border }]} onPress={() => setShowEditModal(false)}>
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -485,29 +498,29 @@ export default function Profile() {
           activeOpacity={1}
           onPress={() => { setShowBiometricPasswordModal(false); setBiometricPassword(""); }}
         >
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Enable {biometricLabel}</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Enable {biometricLabel}</Text>
               <TouchableOpacity onPress={() => { setShowBiometricPasswordModal(false); setBiometricPassword(""); }}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16 }}>
               Confirm your password once — after that, your fingerprint or Face ID signs you in.
             </Text>
 
             <View style={styles.modalField}>
               <View style={styles.modalLabelRow}>
-                <Ionicons name="lock-closed-outline" size={16} color="#6B7280" />
-                <Text style={styles.modalLabel}>Password</Text>
+                <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
+                <Text style={[styles.modalLabel, { color: colors.text }]}>Password</Text>
               </View>
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text }]}
                 value={biometricPassword}
                 onChangeText={setBiometricPassword}
                 placeholder="Enter your password"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry
                 autoFocus
               />
@@ -525,10 +538,10 @@ export default function Profile() {
               )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.modalCancelButton}
+              style={[styles.modalCancelButton, { borderColor: colors.border }]}
               onPress={() => { setShowBiometricPasswordModal(false); setBiometricPassword(""); }}
             >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -536,11 +549,11 @@ export default function Profile() {
 
       <Modal visible={showLanguageModal} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLanguageModal(false)}>
-          <View style={[styles.modalSheet, { maxHeight: "70%" }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card, maxHeight: "70%" }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Language & Region</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Language & Region</Text>
               <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView>
@@ -552,10 +565,46 @@ export default function Profile() {
                 >
                   <View style={styles.languageItemLeft}>
                     <Text style={styles.languageFlag}>{lang.flag}</Text>
-                    <Text style={styles.languageName}>{lang.name}</Text>
+                    <Text style={[styles.languageName, { color: colors.text }]}>{lang.name}</Text>
                   </View>
                   {selectedLanguage === lang.code && (
-                    <Ionicons name="checkmark" size={20} color="#7C3AED" />
+                    <Ionicons name="checkmark" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showCurrencyModal} transparent animationType="slide">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCurrencyModal(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card, maxHeight: "70%" }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Currency</Text>
+              <TouchableOpacity onPress={() => setShowCurrencyModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>
+              Used for amounts shown across the app. Each wallet still holds its own real balance in its own currency — this only changes how figures are displayed.
+            </Text>
+            <ScrollView>
+              {CURRENCIES.map((cur) => (
+                <TouchableOpacity
+                  key={cur.code}
+                  style={styles.languageItem}
+                  onPress={() => handleCurrencySelect(cur.code)}
+                >
+                  <View style={styles.languageItemLeft}>
+                    <Text style={styles.languageFlag}>{cur.symbol}</Text>
+                    <View>
+                      <Text style={[styles.languageName, { color: colors.text }]}>{cur.name}</Text>
+                      <Text style={{ fontSize: 12, color: colors.textMuted }}>{cur.code}</Text>
+                    </View>
+                  </View>
+                  {currency.code === cur.code && (
+                    <Ionicons name="checkmark" size={20} color={colors.primary} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -566,14 +615,14 @@ export default function Profile() {
 
       <Modal visible={showAvatarModal} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAvatarModal(false)}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Choose Avatar</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Choose Avatar</Text>
               <TouchableOpacity onPress={() => setShowAvatarModal(false)}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.avatarDescription}>Select a color for your profile avatar</Text>
+            <Text style={[styles.avatarDescription, { color: colors.textMuted }]}>Select a color for your profile avatar</Text>
             <View style={styles.avatarGrid}>
               {avatarOptions.map((avatar) => (
                 <TouchableOpacity

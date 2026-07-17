@@ -1,18 +1,20 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTheme } from "../lib/ThemeContext";
 
 export default function NotFound() {
   const router = useRouter();
+  const { colors } = useTheme();
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.iconRow}>
           <Ionicons name="alert-circle" size={32} color="#EF4444" />
-          <Text style={styles.title}>404 Page Not Found</Text>
+          <Text style={[styles.title, { color: colors.text }]}>404 Page Not Found</Text>
         </View>
-        <Text style={styles.message}>The page you're looking for doesn't exist.</Text>
+        <Text style={[styles.message, { color: colors.textMuted }]}>The page you're looking for doesn't exist.</Text>
         <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.button}>
           <Ionicons name="home" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.buttonText}>Go Home</Text>

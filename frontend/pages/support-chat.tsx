@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTheme } from "../lib/ThemeContext";
 
 interface Message {
   id: string;
@@ -12,6 +13,7 @@ interface Message {
 
 export default function SupportChat() {
   const router = useRouter();
+  const { colors } = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([
     { id: "1", text: "Hello! How can we help you today?", isUser: false, timestamp: new Date() },
@@ -59,15 +61,15 @@ export default function SupportChat() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={0}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.push("/(tabs)")} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Support Chat</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Support Chat</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -82,11 +84,11 @@ export default function SupportChat() {
             key={message.id}
             style={[styles.messageRow, message.isUser ? styles.messageRowUser : styles.messageRowBot]}
           >
-            <View style={[styles.messageBubble, message.isUser ? styles.bubbleUser : styles.bubbleBot]}>
-              <Text style={[styles.messageText, message.isUser ? styles.messageTextUser : styles.messageTextBot]}>
+            <View style={[styles.messageBubble, message.isUser ? styles.bubbleUser : { backgroundColor: colors.surface }]}>
+              <Text style={[styles.messageText, message.isUser ? styles.messageTextUser : { color: colors.text }]}>
                 {message.text}
               </Text>
-              <Text style={[styles.messageTime, message.isUser ? styles.messageTimeUser : styles.messageTimeBot]}>
+              <Text style={[styles.messageTime, message.isUser ? styles.messageTimeUser : { color: colors.textMuted }]}>
                 {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </Text>
             </View>
@@ -94,13 +96,13 @@ export default function SupportChat() {
         ))}
       </ScrollView>
 
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, { borderTopColor: colors.border }]}>
         <TextInput
           value={input}
           onChangeText={setInput}
           placeholder="Type your message..."
-          placeholderTextColor="#6B7280"
-          style={styles.chatInput}
+          placeholderTextColor={colors.textMuted}
+          style={[styles.chatInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
           onSubmitEditing={handleSend}
           returnKeyType="send"
         />
