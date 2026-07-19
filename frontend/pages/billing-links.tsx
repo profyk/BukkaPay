@@ -83,7 +83,6 @@ export default function BillingLinksScreen() {
   const [billType, setBillType] = useState("water");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("ZAR");
   const [accountNumber, setAccountNumber] = useState("");
   const [billingPeriod, setBillingPeriod] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -134,7 +133,7 @@ export default function BillingLinksScreen() {
 
   const resetForm = () => {
     setBillerName(""); setBillType("water"); setDescription(""); setAmount("");
-    setCurrency("ZAR"); setAccountNumber(""); setBillingPeriod(""); setDueDate("");
+    setAccountNumber(""); setBillingPeriod(""); setDueDate("");
     setRecipients([{ name: "", email: "", phone: "" }]); setAttachments([]);
     setCreateStep("details");
   };
@@ -195,7 +194,7 @@ export default function BillingLinksScreen() {
       merchantId: primaryMerchant.id,
       billerName: billerName.trim(),
       billType, description: description.trim() || undefined,
-      amount: parseFloat(amount), currency,
+      amount: parseFloat(amount), currency: "ZAR",
       accountNumber: accountNumber.trim() || undefined,
       billingPeriod: billingPeriod.trim() || undefined,
       dueDate: dueDate.trim() || undefined,
@@ -426,10 +425,9 @@ export default function BillingLinksScreen() {
 
                 <Text style={[s.fieldLabel, { color: text }]}>Amount *</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <TouchableOpacity style={[s.currencyBtn, { backgroundColor: card, borderColor: border }]}
-                    onPress={() => setCurrency(currency === "ZAR" ? "USD" : currency === "USD" ? "GBP" : currency === "GBP" ? "NGN" : "ZAR")}>
-                    <Text style={[{ color: text, fontWeight: "700" }]}>{currency}</Text>
-                  </TouchableOpacity>
+                  <View style={[s.currencyBtn, { backgroundColor: card, borderColor: border }]}>
+                    <Text style={[{ color: text, fontWeight: "700" }]}>ZAR</Text>
+                  </View>
                   <TextInput style={[s.input, { flex: 1, color: text, backgroundColor: card, borderColor: border }]}
                     placeholder="0.00" placeholderTextColor={sub}
                     keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
@@ -550,7 +548,7 @@ export default function BillingLinksScreen() {
                   {[
                     { label: "Biller", value: billerName },
                     { label: "Bill Type", value: billTypeInfo(billType).label },
-                    { label: "Amount", value: `${currency} ${parseFloat(amount || "0").toFixed(2)}` },
+                    { label: "Amount", value: `ZAR ${parseFloat(amount || "0").toFixed(2)}` },
                     { label: "Account Ref.", value: accountNumber || "—" },
                     { label: "Period", value: billingPeriod || "—" },
                     { label: "Due Date", value: dueDate || "—" },

@@ -66,7 +66,7 @@ export default function Request() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ amount, currency: "USD", recipientName, recipientPhone }),
+        body: JSON.stringify({ amount, currency: "ZAR", recipientName, recipientPhone }),
       });
 
       if (!response.ok) throw new Error("Failed to create request");

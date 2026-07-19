@@ -92,7 +92,7 @@ export default function MerchantPay() {
         </View>
         <Text style={[styles.successTitle, { color: colors.text }]}>Payment Successful!</Text>
         <Text style={[styles.successSubtitle, { color: colors.textMuted }]}>
-          You paid ${parseFloat(amount).toFixed(2)} to {merchant.businessName}
+          You paid R{parseFloat(amount).toFixed(2)} to {merchant.businessName}
         </Text>
         <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)")}>
           <Text style={styles.primaryButtonText}>Done</Text>
@@ -126,7 +126,7 @@ export default function MerchantPay() {
 
         <Text style={[styles.inputLabel, { color: colors.text }]}>Amount *</Text>
         <View style={[styles.amountInputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.currencyPrefix, { color: colors.textMuted }]}>$</Text>
+          <Text style={[styles.currencyPrefix, { color: colors.textMuted }]}>R</Text>
           <TextInput
             placeholder="0.00"
             placeholderTextColor={colors.textMuted}
@@ -161,7 +161,7 @@ export default function MerchantPay() {
           disabled={payMerchant.isPending || !amount}
         >
           <Text style={styles.primaryButtonText}>
-            {payMerchant.isPending ? "Processing..." : `Pay $${parseFloat(amount || "0").toFixed(2)}`}
+            {payMerchant.isPending ? "Processing..." : `Pay R${parseFloat(amount || "0").toFixed(2)}`}
           </Text>
         </TouchableOpacity>
       </View>

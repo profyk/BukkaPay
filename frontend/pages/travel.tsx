@@ -16,6 +16,7 @@ import { useTheme } from "../lib/ThemeContext";
 const PRIMARY = "#7C3AED";
 const GREEN = "#10B981";
 const ALL_COUNTRIES = [...AFRICA_COUNTRIES, ...INTERNATIONAL_COUNTRIES];
+const SOUTH_AFRICA: Country = { code: "ZA", name: "South Africa", flag: "🇿🇦", currency: "ZAR", zone: "africa", region: "Africa" } as Country;
 
 type Stage = "search" | "origin" | "destination" | "results" | "passengers" | "payment" | "confirm" | "success";
 type Mode = "bus" | "flight";
@@ -33,8 +34,8 @@ export default function Travel() {
 
   const [stage, setStage] = useState<Stage>("search");
   const [mode, setMode] = useState<Mode>("bus");
-  const [origin, setOrigin] = useState<Country | null>(null);
-  const [destination, setDestination] = useState<Country | null>(null);
+  const [origin, setOrigin] = useState<Country | null>(SOUTH_AFRICA);
+  const [destination, setDestination] = useState<Country | null>(SOUTH_AFRICA);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const [selectedDeparture, setSelectedDeparture] = useState<any | null>(null);
@@ -156,7 +157,11 @@ export default function Travel() {
               <TouchableOpacity
                 key={m}
                 style={[s.modeBtn, mode === m && { backgroundColor: PRIMARY }]}
-                onPress={() => { setMode(m); setOrigin(null); setDestination(null); }}
+                onPress={() => {
+                  setMode(m);
+                  if (m === "bus") { setOrigin(SOUTH_AFRICA); setDestination(SOUTH_AFRICA); }
+                  else { setOrigin(null); setDestination(null); }
+                }}
               >
                 <Ionicons name={m === "bus" ? "bus" : "airplane"} size={18} color={mode === m ? "#fff" : colors.textMuted} />
                 <Text style={[s.modeBtnText, { color: mode === m ? "#fff" : colors.textSecondary }]}>
@@ -166,35 +171,47 @@ export default function Travel() {
             ))}
           </View>
 
-          <View>
-            <Text style={[s.sectionLabel, { color: colors.text }]}>From</Text>
-            <TouchableOpacity
-              style={[s.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => setStage("origin")}
-            >
-              {origin ? (
-                <><Text style={s.countryFlag}>{origin.flag}</Text><Text style={[s.pickerText, { color: colors.text }]}>{origin.name}</Text></>
-              ) : (
-                <Text style={[s.pickerText, { color: colors.textMuted }]}>Choose origin country</Text>
-              )}
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
+          {mode === "bus" ? (
+            <View style={[s.localBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={s.countryFlag}>🇿🇦</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.pickerText, { color: colors.text }]}>South Africa — local routes</Text>
+                <Text style={[s.localBadgeSub, { color: colors.textMuted }]}>Johannesburg · Cape Town · Durban</Text>
+              </View>
+            </View>
+          ) : (
+            <>
+              <View>
+                <Text style={[s.sectionLabel, { color: colors.text }]}>From</Text>
+                <TouchableOpacity
+                  style={[s.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => setStage("origin")}
+                >
+                  {origin ? (
+                    <><Text style={s.countryFlag}>{origin.flag}</Text><Text style={[s.pickerText, { color: colors.text }]}>{origin.name}</Text></>
+                  ) : (
+                    <Text style={[s.pickerText, { color: colors.textMuted }]}>Choose origin country</Text>
+                  )}
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
 
-          <View>
-            <Text style={[s.sectionLabel, { color: colors.text }]}>To</Text>
-            <TouchableOpacity
-              style={[s.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => setStage("destination")}
-            >
-              {destination ? (
-                <><Text style={s.countryFlag}>{destination.flag}</Text><Text style={[s.pickerText, { color: colors.text }]}>{destination.name}</Text></>
-              ) : (
-                <Text style={[s.pickerText, { color: colors.textMuted }]}>Choose destination country</Text>
-              )}
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
+              <View>
+                <Text style={[s.sectionLabel, { color: colors.text }]}>To</Text>
+                <TouchableOpacity
+                  style={[s.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => setStage("destination")}
+                >
+                  {destination ? (
+                    <><Text style={s.countryFlag}>{destination.flag}</Text><Text style={[s.pickerText, { color: colors.text }]}>{destination.name}</Text></>
+                  ) : (
+                    <Text style={[s.pickerText, { color: colors.textMuted }]}>Choose destination country</Text>
+                  )}
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
 
           <TouchableOpacity
             style={[s.continueBtn, (!origin || !destination || searching) && { opacity: 0.4 }]}
@@ -473,6 +490,12 @@ const s = StyleSheet.create({
     borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 14,
   },
   pickerText: { flex: 1, fontSize: 15, fontWeight: "600" },
+
+  localBadge: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 14,
+  },
+  localBadgeSub: { fontSize: 12, marginTop: 2 },
 
   countryChip: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1.5, padding: 12 },
   countryFlag: { fontSize: 22 },

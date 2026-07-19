@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import WalletCard from "../components/WalletCard";
 import TransactionList from "../components/TransactionList";
@@ -10,19 +10,15 @@ import { fetchCards, fetchTransactions } from "../lib/api";
 import { mapCardFromAPI, mapTransactionFromAPI } from "../lib/mappers";
 import { useToast } from "../hooks/use-toast";
 import { getCurrentUser } from "../lib/auth";
-import { CURRENCIES, CurrencyCode, convertAmount } from "../lib/currency";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
-import { useCurrency } from "../lib/CurrencyContext";
 
 export default function Home() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { colors } = useTheme();
-  const { currency: currentCurrency, setCurrency } = useCurrency();
   const [userName, setUserName] = useState("");
-  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -30,11 +26,6 @@ export default function Home() {
       if (user) setUserName(user.name);
     })();
   }, []);
-
-  const handleCurrencyChange = async (code: CurrencyCode) => {
-    await setCurrency(code);
-    setShowCurrencyModal(false);
-  };
 
   const { data: cards, isLoading: cardsLoading } = useQuery({
     queryKey: ["cards"],
@@ -71,21 +62,12 @@ export default function Home() {
       <AppBar />
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
         <View style={styles.section}>
-        <View style={styles.currencyRow}>
-          <TouchableOpacity style={[styles.currencyButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => setShowCurrencyModal(true)}>
-            <Ionicons name="globe-outline" size={14} color={colors.textSecondary} />
-            <Text style={[styles.currencyLabel, { color: colors.textSecondary }]}>Currency:</Text>
-            <Text style={[styles.currencyText, { color: colors.text }]}>{currentCurrency.symbol} {currentCurrency.code}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
         {cardsLoading && <View style={[styles.skeleton, { backgroundColor: colors.surface }]} />}
         {mainCard && (
           <WalletCard
             {...mainCard}
-            balance={convertAmount(mainCard.balance, currentCurrency.code)}
-            currency={currentCurrency.symbol}
+            balance={mainCard.balance}
+            currency="R"
           />
         )}
         {!cardsLoading && !mainCard && (
@@ -128,27 +110,6 @@ export default function Home() {
         )}
       </View>
 
-      <Modal visible={showCurrencyModal} transparent animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCurrencyModal(false)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>App Currency</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Applies to balances and amounts across the entire app</Text>
-            {CURRENCIES.map((currency) => (
-              <TouchableOpacity
-                key={currency.code}
-                style={[styles.currencyItem, { borderBottomColor: colors.divider }]}
-                onPress={() => handleCurrencyChange(currency.code)}
-              >
-                <Text style={[styles.currencyItemSymbol, { color: colors.text }]}>{currency.symbol}</Text>
-                <Text style={[styles.currencyItemName, { color: colors.text }]}>{currency.name} ({currency.code})</Text>
-                {currentCurrency.code === currency.code && (
-                  <Ionicons name="checkmark" size={20} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </ScrollView>
     </View>
   );
@@ -170,36 +131,6 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 32,
-  },
-  currencyRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: 8,
-  },
-  currencyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    gap: 4,
-  },
-  currencyLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  currencyText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1A1A2E",
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 16,
-    marginTop: -8,
   },
   skeleton: {
     height: 192,
@@ -258,41 +189,5 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     color: "#6B7280",
     fontSize: 14,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 24,
-    width: "85%",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A2E",
-    marginBottom: 16,
-  },
-  currencyItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  currencyItemSymbol: {
-    fontWeight: "600",
-    marginRight: 12,
-    fontSize: 16,
-    color: "#1A1A2E",
-  },
-  currencyItemName: {
-    flex: 1,
-    fontSize: 14,
-    color: "#1A1A2E",
   },
 });

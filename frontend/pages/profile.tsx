@@ -14,7 +14,6 @@ import { getKycStatus } from "../lib/api";
 import { useToast } from "../hooks/use-toast";
 import { useTheme } from "../lib/ThemeContext";
 import { useCurrency } from "../lib/CurrencyContext";
-import { CURRENCIES, CurrencyCode } from "../lib/currency";
 import * as Clipboard from "expo-clipboard";
 
 const languages = [
@@ -52,12 +51,11 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { darkMode, setDarkMode, colors } = useTheme();
-  const { currency, setCurrency } = useCurrency();
+  const { currency } = useCurrency();
   const [user, setUser] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -175,13 +173,6 @@ export default function Profile() {
 
   const getCurrentLanguageName = () => {
     return languages.find((l) => l.code === selectedLanguage)?.name || "English (US)";
-  };
-
-  const handleCurrencySelect = async (code: CurrencyCode) => {
-    await setCurrency(code);
-    const c = CURRENCIES.find((cur) => cur.code === code);
-    toast({ title: "Success", description: `Currency changed to ${c?.name || code}` });
-    setShowCurrencyModal(false);
   };
 
   const copyWalletID = async () => {
@@ -414,8 +405,6 @@ export default function Profile() {
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("globe", "Language & Region", getCurrentLanguageName(), () => setShowLanguageModal(true))}
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderNavRow("cash", "Currency", `${currency.name} (${currency.code})`, () => setShowCurrencyModal(true))}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("information-circle", "About BukkaPay", "Learn about our mission and services", () => router.push("/(screens)/about" as any))}
       </View>
 
@@ -577,41 +566,6 @@ export default function Profile() {
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={showCurrencyModal} transparent animationType="slide">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCurrencyModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.card, maxHeight: "70%" }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Currency</Text>
-              <TouchableOpacity onPress={() => setShowCurrencyModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>
-              Used for amounts shown across the app. Each wallet still holds its own real balance in its own currency — this only changes how figures are displayed.
-            </Text>
-            <ScrollView>
-              {CURRENCIES.map((cur) => (
-                <TouchableOpacity
-                  key={cur.code}
-                  style={styles.languageItem}
-                  onPress={() => handleCurrencySelect(cur.code)}
-                >
-                  <View style={styles.languageItemLeft}>
-                    <Text style={styles.languageFlag}>{cur.symbol}</Text>
-                    <View>
-                      <Text style={[styles.languageName, { color: colors.text }]}>{cur.name}</Text>
-                      <Text style={{ fontSize: 12, color: colors.textMuted }}>{cur.code}</Text>
-                    </View>
-                  </View>
-                  {currency.code === cur.code && (
-                    <Ionicons name="checkmark" size={20} color={colors.primary} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       <Modal visible={showAvatarModal} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAvatarModal(false)}>

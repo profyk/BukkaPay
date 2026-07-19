@@ -8,6 +8,7 @@ import {
 const logoImage = require("../assets/logo.png");
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import Head from "expo-router/head";
 import { API_BASE, APP_URL } from "../lib/config";
 import { getAuthHeader, getCurrentUser } from "../lib/auth";
 
@@ -260,6 +261,10 @@ export default function PayLink() {
   if (isLoading) {
     return (
       <View style={s.fullCenter}>
+        <Head>
+          <title>Loading payment · BukkaPay</title>
+          <meta name="robots" content="noindex" />
+        </Head>
         <View style={s.floatCard}>
           <View style={s.loadingLogoWrap}>
             <Image source={logoImage} style={s.loadingLogoImg} resizeMode="cover" />
@@ -278,18 +283,26 @@ export default function PayLink() {
 
   // ─── Error ──────────────────────────────────────────────────
   if (pageError) {
+    const isNotFound = /not found/i.test(pageError);
+    const errorTitle = isNotFound ? "Link Not Found" : "Link Unavailable";
     return (
       <View style={s.fullCenter}>
+        <Head>
+          <title>{`${errorTitle} · BukkaPay`}</title>
+          <meta name="robots" content="noindex" />
+        </Head>
         <View style={s.floatCard}>
           <View style={s.errorIconWrap}>
             <Ionicons name="alert-circle" size={52} color={RED} />
           </View>
-          <Text style={s.errorTitle}>Link Unavailable</Text>
+          <Text style={s.errorTitle}>{errorTitle}</Text>
           <Text style={s.errorText}>{pageError}</Text>
-          <TouchableOpacity style={s.primaryBtn} onPress={fetchLink}>
-            <Ionicons name="refresh" size={18} color="#fff" />
-            <Text style={s.primaryBtnText}>Try Again</Text>
-          </TouchableOpacity>
+          {!isNotFound && (
+            <TouchableOpacity style={s.primaryBtn} onPress={fetchLink}>
+              <Ionicons name="refresh" size={18} color="#fff" />
+              <Text style={s.primaryBtnText}>Try Again</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <PoweredByFooter />
       </View>
@@ -312,6 +325,10 @@ export default function PayLink() {
   if (isPaid) {
     return (
       <View style={s.fullCenter}>
+        <Head>
+          <title>{`Paid — ${displayName} · BukkaPay`}</title>
+          <meta name="robots" content="noindex" />
+        </Head>
         <View style={[s.floatCard, { alignItems: "center" }]}>
           <View style={[s.successCircle, { backgroundColor: GREEN }]}>
             <Ionicons name="checkmark" size={44} color="#fff" />
@@ -328,6 +345,10 @@ export default function PayLink() {
   if (step === "success") {
     return (
       <View style={s.fullCenter}>
+        <Head>
+          <title>{`Payment Sent · BukkaPay`}</title>
+          <meta name="robots" content="noindex" />
+        </Head>
         <View style={[s.floatCard, { alignItems: "center" }]}>
           <View style={[s.successCircle, { backgroundColor: GREEN }]}>
             <Ionicons name="checkmark" size={44} color="#fff" />
@@ -354,8 +375,25 @@ export default function PayLink() {
   }
 
   // ─── Main ─────────────────────────────────────────────────────
+  const pageTitle = `Pay ${displayName} ${sym}${parseFloat(linkData.amount).toFixed(2)} · BukkaPay`;
+  const pageDescription = linkData.description
+    ? `${displayName} is requesting ${sym}${parseFloat(linkData.amount).toFixed(2)} for "${linkData.description}". Pay securely via BukkaPay.`
+    : `${displayName} is requesting ${sym}${parseFloat(linkData.amount).toFixed(2)}. Pay securely via BukkaPay.`;
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <Head>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={`Payment request from ${displayName}`} />
+        <meta property="og:description" content={pageDescription} />
+        <meta property="og:url" content={payUrl} />
+        <meta property="og:site_name" content="BukkaPay" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={`Payment request from ${displayName}`} />
+        <meta name="twitter:description" content={pageDescription} />
+      </Head>
       <ScrollView style={s.page} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
 
         {/* ── Header bar ── */}

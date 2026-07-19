@@ -37,7 +37,7 @@ class PaymentRequest(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     amount: Mapped[Money]
-    currency: Mapped[CurrencyCode] = mapped_column(default="USD")
+    currency: Mapped[CurrencyCode] = mapped_column(default="ZAR")
     recipient_name: Mapped[str | None] = mapped_column(Text)
     recipient_phone: Mapped[str | None] = mapped_column(Text)
     status: Mapped[PaymentRequestStatus] = mapped_column(

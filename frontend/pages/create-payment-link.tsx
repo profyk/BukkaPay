@@ -16,10 +16,8 @@ import { useTheme } from "../lib/ThemeContext";
 
 const PRIMARY = "#7C3AED";
 const GREEN = "#10B981";
-const CURRENCIES = ["ZAR","USD","EUR","GBP","NGN","KES","GHS","UGX"];
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  ZAR: "R", USD: "$", EUR: "€", GBP: "£", NGN: "₦", KES: "KSh", GHS: "₵", UGX: "USh",
-};
+const CURRENCY = "ZAR";
+const CURRENCY_SYMBOL = "R";
 const NUMPAD = ["1","2","3","4","5","6","7","8","9",".","0","⌫"];
 const SHARE_URL_BASE = "https://app.bukkapay.com/pay";
 
@@ -35,15 +33,12 @@ export default function CreatePaymentLink() {
 
   // Step 1 — Amount & Details
   const [amount, setAmount] = useState("0");
-  const [currency, setCurrency] = useState("ZAR");
   const [description, setDescription] = useState("");
 
   // Step 2 — Options
   const [type, setType] = useState<"personal" | "business">("personal");
   const [senderName, setSenderName] = useState("");
   const [businessLogo, setBusinessLogo] = useState<string | null>(null);
-  const [region, setRegion] = useState<"local" | "africa" | "international">("local");
-  const [subRegion, setSubRegion] = useState("");
   const [destination, setDestination] = useState<"wallet" | "bank">("wallet");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -65,7 +60,6 @@ export default function CreatePaymentLink() {
 
   // Expanded option sections
   const [showTypeSection, setShowTypeSection] = useState(false);
-  const [showRegionSection, setShowRegionSection] = useState(false);
   const [showDestSection, setShowDestSection] = useState(false);
 
   // Step 3 — Result
@@ -81,7 +75,7 @@ export default function CreatePaymentLink() {
     })();
   }, []);
 
-  const sym = CURRENCY_SYMBOLS[currency] || currency;
+  const sym = CURRENCY_SYMBOL;
 
   const handleNumpad = (key: string) => {
     if (key === "⌫") { setAmount(p => p.length <= 1 ? "0" : p.slice(0, -1)); return; }
@@ -145,11 +139,10 @@ export default function CreatePaymentLink() {
     try {
       const headers = await getAuthHeader();
       const body: any = {
-        amount, currency, description,
+        amount, currency: CURRENCY, description,
         allowPartialPayment: allowPartial,
         minimumPayment: allowPartial ? minimumPayment : undefined,
-        type, region,
-        subRegion: subRegion || undefined,
+        type,
         destination,
         bankDetails: destination === "bank" ? {
           bankName: bankName.trim(), accountNumber: accountNumber.trim(),
@@ -201,7 +194,7 @@ export default function CreatePaymentLink() {
   const shareWhatsApp = () => {
     if (!createdLink?.shareUrl) return;
     const text = encodeURIComponent(
-      `Hi! ${senderName} is requesting ${currency} ${parseFloat(createdLink.amount).toFixed(2)}${description ? ` for "${description}"` : ""}.\n\nPay securely here 👇\n${createdLink.shareUrl}\n\n_Powered by BukkaPay_`
+      `Hi! ${senderName} is requesting ${CURRENCY} ${parseFloat(createdLink.amount).toFixed(2)}${description ? ` for "${description}"` : ""}.\n\nPay securely here 👇\n${createdLink.shareUrl}\n\n_Powered by BukkaPay_`
     );
     Linking.openURL(`whatsapp://send?text=${text}`).catch(() =>
       Linking.openURL(`https://api.whatsapp.com/send?text=${text}`)
@@ -212,7 +205,7 @@ export default function CreatePaymentLink() {
     if (!createdLink?.shareUrl) return;
     const subject = encodeURIComponent(`Payment Request from ${senderName}`);
     const body = encodeURIComponent(
-      `Hi,\n\n${senderName} is requesting ${currency} ${parseFloat(createdLink.amount).toFixed(2)}${description ? ` for "${description}"` : ""}.\n\nPay here: ${createdLink.shareUrl}\n\nPowered by BukkaPay`
+      `Hi,\n\n${senderName} is requesting ${CURRENCY} ${parseFloat(createdLink.amount).toFixed(2)}${description ? ` for "${description}"` : ""}.\n\nPay here: ${createdLink.shareUrl}\n\nPowered by BukkaPay`
     );
     Linking.openURL(`mailto:?subject=${subject}&body=${body}`);
   };
@@ -220,7 +213,7 @@ export default function CreatePaymentLink() {
   const shareSMS = () => {
     if (!createdLink?.shareUrl) return;
     const text = encodeURIComponent(
-      `${senderName} requests ${currency} ${parseFloat(createdLink.amount).toFixed(2)}. Pay here: ${createdLink.shareUrl}`
+      `${senderName} requests ${CURRENCY} ${parseFloat(createdLink.amount).toFixed(2)}. Pay here: ${createdLink.shareUrl}`
     );
     Linking.openURL(`sms:?body=${text}`);
   };
@@ -229,14 +222,11 @@ export default function CreatePaymentLink() {
     if (!createdLink?.shareUrl) return;
     try {
       await Share.share({
-        message: `Pay ${senderName} ${currency} ${parseFloat(createdLink.amount).toFixed(2)}: ${createdLink.shareUrl}`,
+        message: `Pay ${senderName} ${CURRENCY} ${parseFloat(createdLink.amount).toFixed(2)}: ${createdLink.shareUrl}`,
         url: createdLink.shareUrl,
       });
     } catch {}
   };
-
-  const africaSubRegions = ["Southern", "Western", "Eastern", "Northern", "Central"];
-  const intlSubRegions = ["USA", "Europe", "Asia", "Other"];
 
   // ── Step 1: Amount & Details ───────────────────────────────────────────────
   if (step === 1) {
@@ -257,25 +247,6 @@ export default function CreatePaymentLink() {
           <View style={[c.dot, { backgroundColor: colors.border }]} />
           <View style={[c.dot, { backgroundColor: colors.border }]} />
         </View>
-
-        {/* Currency selector */}
-        <ScrollView
-          horizontal showsHorizontalScrollIndicator={false}
-          style={c.currencyScroll} contentContainerStyle={c.currencyScrollInner}
-        >
-          {CURRENCIES.map(cur => (
-            <TouchableOpacity
-              key={cur}
-              style={[c.currencyChip, { borderColor: colors.border, backgroundColor: colors.surface },
-                currency === cur && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
-              onPress={() => setCurrency(cur)}
-            >
-              <Text style={[c.currencyChipText, { color: currency === cur ? "#fff" : colors.textSecondary }]}>
-                {CURRENCY_SYMBOLS[cur]} {cur}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         {/* Amount display */}
         <View style={c.amountDisplay}>
@@ -346,7 +317,7 @@ export default function CreatePaymentLink() {
         {/* Amount summary pill */}
         <View style={[c.amountSummary, { backgroundColor: colors.primaryLight }]}>
           <Text style={[c.amountSummaryLabel, { color: colors.textSecondary }]}>Requesting</Text>
-          <Text style={[c.amountSummaryVal, { color: PRIMARY }]}>{sym}{parseFloat(amount).toFixed(2)} {currency}</Text>
+          <Text style={[c.amountSummaryVal, { color: PRIMARY }]}>{sym}{parseFloat(amount).toFixed(2)} {CURRENCY}</Text>
           {description ? <Text style={[c.amountSummaryDesc, { color: colors.textMuted }]}>{description}</Text> : null}
         </View>
 
@@ -426,7 +397,7 @@ export default function CreatePaymentLink() {
             </View>
             {allowPartial && (
               <View style={c.sectionExpanded}>
-                <Text style={[c.optLabel, { color: colors.textSecondary }]}>Minimum payment ({currency})</Text>
+                <Text style={[c.optLabel, { color: colors.textSecondary }]}>Minimum payment ({CURRENCY})</Text>
                 <TextInput
                   style={[c.optInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                   value={minimumPayment}
@@ -482,48 +453,6 @@ export default function CreatePaymentLink() {
                     />
                   </View>
                 ))}
-              </View>
-            )}
-          </SectionCard>
-
-          {/* ── Region ── */}
-          <SectionCard
-            title="Region"
-            subtitle={region === "local" ? "Local" : region === "africa" ? `Africa${subRegion ? ` — ${subRegion}` : ""}` : `International${subRegion ? ` — ${subRegion}` : ""}`}
-            icon="earth-outline"
-            expanded={showRegionSection}
-            onToggle={() => setShowRegionSection(v => !v)}
-            colors={colors}
-          >
-            <View style={c.chipRow}>
-              {(["local", "africa", "international"] as const).map(r => (
-                <TouchableOpacity
-                  key={r}
-                  style={[c.chip, { borderColor: colors.border, backgroundColor: colors.surface },
-                    region === r && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
-                  onPress={() => { setRegion(r); setSubRegion(""); }}
-                >
-                  <Text style={[c.chipText, { color: region === r ? "#fff" : colors.textSecondary }]}>
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {(region === "africa" || region === "international") && (
-              <View style={{ marginTop: 12 }}>
-                <Text style={[c.optLabel, { color: colors.textSecondary }]}>Sub-region</Text>
-                <View style={c.chipRow}>
-                  {(region === "africa" ? africaSubRegions : intlSubRegions).map(r => (
-                    <TouchableOpacity
-                      key={r}
-                      style={[c.chip, { borderColor: colors.border, backgroundColor: colors.surface },
-                        subRegion === r && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
-                      onPress={() => setSubRegion(r)}
-                    >
-                      <Text style={[c.chipText, { color: subRegion === r ? "#fff" : colors.textSecondary }]}>{r}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
               </View>
             )}
           </SectionCard>
@@ -597,7 +526,7 @@ export default function CreatePaymentLink() {
                 {totalInvoice > 0 && (
                   <View style={[c.invoiceTotal, { backgroundColor: colors.primaryLight }]}>
                     <Text style={[c.invoiceTotalLabel, { color: colors.textSecondary }]}>Invoice Total</Text>
-                    <Text style={[c.invoiceTotalVal, { color: PRIMARY }]}>{currency} {totalInvoice.toFixed(2)}</Text>
+                    <Text style={[c.invoiceTotalVal, { color: PRIMARY }]}>{CURRENCY} {totalInvoice.toFixed(2)}</Text>
                   </View>
                 )}
                 <Text style={[c.optLabel, { color: colors.textSecondary, marginTop: 12 }]}>Notes</Text>
@@ -674,7 +603,7 @@ export default function CreatePaymentLink() {
             <Ionicons name="checkmark-circle" size={52} color="#fff" />
           </View>
           <Text style={c.successHeroAmount}>{sym}{parseFloat(createdLink?.amount || "0").toFixed(2)}</Text>
-          <Text style={c.successHeroCur}>{currency}</Text>
+          <Text style={c.successHeroCur}>{CURRENCY}</Text>
           {description ? <Text style={c.successHeroDesc}>{description}</Text> : null}
         </View>
 
@@ -723,7 +652,7 @@ export default function CreatePaymentLink() {
 
         {/* Details */}
         <View style={[c.detailsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <DetailRow label="Amount" value={`${currency} ${parseFloat(createdLink?.amount || "0").toFixed(2)}`} colors={colors} />
+          <DetailRow label="Amount" value={`${CURRENCY} ${parseFloat(createdLink?.amount || "0").toFixed(2)}`} colors={colors} />
           <DetailRow label="Status" value="Active — awaiting payment" valueColor={GREEN} colors={colors} />
           <DetailRow label="Partial Payment" value={allowPartial ? "Allowed" : "No"} colors={colors} />
           {hasInvoice && createdLink?.invoice && (
@@ -743,9 +672,9 @@ export default function CreatePaymentLink() {
         <TouchableOpacity
           style={[c.newLinkBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
           onPress={() => {
-            setStep(1); setAmount("0"); setDescription(""); setCurrency("ZAR");
+            setStep(1); setAmount("0"); setDescription("");
             setCreatedLink(null); setHasInvoice(false); setAllowPartial(false);
-            setDestination("wallet"); setRegion("local");
+            setDestination("wallet");
           }}
         >
           <Ionicons name="add-circle-outline" size={18} color={colors.textSecondary} />
@@ -808,13 +737,6 @@ const c = StyleSheet.create({
   stepDots: { flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: 12 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#E5E7EB" },
   dotActive: { backgroundColor: PRIMARY, width: 24 },
-
-  currencyScroll: { height: 46 },
-  currencyScrollInner: { paddingHorizontal: 16, gap: 8, alignItems: "center" },
-  currencyChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
-  },
-  currencyChipText: { fontSize: 13, fontWeight: "700" },
 
   amountDisplay: {
     flexDirection: "row", alignItems: "baseline", justifyContent: "center",

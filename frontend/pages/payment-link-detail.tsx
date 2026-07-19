@@ -62,7 +62,6 @@ interface LinkDetail {
   allowPartialPayment: boolean;
   minimumPayment?: string;
   type: string;
-  region: string;
   destination: string;
   createdAt: string;
   updatedAt?: string;
@@ -302,7 +301,6 @@ export default function PaymentLinkDetail() {
           <InfoRow label="Created" value={`${fmt(link.createdAt)} at ${fmtTime(link.createdAt)}`} icon="calendar-outline" colors={colors} />
           <InfoRow label="Created" value={timeAgo(link.createdAt)} icon="time-outline" colors={colors} />
           <InfoRow label="Link Type" value={link.type === "personal" ? "Personal" : "Business"} icon="person-circle-outline" colors={colors} />
-          <InfoRow label="Region" value={link.region.charAt(0).toUpperCase() + link.region.slice(1)} icon="globe-outline" colors={colors} />
           <InfoRow label="Payout To" value={link.destination === "wallet" ? "BukkaPay Wallet" : "Bank Account"} icon="wallet-outline" colors={colors} />
           {link.allowPartialPayment && (
             <InfoRow

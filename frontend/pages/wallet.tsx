@@ -8,7 +8,7 @@ import AddCardDialog from "../components/AddCardDialog";
 import { fetchCards, setDefaultCard } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import { getCurrentUser } from "../lib/auth";
-import { CURRENCIES, CurrencyCode, getCurrency } from "../lib/currency";
+import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 import { queryClient } from "../lib/queryClient";
 import { useToast } from "../hooks/use-toast";
@@ -43,12 +43,7 @@ export default function Wallet() {
   });
 
   const mappedCards = cards?.map(mapCardFromAPI) || [];
-  const balancesByCurrency = CURRENCIES.reduce((acc, c) => {
-    acc[c.code] = mappedCards
-      .filter((card: any) => card.currency === c.code)
-      .reduce((sum: number, card: any) => sum + Number(card.balance), 0);
-    return acc;
-  }, {} as Record<CurrencyCode, number>);
+  const totalBalance = mappedCards.reduce((sum: number, card: any) => sum + Number(card.balance), 0);
 
   return (
     <ScrollView
@@ -62,19 +57,11 @@ export default function Wallet() {
         </View>
       </View>
 
-      {/* Per-currency balances */}
       <View style={[styles.balanceBanner, { backgroundColor: colors.primary }]}>
-        <Text style={styles.balanceLabel}>Your Balances</Text>
-        <View style={styles.currencyTiles}>
-          {CURRENCIES.map((c) => (
-            <View key={c.code} style={styles.currencyTile}>
-              <Text style={styles.currencyTileCode}>{c.code}</Text>
-              <Text style={styles.currencyTileAmount}>
-                {c.symbol}{balancesByCurrency[c.code].toFixed(2)}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <Text style={styles.balanceLabel}>Your Balance</Text>
+        <Text style={styles.totalBalanceAmount}>
+          {getCurrency("ZAR").symbol}{totalBalance.toFixed(2)}
+        </Text>
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
@@ -204,13 +191,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   balanceLabel: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 10 },
-  currencyTiles: { flexDirection: "row", gap: 10, marginBottom: 24 },
-  currencyTile: {
-    flex: 1, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 14,
-    paddingVertical: 12, paddingHorizontal: 10,
-  },
-  currencyTileCode: { fontSize: 11, fontWeight: "700", color: "rgba(255,255,255,0.75)", letterSpacing: 0.5 },
-  currencyTileAmount: { fontSize: 18, fontWeight: "800", color: "#FFFFFF", marginTop: 2 },
+  totalBalanceAmount: { fontSize: 32, fontWeight: "800", color: "#FFFFFF", marginBottom: 24 },
   quickActions: { flexDirection: "row", justifyContent: "space-between" },
   actionBtn: { alignItems: "center", gap: 6 },
   actionIcon: {

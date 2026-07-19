@@ -160,8 +160,6 @@ const COUNTRY_BANK_CONFIG: Record<string, CountryBankConfig> = {
   },
 };
 
-const CURRENCIES = ["ZAR", "USD", "EUR", "GBP", "NGN", "KES", "GHS"];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCurrency(val: number, symbol = "$") {
@@ -209,14 +207,13 @@ export default function MerchantDashboard() {
   const [showGenerateLink, setShowGenerateLink] = useState(false);
   const [genAmount, setGenAmount] = useState("");
   const [genDesc, setGenDesc] = useState("");
-  const [genCurrency, setGenCurrency] = useState("ZAR");
   const [genLoading, setGenLoading] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<{ id: string; url: string; amount: string; currency: string; description: string } | null>(null);
 
   // Withdraw state
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [withdrawStep, setWithdrawStep] = useState<"form" | "confirm" | "success">("form");
-  const [wCountry, setWCountry] = useState("ZA");
+  const wCountry = "ZA";
   const [wBankName, setWBankName] = useState("");
   const [wAccountHolder, setWAccountHolder] = useState("");
   const [wAccountNumber, setWAccountNumber] = useState("");
@@ -228,10 +225,8 @@ export default function MerchantDashboard() {
   const [wBankCode, setWBankCode] = useState("");
   const [wAccountType, setWAccountType] = useState<"current" | "savings" | "checking">("current");
   const [wAmount, setWAmount] = useState("");
-  const [wCurrency, setWCurrency] = useState("ZAR");
   const [wReference, setWReference] = useState("");
   const [wLoading, setWLoading] = useState(false);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
 
   // ─── Data Queries ──────────────────────────────────────────────────────────
 
@@ -342,7 +337,7 @@ export default function MerchantDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({
-          amount: genAmount, currency: genCurrency,
+          amount: genAmount, currency: "ZAR",
           description: genDesc || `Payment to ${selectedMerchant?.businessName || "Merchant"}`,
           type: "business", region: "local", destination: "wallet",
           businessName: selectedMerchant?.businessName,
@@ -381,7 +376,7 @@ export default function MerchantDashboard() {
       const res = await fetch(`${API_BASE}/api/merchants/${selectedMerchant?.id}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ amount: wAmount, currency: wCurrency, merchantId: selectedMerchant?.id, bankingDetails }),
+        body: JSON.stringify({ amount: wAmount, currency: "ZAR", merchantId: selectedMerchant?.id, bankingDetails }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -397,7 +392,7 @@ export default function MerchantDashboard() {
     setWithdrawStep("form"); setWBankName(""); setWAccountHolder("");
     setWAccountNumber(""); setWBranchCode(""); setWSortCode("");
     setWRoutingNumber(""); setWIban(""); setWBic(""); setWBankCode("");
-    setWAmount(""); setWReference(""); setWCountry("ZA"); setWCurrency("ZAR");
+    setWAmount(""); setWReference("");
   };
 
   const deleteBusiness = (merchant: Merchant) => {
@@ -861,47 +856,20 @@ export default function MerchantDashboard() {
         Funds will be transferred from your merchant wallet to your bank account within 1–3 business days.
       </Text>
 
-      {/* Amount + Currency */}
+      {/* Amount */}
       <Text style={[styles.wLabel, { color: colors.textSecondary }]}>Withdrawal Amount *</Text>
-      <View style={styles.wAmountRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 0, maxHeight: 44 }}>
-          <View style={{ flexDirection: "row", gap: 6 }}>
-            {CURRENCIES.map(c => (
-              <TouchableOpacity key={c} style={[styles.wChip, wCurrency === c && styles.wChipActive]} onPress={() => setWCurrency(c)}>
-                <Text style={[styles.wChipText, wCurrency === c && styles.wChipTextActive]}>{c}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
       <TextInput
         style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
         value={wAmount} onChangeText={setWAmount}
-        placeholder={`0.00 ${wCurrency}`} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
+        placeholder="0.00 ZAR" keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
       />
       <Text style={styles.wBalanceHint}>Available: {sym}{balance.toFixed(2)}</Text>
 
-      {/* Country Selector */}
-      <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Country *</Text>
-      <TouchableOpacity style={[styles.wCountryBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]} onPress={() => setShowCountryPicker(!showCountryPicker)}>
+      {/* Country (South Africa only, for now) */}
+      <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Country</Text>
+      <View style={[styles.wCountryBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
         <Text style={[styles.wCountryBtnText, { color: colors.text }]}>{bankCfg.flag} {bankCfg.name}</Text>
-        <Ionicons name={showCountryPicker ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
-      </TouchableOpacity>
-      {showCountryPicker && (
-        <View style={[styles.countryPickerList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {Object.entries(COUNTRY_BANK_CONFIG).map(([code, cfg]) => (
-            <TouchableOpacity
-              key={code}
-              style={[styles.countryPickerItem, { borderBottomColor: colors.divider }, wCountry === code && { backgroundColor: colors.primaryLight }]}
-              onPress={() => { setWCountry(code); setShowCountryPicker(false); }}
-            >
-              <Text style={styles.countryPickerFlag}>{cfg.flag}</Text>
-              <Text style={[styles.countryPickerName, { color: colors.text }, wCountry === code && { color: "#7C3AED", fontWeight: "700" }]}>{cfg.name}</Text>
-              {wCountry === code && <Ionicons name="checkmark" size={16} color="#7C3AED" />}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+      </View>
 
       {/* Account Holder */}
       <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Account Holder Name *</Text>
@@ -1010,7 +978,7 @@ export default function MerchantDashboard() {
       </View>
 
       {[
-        { label: "Amount", value: `${wCurrency} ${parseFloat(wAmount || "0").toFixed(2)}`, highlight: true },
+        { label: "Amount", value: `ZAR ${parseFloat(wAmount || "0").toFixed(2)}`, highlight: true },
         { label: "Account Holder", value: wAccountHolder },
         { label: "Country", value: `${bankCfg.flag} ${bankCfg.name}` },
         ...(wBankName ? [{ label: "Bank", value: wBankName }] : []),
@@ -1054,7 +1022,7 @@ export default function MerchantDashboard() {
       </View>
       <Text style={[styles.successTitle, { color: colors.text }]}>Withdrawal Submitted!</Text>
       <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
-        Your withdrawal of {wCurrency} {parseFloat(wAmount || "0").toFixed(2)} to {wAccountHolder} has been received.
+        Your withdrawal of ZAR {parseFloat(wAmount || "0").toFixed(2)} to {wAccountHolder} has been received.
         Funds arrive within 1–3 business days.
       </Text>
       <View style={[styles.successRefBox, { backgroundColor: colors.inputBg }]}>
@@ -1213,22 +1181,11 @@ export default function MerchantDashboard() {
               <>
                 <Text style={[styles.genSubtitle, { color: colors.textSecondary }]}>Create a shareable link — payments go directly to your merchant wallet.</Text>
 
-                <Text style={[styles.genLabel, { color: colors.textSecondary }]}>Currency</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {CURRENCIES.map(c => (
-                      <TouchableOpacity key={c} style={[styles.genChip, genCurrency === c && styles.genChipActive]} onPress={() => setGenCurrency(c)}>
-                        <Text style={[styles.genChipText, genCurrency === c && styles.genChipTextActive]}>{c}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-
                 <Text style={[styles.genLabel, { color: colors.textSecondary }]}>Amount *</Text>
                 <TextInput
                   style={[styles.genInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
                   value={genAmount} onChangeText={setGenAmount}
-                  placeholder={`0.00 ${genCurrency}`} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
+                  placeholder="0.00 ZAR" keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
                 />
 
                 <Text style={[styles.genLabel, { color: colors.textSecondary }]}>Description (optional)</Text>
@@ -1525,10 +1482,6 @@ const styles = StyleSheet.create({
   genSubtitle: { fontSize: 13, color: "#6B7280", marginBottom: 18, lineHeight: 20 },
   genLabel: { fontSize: 12, fontWeight: "700", color: "#374151", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
   genInput: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: "#1A1A2E", backgroundColor: "#F9FAFB", marginBottom: 14, height: 48 },
-  genChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
-  genChipActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  genChipText: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
-  genChipTextActive: { color: "#FFFFFF" },
   genBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#7C3AED", borderRadius: 12, height: 50, marginTop: 4 },
   genBtnText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
   genOutlineBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: "#7C3AED" },
@@ -1544,19 +1497,9 @@ const styles = StyleSheet.create({
   withdrawSubtitle: { fontSize: 13, color: "#6B7280", marginBottom: 18, lineHeight: 20 },
   wLabel: { fontSize: 12, fontWeight: "700", color: "#374151", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
   wInput: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: "#1A1A2E", backgroundColor: "#F9FAFB", marginBottom: 14, height: 48 },
-  wAmountRow: { marginBottom: 10 },
   wBalanceHint: { fontSize: 12, color: "#10B981", fontWeight: "600", marginBottom: 14, marginTop: -8 },
   wCountryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, backgroundColor: "#F9FAFB", marginBottom: 6 },
   wCountryBtnText: { fontSize: 15, color: "#1A1A2E", fontWeight: "600" },
-  countryPickerList: { backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 14, overflow: "hidden", maxHeight: 220 },
-  countryPickerItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F7F8FC" },
-  countryPickerItemActive: { backgroundColor: "#FAF5FF" },
-  countryPickerFlag: { fontSize: 22 },
-  countryPickerName: { flex: 1, fontSize: 14, color: "#374151", fontWeight: "500" },
-  wChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
-  wChipActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  wChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
-  wChipTextActive: { color: "#FFFFFF" },
   accountTypeRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
   accountTypeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center", backgroundColor: "#F9FAFB" },
   accountTypeBtnActive: { backgroundColor: "#EDE9FE", borderColor: "#7C3AED" },

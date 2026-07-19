@@ -8,7 +8,6 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { sendMoney, getTransferQuote, fetchCards, fetchContacts } from "../lib/api";
-import { AFRICA_COUNTRIES, INTERNATIONAL_COUNTRIES, Country, groupByRegion } from "../lib/countries";
 import { TRANSFER_CATEGORIES, getCategory } from "../lib/categories";
 import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
@@ -17,8 +16,7 @@ const PRIMARY = "#7C3AED";
 const GREEN = "#10B981";
 const NUMPAD = ["1","2","3","4","5","6","7","8","9",".","0","⌫"];
 
-type Stage = "recipient" | "category" | "subcategory" | "destination" | "country" | "amount" | "confirm" | "success";
-type DestinationTab = "local" | "africa" | "international";
+type Stage = "recipient" | "category" | "subcategory" | "amount" | "confirm" | "success";
 
 function initials(name: string) {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
@@ -37,9 +35,6 @@ export default function SendMoney() {
 
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [subcategory, setSubcategory] = useState<string | null>(null);
-
-  const [destinationTab, setDestinationTab] = useState<DestinationTab | null>(null);
-  const [country, setCountry] = useState<Country | null>(null);
 
   const [amount, setAmount] = useState("0");
   const [selectedCardId, setSelectedCardId] = useState("");
@@ -70,7 +65,6 @@ export default function SendMoney() {
     : (contacts as any[]);
 
   const selectedCard = (cards as any[]).find(c => c.id === selectedCardId);
-  const destinationCurrency = destinationTab === "local" || !country ? selectedCard?.currency : country.currency;
 
   const handleSelectContact = (contact: any) => {
     setRecipient({ name: contact.name, username: contact.username, color: contact.color });
@@ -90,22 +84,7 @@ export default function SendMoney() {
     setCategoryId(id);
     setSubcategory(null);
     const cat = getCategory(id);
-    setStage(cat && cat.subcategories.length > 0 ? "subcategory" : "destination");
-  };
-
-  const handleSelectDestinationTab = (t: DestinationTab) => {
-    setDestinationTab(t);
-    if (t === "local") {
-      setCountry(null);
-      setStage("amount");
-    } else {
-      setStage("country");
-    }
-  };
-
-  const handleSelectCountry = (c: Country) => {
-    setCountry(c);
-    setStage("amount");
+    setStage(cat && cat.subcategories.length > 0 ? "subcategory" : "amount");
   };
 
   const handleNumpad = (key: string) => {
@@ -122,7 +101,7 @@ export default function SendMoney() {
     }
     setQuoting(true);
     try {
-      const q = await getTransferQuote(selectedCard.currency, destinationCurrency, amount);
+      const q = await getTransferQuote(selectedCard.currency, selectedCard.currency, amount);
       setQuote(q);
       setStage("confirm");
     } catch (e: any) {
@@ -137,7 +116,6 @@ export default function SendMoney() {
     setSending(true);
     try {
       await sendMoney(selectedCardId, recipient.username, amount, {
-        destinationCountryCode: country?.code,
         purposeCategory: categoryId || undefined,
         purposeSubcategory: subcategory || undefined,
       });
@@ -320,7 +298,7 @@ export default function SendMoney() {
             <TouchableOpacity
               key={sub}
               style={[s.categoryRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => { setSubcategory(sub); setStage("destination"); }}
+              onPress={() => { setSubcategory(sub); setStage("amount"); }}
               activeOpacity={0.75}
             >
               <Text style={[s.categoryLabel, { color: colors.text, marginLeft: 0 }]}>{sub}</Text>
@@ -332,81 +310,12 @@ export default function SendMoney() {
     );
   }
 
-  // ── Destination (Local / Africa / International) ────────────────────────────
-  if (stage === "destination") {
-    const options: { id: DestinationTab; label: string; sub: string; icon: string }[] = [
-      { id: "local", label: "Local", sub: `Send instantly in ${selectedCard?.currency || "your currency"}`, icon: "home-outline" },
-      { id: "africa", label: "Africa", sub: "Send to any BukkaPay user across Africa", icon: "earth-outline" },
-      { id: "international", label: "International", sub: "Send worldwide, wherever BukkaPay is used", icon: "globe-outline" },
-    ];
-    return (
-      <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header("Send Money", () => setStage(getCategory(categoryId || "")?.subcategories.length ? "subcategory" : "category"))}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-          <Text style={[s.sectionLabel, { color: colors.text }]}>Where's the recipient?</Text>
-          {options.map((opt) => (
-            <TouchableOpacity
-              key={opt.id}
-              style={[s.destinationCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleSelectDestinationTab(opt.id)}
-              activeOpacity={0.75}
-            >
-              <View style={[s.categoryIcon, { backgroundColor: colors.primaryLight }]}>
-                <Ionicons name={opt.icon as any} size={22} color={PRIMARY} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.destinationTitle, { color: colors.text }]}>{opt.label}</Text>
-                <Text style={[s.destinationSub, { color: colors.textMuted }]}>{opt.sub}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // ── Country picker (Africa / International) ──────────────────────────────────
-  if (stage === "country") {
-    const list = destinationTab === "africa" ? AFRICA_COUNTRIES : INTERNATIONAL_COUNTRIES;
-    const grouped = destinationTab === "international" ? groupByRegion(list) : [{ region: "Africa", countries: list }];
-    return (
-      <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header(destinationTab === "africa" ? "Africa" : "International", () => setStage("destination"))}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
-          {grouped.map((g) => (
-            <View key={g.region}>
-              {destinationTab === "international" && (
-                <Text style={[s.sectionLabel, { color: colors.textMuted, marginBottom: 8 }]}>{g.region}</Text>
-              )}
-              <View style={{ gap: 8 }}>
-                {g.countries.map((c) => (
-                  <TouchableOpacity
-                    key={c.code}
-                    style={[s.countryChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                    onPress={() => handleSelectCountry(c)}
-                  >
-                    <Text style={s.countryFlag}>{c.flag}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.countryName, { color: colors.text }]}>{c.name}</Text>
-                      <Text style={[s.countryCurrency, { color: colors.textMuted }]}>Wallet in {c.currency}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  }
-
   // ── Amount ─────────────────────────────────────────────────────────────────
   if (stage === "amount") {
+    const prevStage: Stage = getCategory(categoryId || "")?.subcategories.length ? "subcategory" : "category";
     return (
       <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header("Enter Amount", () => setStage(destinationTab === "local" ? "destination" : "country"))}
+        {header("Enter Amount", () => setStage(prevStage))}
 
         <View style={[s.recipientPill, { backgroundColor: colors.primaryLight }]}>
           <View style={[s.pillAvatar, { backgroundColor: recipient?.color || PRIMARY }]}>
@@ -415,13 +324,9 @@ export default function SendMoney() {
           <View style={{ flex: 1 }}>
             <Text style={[s.pillName, { color: colors.text }]}>{recipient?.name}</Text>
             <Text style={[s.pillUsername, { color: colors.textMuted }]}>
-              {country ? `${country.flag} ${country.name} · ` : "Local · "}
-              {selectedCard?.currency}{destinationCurrency && destinationCurrency !== selectedCard?.currency ? ` → ${destinationCurrency}` : ""}
+              Local · {selectedCard?.currency}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => setStage(destinationTab === "local" ? "destination" : "country")}>
-            <Text style={[s.pillChangeText, { color: PRIMARY }]}>Change</Text>
-          </TouchableOpacity>
         </View>
 
         {cardsLoading ? (
@@ -512,7 +417,7 @@ export default function SendMoney() {
               <View style={{ flex: 1 }}>
                 <Text style={[s.confirmRecipientName, { color: colors.text }]}>{recipient?.name}</Text>
                 <Text style={[s.confirmRecipientSub, { color: colors.textMuted }]}>
-                  {country ? `${country.flag} ${country.name}` : "Local · BukkaPay Wallet"}
+                  Local · BukkaPay Wallet
                 </Text>
               </View>
             </View>
@@ -670,29 +575,12 @@ const s = StyleSheet.create({
   },
   securityText: { fontSize: 13, fontWeight: "500" },
 
-  sectionLabel: { fontSize: 15, fontWeight: "700" },
-
   categoryRow: {
     flexDirection: "row", alignItems: "center", gap: 12, padding: 16,
     borderRadius: 16, borderWidth: 1.5,
   },
   categoryIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   categoryLabel: { flex: 1, fontSize: 15, fontWeight: "600", marginLeft: 2 },
-
-  destinationCard: {
-    flexDirection: "row", alignItems: "center", gap: 14, padding: 16,
-    borderRadius: 16, borderWidth: 1.5,
-  },
-  destinationTitle: { fontSize: 16, fontWeight: "700" },
-  destinationSub: { fontSize: 12, marginTop: 3 },
-
-  countryChip: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 14, borderWidth: 1.5, padding: 12,
-  },
-  countryFlag: { fontSize: 24 },
-  countryName: { fontSize: 14, fontWeight: "700" },
-  countryCurrency: { fontSize: 11, marginTop: 2 },
 
   recipientPill: {
     flexDirection: "row", alignItems: "center", gap: 10,
@@ -703,7 +591,6 @@ const s = StyleSheet.create({
   pillAvatarText: { fontSize: 13, fontWeight: "700", color: "#fff" },
   pillName: { fontSize: 14, fontWeight: "700" },
   pillUsername: { fontSize: 12 },
-  pillChangeText: { fontSize: 13, fontWeight: "700" },
 
   cardScroll: { marginTop: 8 },
   cardScrollInner: { paddingHorizontal: 16, gap: 8, height: 40, alignItems: "center" },

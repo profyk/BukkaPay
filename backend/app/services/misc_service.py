@@ -44,7 +44,7 @@ async def create_payment_request(
     request = PaymentRequest(
         user_id=user_id,
         amount=parsed_amount,
-        currency=currency or "USD",
+        currency=currency or "ZAR",
         recipient_name=recipient_name,
         recipient_phone=recipient_phone,
         status=status or "pending",

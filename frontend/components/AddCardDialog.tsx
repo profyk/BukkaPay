@@ -16,7 +16,7 @@ import { useToast } from "../hooks/use-toast";
 import { queryClient } from "../lib/queryClient";
 import { createCard } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
-import { CURRENCIES, CurrencyCode, getCurrency } from "../lib/currency";
+import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 import PremiumCard from "./PremiumCard";
 
@@ -25,7 +25,7 @@ const PREVIEW_NUMBER = "5399 •••• •••• ••••";
 export default function AddCardDialog() {
   const [open, setOpen] = useState(false);
   const [cardName, setCardName] = useState("");
-  const [currency, setCurrency] = useState<CurrencyCode>("ZAR");
+  const currency = "ZAR" as const;
   const [userName, setUserName] = useState("Card Holder");
   const { toast } = useToast();
   const { colors } = useTheme();
@@ -52,7 +52,6 @@ export default function AddCardDialog() {
   const handleClose = () => {
     setOpen(false);
     setCardName("");
-    setCurrency("ZAR");
   };
 
   const handleCreate = () => {
@@ -116,28 +115,6 @@ export default function AddCardDialog() {
                 maxLength={32}
               />
               <Text style={[styles.hint, { color: colors.textMuted }]}>A real Mastercard virtual card will be issued for your account.</Text>
-            </View>
-
-            {/* Currency Picker */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Currency</Text>
-              <View style={styles.currencyRow}>
-                {CURRENCIES.map((c) => (
-                  <TouchableOpacity
-                    key={c.code}
-                    style={[
-                      styles.currencyOption,
-                      { borderColor: colors.border, backgroundColor: colors.surface },
-                      currency === c.code && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-                    ]}
-                    onPress={() => setCurrency(c.code)}
-                  >
-                    <Text style={[styles.currencyOptionSymbol, { color: currency === c.code ? colors.primary : colors.text }]}>{c.symbol}</Text>
-                    <Text style={[styles.currencyOptionCode, { color: currency === c.code ? colors.primary : colors.textSecondary }]}>{c.code}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={[styles.hint, { color: colors.textMuted }]}>This wallet will hold and settle balances in {getCurrency(currency).name}.</Text>
             </View>
 
             {/* Create Button */}
@@ -250,26 +227,6 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 12,
-  },
-  currencyRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  currencyOption: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  currencyOptionSymbol: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  currencyOptionCode: {
-    fontSize: 11,
-    fontWeight: "700",
-    marginTop: 2,
   },
   createBtn: {
     flexDirection: "row",
