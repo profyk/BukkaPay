@@ -50,6 +50,7 @@ interface PaymentLinkData {
     items: Array<{ name: string; quantity: number; unitPrice: number; total: number }>;
     dueDate: string | null;
     type: string;
+    attachment?: { name: string; data: string; mimeType: string; sizeKB: number } | null;
   };
   payments?: Array<{ amount: string; method: string; status: string; createdAt: string }>;
 }
@@ -244,6 +245,22 @@ export default function PayLink() {
       await Linking.openURL(canOpen ? waUrl : waWeb);
     } catch {
       try { await Share.share({ message: msg, url }); } catch {}
+    }
+  };
+
+  const handleViewAttachment = () => {
+    const attachment = linkData?.invoice?.attachment;
+    if (!attachment) return;
+    const mimeType = attachment.mimeType || "application/pdf";
+    if (Platform.OS === "web") {
+      const byteChars = atob(attachment.data);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } else {
+      Linking.openURL(`data:${mimeType};base64,${attachment.data}`).catch(() => {});
     }
   };
 
@@ -487,6 +504,13 @@ export default function PayLink() {
                   </View>
                 ))}
               </View>
+            )}
+            {linkData.invoice.attachment && (
+              <TouchableOpacity style={s.attachmentRow} onPress={handleViewAttachment} activeOpacity={0.75}>
+                <Ionicons name="document-attach" size={18} color={BLUE} />
+                <Text style={s.attachmentName} numberOfLines={1}>{linkData.invoice.attachment.name}</Text>
+                <Text style={s.attachmentAction}>View</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -991,6 +1015,12 @@ const s = StyleSheet.create({
   tableWrap: { marginTop: 12 },
   tableRow: { flexDirection: "row", paddingVertical: 6 },
   tableCell: { flex: 1, fontSize: 13, color: "#374151" },
+  attachmentRow: {
+    flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12,
+    borderWidth: 1, borderColor: BORDER, borderRadius: 12, padding: 12, backgroundColor: SURFACE,
+  },
+  attachmentName: { flex: 1, fontSize: 13, fontWeight: "600", color: NAVY },
+  attachmentAction: { fontSize: 13, fontWeight: "700", color: BLUE },
 
   toggleRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
   toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: BORDER, alignItems: "center" },
