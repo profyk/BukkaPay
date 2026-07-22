@@ -114,11 +114,6 @@ class LinkStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-class GiftCardStatus(StrEnum):
-    PENDING = "pending"
-    REDEEMED = "redeemed"
-    EXPIRED = "expired"
-    CANCELLED = "cancelled"
 
 
 class ClaimPaymentStatus(StrEnum):

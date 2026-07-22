@@ -6,7 +6,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
-import { useCurrency } from "../lib/CurrencyContext";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
@@ -14,7 +13,7 @@ import { useTheme } from "../lib/ThemeContext";
 const BLUE  = "#1D4ED8";
 const GREEN = "#16A34A";
 
-type Section = "select" | "stitch" | "voucher" | "withdraw" | "pending";
+type Section = "select" | "stitch" | "withdraw" | "pending";
 type AccountType = "savings" | "current" | "transmission";
 
 interface StitchBank { id: string; name: string; }
@@ -23,7 +22,6 @@ export default function TopUp() {
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
   const { toast } = useToast();
-  const { currency } = useCurrency();
   const { colors, darkMode } = useTheme();
 
   const [section, setSection] = useState<Section>((params.section as Section) || "select");
@@ -223,16 +221,6 @@ export default function TopUp() {
             </View>
             <View style={[s.badge, { backgroundColor: darkMode ? "rgba(22,163,74,0.2)" : "#DCFCE7" }]}>
               <Text style={s.badgeText}>Instant</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => setSection("voucher")}>
-            <View style={[s.optionIcon, { backgroundColor: GREEN }]}>
-              <Ionicons name="ticket" size={22} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.optionTitle, { color: GREEN }]}>Redeem Voucher</Text>
-              <Text style={[s.optionSub, { color: MUTED }]}>BukkaPay gift cards and vouchers</Text>
             </View>
           </TouchableOpacity>
 

@@ -12,7 +12,6 @@ from app.api import (
     billing_link,
     claim_payment,
     contribution,
-    gift_card,
     kyc,
     loyalty,
     merchant,
@@ -37,7 +36,6 @@ api_router.include_router(payment_link.router)
 api_router.include_router(claim_payment.router)
 api_router.include_router(purchase_transaction.router)
 api_router.include_router(rental.router)
-api_router.include_router(gift_card.router)
 api_router.include_router(contribution.router)
 api_router.include_router(billing_link.router)
 api_router.include_router(loyalty.router)

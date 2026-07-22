@@ -7,7 +7,6 @@ from app.models.claim_payment import ClaimPayment
 from app.models.contribution import Contribution, ContributionGroup
 from app.models.dormant import ChatMessage, FamilyMember, SecuritySetting
 from app.models.gamification import Achievement, Challenge
-from app.models.gift_card import GiftCard
 from app.models.loyalty import AutoPay, Beneficiary, LoyaltyReward
 from app.models.merchant import BillingLink, Merchant, MerchantSubscription, MerchantTransaction
 from app.models.misc import Contact, PaymentRequest, PurchaseTransaction
@@ -31,7 +30,6 @@ __all__ = [
     "SecuritySetting",
     "Achievement",
     "Challenge",
-    "GiftCard",
     "AutoPay",
     "Beneficiary",
     "LoyaltyReward",
