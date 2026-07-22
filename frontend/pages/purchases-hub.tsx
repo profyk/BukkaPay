@@ -7,45 +7,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useCurrency } from "../lib/CurrencyContext";
-import { convertAmount } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 
+// Only categories with an active purchase flow in the app today. Bus vs.
+// flight travel bookings both use category "travel" (metadata.ticketType
+// distinguishes them, see iconName below) — airtime/electricity/tickets/
+// hotels/rentals/contributions/transfers/payments were removed from the
+// app but may still exist as historical rows, so they fall back to a
+// generic receipt icon/color below rather than disappearing from "All".
 const categories = [
-  { id: "all",          label: "All",           icon: "filter-outline"          as keyof typeof Ionicons.glyphMap },
-  { id: "travel",       label: "Travel",        icon: "airplane-outline"        as keyof typeof Ionicons.glyphMap },
-  { id: "airtime",      label: "Airtime",       icon: "call-outline"            as keyof typeof Ionicons.glyphMap },
-  { id: "electricity",  label: "Electricity",   icon: "flash-outline"           as keyof typeof Ionicons.glyphMap },
-  { id: "ticket",       label: "Tickets",       icon: "ticket-outline"          as keyof typeof Ionicons.glyphMap },
-  { id: "hotel",        label: "Hotels",        icon: "business-outline"        as keyof typeof Ionicons.glyphMap },
-  { id: "rental",       label: "Rentals",       icon: "home-outline"            as keyof typeof Ionicons.glyphMap },
-  { id: "contribution", label: "Contributions", icon: "heart-outline"           as keyof typeof Ionicons.glyphMap },
-  { id: "transfer",     label: "Transfers",     icon: "swap-horizontal-outline" as keyof typeof Ionicons.glyphMap },
-  { id: "payment",      label: "Payments",      icon: "card-outline"            as keyof typeof Ionicons.glyphMap },
+  { id: "all",    label: "All",    icon: "filter-outline"   as keyof typeof Ionicons.glyphMap },
+  { id: "travel", label: "Travel", icon: "airplane-outline" as keyof typeof Ionicons.glyphMap },
 ];
 
 const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  travel:       "airplane-outline",
-  airtime:      "call-outline",
-  electricity:  "flash-outline",
-  ticket:       "ticket-outline",
-  hotel:        "business-outline",
-  rental:       "home-outline",
-  contribution: "heart-outline",
-  transfer:     "swap-horizontal-outline",
-  payment:      "card-outline",
+  travel: "airplane-outline",
 };
 
 const categoryColors: Record<string, string> = {
-  travel:       "#7C3AED",
-  airtime:      "#3B82F6",
-  electricity:  "#EAB308",
-  ticket:       "#A855F7",
-  hotel:        "#06B6D4",
-  rental:       "#22C55E",
-  contribution: "#EC4899",
-  transfer:     "#6366F1",
-  payment:      "#10B981",
+  travel: "#7C3AED",
 };
 
 function getStatusColors(status: string, darkMode: boolean) {
@@ -62,7 +42,6 @@ function getStatusColors(status: string, darkMode: boolean) {
 export default function PurchasesHub() {
   const router = useRouter();
   const { colors, darkMode } = useTheme();
-  const { currency } = useCurrency();
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -195,7 +174,7 @@ export default function PurchasesHub() {
                         {displayName}
                       </Text>
                       <Text style={[styles.txAmount, { color: colors.text }]}>
-                        {currency.symbol}{convertAmount(Math.abs(Number(transaction.amount)), currency.code).toFixed(2)}
+                        R{Math.abs(Number(transaction.amount)).toFixed(2)}
                       </Text>
                     </View>
 

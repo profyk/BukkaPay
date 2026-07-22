@@ -24,14 +24,5 @@ class PurchaseTransactionResponse(CamelModel):
     updated_at: JsDateTime
 
 
-class CreatePurchaseTransactionRequest(CamelModel):
-    category: str
-    merchant_name: str
-    amount: str
-    currency: str | None = None
-    status: str | None = None
-    metadata: dict | None = None
-
-
 class UpdatePurchaseTransactionRequest(CamelModel):
     metadata: dict

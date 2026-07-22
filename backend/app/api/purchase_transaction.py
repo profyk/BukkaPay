@@ -7,13 +7,22 @@ from app.api.deps import get_current_user_id
 from app.core.errors import ApiError
 from app.db.deps import get_db
 from app.schemas.purchase_transaction import (
-    CreatePurchaseTransactionRequest,
     PurchaseTransactionResponse,
     UpdatePurchaseTransactionRequest,
 )
 from app.services import purchase_transaction_service as svc
 
 router = APIRouter(prefix="/api", tags=["purchase-transactions"])
+
+# No public POST /purchase-transactions here on purpose: it used to let any
+# authenticated client create a transaction with a client-chosen amount and
+# status ("success" by default) with no payment or wallet deduction behind
+# it — a forged-receipt vector, and its only caller (the mock marketplace
+# in buy.tsx: airtime/vouchers/gift cards/etc.) has been removed along with
+# it. The one real purchase flow (travel booking) creates these rows itself
+# server-side, after validating and deducting the wallet balance, via
+# purchase_transaction_service.create_transaction directly — it never goes
+# through this router.
 
 
 @router.get("/purchase-transactions")
@@ -43,17 +52,6 @@ async def get_purchase_transaction(
         raise ApiError("Transaction not found", status_code=404)
     if transaction.user_id != user_id:
         raise ApiError("Access denied", status_code=403)
-    return PurchaseTransactionResponse.model_validate(transaction)
-
-
-@router.post("/purchase-transactions", status_code=201)
-async def create_purchase_transaction(
-    body: CreatePurchaseTransactionRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
-) -> PurchaseTransactionResponse:
-    transaction = await svc.create_transaction(
-        db, user_id, category=body.category, merchant_name=body.merchant_name, amount=body.amount,
-        currency=body.currency, status=body.status, metadata=body.metadata,
-    )
     return PurchaseTransactionResponse.model_validate(transaction)
 
 
