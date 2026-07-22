@@ -51,11 +51,11 @@ jobs:
             "version": 3,
             "routes": [
               { "handle": "filesystem" },
-              { "src": "^/pay/[^/]+$", "dest": "/pay/_dynamic.html", "check": true },
-              { "src": "^/pay-rent/[^/]+$", "dest": "/pay-rent/_dynamic.html", "check": true },
-              { "src": "^/claim/[^/]+$", "dest": "/claim/_dynamic.html", "check": true },
-              { "src": "^/merchant-pay/[^/]+$", "dest": "/merchant-pay/_dynamic.html", "check": true },
-              { "src": "/(.*)", "dest": "/index.html" }
+              { "src": "^/pay/[^/]+$", "dest": "/pay/_dynamic", "check": true },
+              { "src": "^/pay-rent/[^/]+$", "dest": "/pay-rent/_dynamic", "check": true },
+              { "src": "^/claim/[^/]+$", "dest": "/claim/_dynamic", "check": true },
+              { "src": "^/merchant-pay/[^/]+$", "dest": "/merchant-pay/_dynamic", "check": true },
+              { "src": "/(.*)", "dest": "/" }
             ]
           }
           EOF
