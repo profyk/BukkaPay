@@ -9,10 +9,12 @@ from app.schemas.admin import (
     AdminStatsResponse,
     AdminVirtualCardsListResponse,
     AuditLogsResponse,
+    PlatformWalletResponse,
     SavingsGroupsListResponse,
     UpdatePricingRequest,
 )
 from app.services import admin_platform_service as svc
+from app.services import platform_wallet_service
 
 router = APIRouter(tags=["admin-platform"])
 
@@ -81,6 +83,16 @@ async def update_pricing(
     body: UpdatePricingRequest, _ctx: AdminContext = Depends(super_admin_or_master_key)
 ) -> dict:
     return await svc.update_pricing(body.category, body.values)
+
+
+@router.get("/platform-wallet")
+async def get_platform_wallet(
+    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+) -> PlatformWalletResponse:
+    cards = await platform_wallet_service.get_balances(db)
+    return PlatformWalletResponse.model_validate({
+        "balances": [{"currency": c.currency, "balance": c.balance} for c in cards],
+    })
 
 
 @router.get("/audit-logs")

@@ -2,10 +2,10 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Loader2, AlertCircle, Save, ArrowRightLeft, Link2,
-  CreditCard, Banknote, Users, Gift, CheckCircle2, ShieldCheck,
+  CreditCard, Banknote, Users, Gift, CheckCircle2, ShieldCheck, Wallet,
 } from "lucide-react"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { usePricing, useUpdatePricing, type PricingConfig } from "@/hooks/use-pricing"
+import { usePricing, useUpdatePricing, usePlatformWallet, type PricingConfig } from "@/hooks/use-pricing"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
@@ -123,6 +123,40 @@ function FeePreview({ config }: { config: PricingConfig }) {
   )
 }
 
+function PlatformRevenue() {
+  const { data, isLoading } = usePlatformWallet()
+  const balances = data?.balances ?? []
+  return (
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-muted/30">
+        <div className="p-2 rounded-xl bg-background border border-border">
+          <Wallet className="w-4 h-4 text-emerald-500" />
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">Platform Revenue</p>
+          <p className="text-xs text-muted-foreground">Fees collected from transfers, auto-credited to BukkaPay's own wallet</p>
+        </div>
+      </div>
+      <div className="px-6 py-5">
+        {isLoading ? (
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        ) : balances.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No fees collected yet.</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {balances.map((b) => (
+              <div key={b.currency} className="bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800 rounded-xl p-3">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">{b.currency}</p>
+                <p className="font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(parseFloat(b.balance), b.currency)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function PricingPage() {
   const { data: pricing, isLoading, isError, error } = usePricing()
   const updatePricing = useUpdatePricing()
@@ -203,6 +237,7 @@ export default function PricingPage() {
         ) : (
           <>
             {pricing && <FeePreview config={pricing} />}
+            <PlatformRevenue />
 
             {SECTIONS.map(({ id, label, description, icon: Icon, iconColor, fields }) => (
               <div key={id} className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">

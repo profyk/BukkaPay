@@ -22,6 +22,18 @@ export function usePricing() {
   });
 }
 
+export interface PlatformWalletBalance { currency: string; balance: string }
+
+export function usePlatformWallet() {
+  return useQuery({
+    queryKey: ["platform-wallet"],
+    queryFn: async () => {
+      const { data } = await api.get("/admin/platform-wallet");
+      return data as { balances: PlatformWalletBalance[] };
+    },
+  });
+}
+
 export function useUpdatePricing() {
   const queryClient = useQueryClient();
   return useMutation({
