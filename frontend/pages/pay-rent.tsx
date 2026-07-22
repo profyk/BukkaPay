@@ -11,6 +11,7 @@ import { getCurrentUser } from "../lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE } from "../lib/config";
 import { useTheme } from "../lib/ThemeContext";
+import PinPrompt from "../components/PinPrompt";
 
 const logoImage = require("../assets/logo.png");
 const PURPLE = "#7C3AED";
@@ -28,6 +29,7 @@ interface PaymentLinkDetails {
   tenantName: string;
   tenantEmail: string;
   propertyName: string;
+  propertyType: string;
   propertyAddress: string;
   unitNumber: string;
   landlordBusinessName: string;
@@ -39,12 +41,20 @@ function formatMonth(rentMonth: string) {
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-function getPropertyIcon(name: string = ""): keyof typeof Ionicons.glyphMap {
+function getPropertyIcon(propertyType: string = "", name: string = ""): keyof typeof Ionicons.glyphMap {
+  // The property_type enum (apartment/house/commercial/other) has no
+  // dedicated hostel/student-housing category, so name hints still refine
+  // the icon for those cases; everything else is driven by the real field
+  // instead of guessing from the display name.
   const lower = name.toLowerCase();
   if (lower.includes("hostel") || lower.includes("dorm")) return "bed-outline";
   if (lower.includes("student") || lower.includes("res") || lower.includes("campus")) return "school-outline";
-  if (lower.includes("flat") || lower.includes("apartment")) return "business-outline";
-  return "home-outline";
+  switch (propertyType) {
+    case "apartment": return "business-outline";
+    case "house": return "home-outline";
+    case "commercial": return "storefront-outline";
+    default: return "home-outline";
+  }
 }
 
 function getUnitLabel(unitNumber: string = ""): string {
@@ -80,11 +90,22 @@ export default function PayRent() {
     enabled: !!linkCode,
   });
 
+  // react-native-web's Alert.alert() is a no-op — it never shows a dialog or
+  // fires button callbacks — so this screen's payment confirmation and error
+  // dialogs silently did nothing on the web build (the actual surface a
+  // shared rent-payment link opens on). Route web through window.confirm /
+  // window.alert instead; native platforms keep the real Alert.
+  const notify = (title: string, message?: string) => {
+    if (Platform.OS === "web") { window.alert(message ? `${title}\n\n${message}` : title); return; }
+    Alert.alert(title, message);
+  };
+
   const payMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/rental/payment-links/${linkCode}/pay`, {}),
+    mutationFn: (pin: string) => apiRequest("POST", `/api/rental/payment-links/${linkCode}/pay`, { pin }),
     onSuccess: () => setPaymentSuccess(true),
-    onError: (err: Error) => Alert.alert("Payment Failed", err.message || "Please try again"),
   });
+
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
 
   const handlePayNow = async () => {
     if (!user) {
@@ -92,14 +113,20 @@ export default function PayRent() {
       router.push("/(auth)/login" as any);
       return;
     }
-    Alert.alert(
-      "Confirm Payment",
-      `Pay R${parseFloat(paymentLink?.amount || "0").toFixed(2)} for ${formatMonth(paymentLink?.rentMonth || "")}\nat ${paymentLink?.propertyName}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Pay Now", style: "default", onPress: () => payMutation.mutate() },
-      ]
-    );
+    const message = `Pay R${parseFloat(paymentLink?.amount || "0").toFixed(2)} for ${formatMonth(paymentLink?.rentMonth || "")}\nat ${paymentLink?.propertyName}?`;
+    if (Platform.OS === "web") {
+      if (window.confirm(`Confirm Payment\n\n${message}`)) setShowPinPrompt(true);
+      return;
+    }
+    Alert.alert("Confirm Payment", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Pay Now", style: "default", onPress: () => setShowPinPrompt(true) },
+    ]);
+  };
+
+  const handlePinSubmit = async (pin: string) => {
+    await payMutation.mutateAsync(pin);
+    setShowPinPrompt(false);
   };
 
   const handleShare = async () => {
@@ -147,7 +174,7 @@ export default function PayRent() {
 
   const amount = parseFloat(paymentLink.amount);
   const isPaid = paymentLink.status === "paid";
-  const propIcon = getPropertyIcon(paymentLink.propertyName);
+  const propIcon = getPropertyIcon(paymentLink.propertyType, paymentLink.propertyName);
   const unitLabel = getUnitLabel(paymentLink.unitNumber);
 
   if (paymentSuccess) {
@@ -338,6 +365,13 @@ export default function PayRent() {
         </TouchableOpacity>
       </View>
     )}
+
+    <PinPrompt
+      visible={showPinPrompt}
+      subtitle={`Confirm rent payment of R${amount.toFixed(2)}`}
+      onCancel={() => setShowPinPrompt(false)}
+      onSubmit={handlePinSubmit}
+    />
     </View>
   );
 }

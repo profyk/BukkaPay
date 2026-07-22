@@ -5,6 +5,8 @@ import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { apiRequest, queryClient } from "../lib/queryClient";
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
 
 interface PaymentHistory {
   id: string;
@@ -41,6 +43,8 @@ interface TenantLookup {
 export default function TenantDashboard() {
   const router = useRouter();
   const { toast } = useToast();
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const [tenantIdInput, setTenantIdInput] = useState("");
   const [linkedTenant, setLinkedTenant] = useState<TenantLookup | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -134,7 +138,7 @@ export default function TenantDashboard() {
       <ScrollView style={styles.container} contentContainerStyle={styles.centerContent}>
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.pageTitle}>My Rent</Text>
         </View>
@@ -149,7 +153,7 @@ export default function TenantDashboard() {
             value={tenantIdInput}
             onChangeText={(text) => setTenantIdInput(text.toUpperCase())}
             placeholder="TEN-XXXXXXXX-XXXX"
-            placeholderTextColor="#6B7280"
+            placeholderTextColor={colors.textMuted}
             style={styles.textInput}
             autoCapitalize="characters"
           />
@@ -172,7 +176,7 @@ export default function TenantDashboard() {
               <Text style={styles.linkedSub}>
                 {linkedTenant.propertyName} - Unit {linkedTenant.unitNumber}
               </Text>
-              <Text style={styles.linkedRent}>Monthly Rent: ${linkedTenant.monthlyRent}</Text>
+              <Text style={styles.linkedRent}>Monthly Rent: R{linkedTenant.monthlyRent}</Text>
               <TouchableOpacity
                 onPress={() => linkMutation.mutate(linkedTenant.tenantId)}
                 disabled={linkMutation.isPending}
@@ -197,7 +201,7 @@ export default function TenantDashboard() {
       <View style={styles.pageHeader}>
         <View style={styles.pageHeaderRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.pageTitle}>My Rent</Text>
         </View>
@@ -231,15 +235,15 @@ export default function TenantDashboard() {
 
         <View style={styles.rentGrid}>
           <View style={styles.rentGridItem}>
-            <Text style={styles.rentAmount}>${dashboardData.monthlyRent.toFixed(2)}</Text>
+            <Text style={styles.rentAmount}>R{dashboardData.monthlyRent.toFixed(2)}</Text>
             <Text style={styles.rentLabel}>Monthly Rent</Text>
           </View>
           <View style={styles.rentGridItem}>
-            <Text style={[styles.rentAmount, { color: "#10B981" }]}>${dashboardData.amountPaid.toFixed(2)}</Text>
+            <Text style={[styles.rentAmount, { color: "#10B981" }]}>R{dashboardData.amountPaid.toFixed(2)}</Text>
             <Text style={styles.rentLabel}>Paid</Text>
           </View>
           <View style={styles.rentGridItem}>
-            <Text style={[styles.rentAmount, { color: "#EF4444" }]}>${dashboardData.amountDue.toFixed(2)}</Text>
+            <Text style={[styles.rentAmount, { color: "#EF4444" }]}>R{dashboardData.amountDue.toFixed(2)}</Text>
             <Text style={styles.rentLabel}>Due</Text>
           </View>
         </View>
@@ -261,7 +265,7 @@ export default function TenantDashboard() {
 
       <View style={styles.card}>
         <View style={styles.historyHeader}>
-          <Ionicons name="calendar-outline" size={16} color="#1A1A2E" />
+          <Ionicons name="calendar-outline" size={16} color={colors.text} />
           <Text style={styles.historyTitle}>Payment History</Text>
         </View>
         {dashboardData.paymentHistory.length === 0 ? (
@@ -271,7 +275,7 @@ export default function TenantDashboard() {
             {dashboardData.paymentHistory.map((payment) => (
               <View key={payment.id} style={styles.paymentItem}>
                 <View>
-                  <Text style={styles.paymentAmount}>${parseFloat(payment.amount).toFixed(2)}</Text>
+                  <Text style={styles.paymentAmount}>R{parseFloat(payment.amount).toFixed(2)}</Text>
                   <Text style={styles.paymentDate}>
                     {new Date(payment.createdAt).toLocaleDateString()}
                   </Text>
@@ -291,20 +295,20 @@ export default function TenantDashboard() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Make a Payment</Text>
               <TouchableOpacity onPress={() => setPaymentOpen(false)}>
-                <Ionicons name="close" size={24} color="#1A1A2E" />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.amountDueText}>
-              Amount due: <Text style={styles.amountDueBold}>${dashboardData.amountDue.toFixed(2)}</Text>
+              Amount due: <Text style={styles.amountDueBold}>R{dashboardData.amountDue.toFixed(2)}</Text>
             </Text>
 
-            <Text style={styles.label}>Payment Amount ($)</Text>
+            <Text style={styles.label}>Payment Amount (R)</Text>
             <TextInput
               value={paymentAmount}
               onChangeText={setPaymentAmount}
               placeholder={dashboardData.amountDue.toFixed(2)}
-              placeholderTextColor="#6B7280"
+              placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
               style={styles.textInput}
             />
@@ -327,7 +331,7 @@ export default function TenantDashboard() {
               style={[styles.primaryButton, (!paymentAmount || paymentMutation.isPending) && styles.disabledButton]}
             >
               <Text style={styles.primaryButtonText}>
-                {paymentMutation.isPending ? "Processing..." : `Pay $${paymentAmount || "0"}`}
+                {paymentMutation.isPending ? "Processing..." : `Pay R${paymentAmount || "0"}`}
               </Text>
             </TouchableOpacity>
           </View>
@@ -337,59 +341,61 @@ export default function TenantDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loadingContainer: { flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" },
+function getStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loadingContainer: { flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" },
   centerContent: { padding: 16, justifyContent: "center", flexGrow: 1 },
   scrollPadding: { padding: 16, paddingBottom: 32 },
   pageHeader: { marginBottom: 24 },
   pageHeaderRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 },
   backButton: { padding: 4 },
-  pageTitle: { fontSize: 24, fontWeight: "700", color: "#1A1A2E" },
-  welcomeText: { color: "#6B7280", fontSize: 14, marginTop: 4 },
-  card: { backgroundColor: "#F8F9FA", borderRadius: 12, padding: 16, marginBottom: 16 },
-  cardTitleCenter: { fontSize: 18, fontWeight: "700", color: "#1A1A2E", textAlign: "center", marginBottom: 12 },
-  descriptionText: { fontSize: 14, color: "#6B7280", textAlign: "center", marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: "500", color: "#1A1A2E", marginBottom: 8 },
-  textInput: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9, fontSize: 15, color: "#1A1A2E", marginBottom: 10 },
+  pageTitle: { fontSize: 24, fontWeight: "700", color: colors.text },
+  welcomeText: { color: colors.textSecondary, fontSize: 14, marginTop: 4 },
+  card: { backgroundColor: colors.card, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder },
+  cardTitleCenter: { fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center", marginBottom: 12 },
+  descriptionText: { fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 16 },
+  label: { fontSize: 14, fontWeight: "500", color: colors.text, marginBottom: 8 },
+  textInput: { backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9, fontSize: 15, color: colors.text, marginBottom: 10 },
   primaryButton: { backgroundColor: "#7C3AED", borderRadius: 8, height: 48, justifyContent: "center", alignItems: "center", marginTop: 8 },
   primaryButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 15 },
   disabledButton: { opacity: 0.5 },
-  linkedCard: { backgroundColor: "#FFFFFF", borderRadius: 8, padding: 16, marginTop: 12, alignItems: "center" },
-  linkedName: { fontWeight: "600", fontSize: 16, color: "#1A1A2E" },
-  linkedSub: { fontSize: 14, color: "#6B7280", marginTop: 4 },
-  linkedRent: { fontSize: 14, color: "#1A1A2E", marginTop: 4, marginBottom: 8 },
+  linkedCard: { backgroundColor: colors.surface, borderRadius: 8, padding: 16, marginTop: 12, alignItems: "center" },
+  linkedName: { fontWeight: "600", fontSize: 16, color: colors.text },
+  linkedSub: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
+  linkedRent: { fontSize: 14, color: colors.text, marginTop: 4, marginBottom: 8 },
   propertyRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   propertyIcon: { width: 48, height: 48, borderRadius: 8, backgroundColor: "rgba(124,58,237,0.1)", justifyContent: "center", alignItems: "center" },
-  propertyName: { fontWeight: "600", fontSize: 16, color: "#1A1A2E" },
-  unitText: { fontSize: 14, color: "#6B7280" },
+  propertyName: { fontWeight: "600", fontSize: 16, color: colors.text },
+  unitText: { fontSize: 14, color: colors.textSecondary },
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   statusLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  statusLabel: { fontWeight: "500", fontSize: 15, color: "#1A1A2E" },
+  statusLabel: { fontWeight: "500", fontSize: 15, color: colors.text },
   monthBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   monthBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
   rentGrid: { flexDirection: "row", gap: 16, marginBottom: 16 },
   rentGridItem: { flex: 1, alignItems: "center" },
-  rentAmount: { fontSize: 20, fontWeight: "700", color: "#1A1A2E" },
-  rentLabel: { fontSize: 12, color: "#6B7280", marginTop: 4 },
+  rentAmount: { fontSize: 20, fontWeight: "700", color: colors.text },
+  rentLabel: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
   payRentButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#7C3AED", borderRadius: 8, height: 48, marginTop: 8 },
   payRentButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 15 },
   paidBanner: { backgroundColor: "rgba(16,185,129,0.1)", borderRadius: 8, padding: 16, alignItems: "center", marginTop: 16 },
   paidText: { fontSize: 14, fontWeight: "500", color: "#047857", marginTop: 8 },
   historyHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  historyTitle: { fontSize: 16, fontWeight: "600", color: "#1A1A2E" },
-  noPayments: { fontSize: 14, color: "#6B7280", textAlign: "center", paddingVertical: 16 },
-  paymentItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  paymentAmount: { fontSize: 14, fontWeight: "500", color: "#1A1A2E" },
-  paymentDate: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  paymentBadge: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  paymentBadgeText: { fontSize: 12, color: "#1A1A2E" },
+  historyTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
+  noPayments: { fontSize: 14, color: colors.textSecondary, textAlign: "center", paddingVertical: 16 },
+  paymentItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  paymentAmount: { fontSize: 14, fontWeight: "500", color: colors.text },
+  paymentDate: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  paymentBadge: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  paymentBadgeText: { fontSize: 12, color: colors.text },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalContent: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+  modalContent: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#1A1A2E" },
-  amountDueText: { fontSize: 14, color: "#6B7280", textAlign: "center", marginBottom: 16 },
-  amountDueBold: { fontWeight: "700", color: "#1A1A2E" },
-  outlineButton: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, height: 48, justifyContent: "center", alignItems: "center", marginBottom: 8 },
-  outlineButtonText: { color: "#1A1A2E", fontWeight: "600", fontSize: 15 },
-});
+  modalTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
+  amountDueText: { fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 16 },
+  amountDueBold: { fontWeight: "700", color: colors.text },
+  outlineButton: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, height: 48, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  outlineButtonText: { color: colors.text, fontWeight: "600", fontSize: 15 },
+  });
+}

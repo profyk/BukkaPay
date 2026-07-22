@@ -106,8 +106,10 @@ class RentPaymentLinkResponse(CamelModel):
     shareable_link: str | None = None
     tenant_name: str | None = None
     property_name: str | None = None
+    property_type: str | None = None
     tenant_email: str | None = None
     property_address: str | None = None
+    unit_number: str | None = None
     landlord_business_name: str | None = None
 
 
@@ -159,6 +161,10 @@ class TenantDashboardResponse(CamelModel):
 
 class LinkTenantRequest(CamelModel):
     tenant_id: str
+
+
+class PayViaLinkRequest(CamelModel):
+    pin: str | None = None
 
 
 class PayViaLinkResponse(CamelModel):

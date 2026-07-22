@@ -424,6 +424,7 @@ async def get_payment_link_detail(db: AsyncSession, link_code: str) -> dict:
         "expiresAt": link.expires_at, "createdAt": link.created_at,
         "tenantName": tenant.name if tenant else None, "tenantEmail": tenant.email if tenant else None,
         "propertyName": property_.name if property_ else None,
+        "propertyType": property_.property_type if property_ else None,
         "propertyAddress": property_.address if property_ else None,
         "unitNumber": unit.unit_number if unit else None,
         "landlordBusinessName": merchant.business_name if merchant else None,

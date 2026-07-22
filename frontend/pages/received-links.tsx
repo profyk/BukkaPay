@@ -8,6 +8,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
+import PinPrompt from "../components/PinPrompt";
 
 const PRIMARY = "#7C3AED";
 const GREEN = "#10B981";
@@ -39,6 +42,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function ReceivedLinks() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const s = getStyles(colors);
   const [links, setLinks] = useState<ReceivedLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,6 +55,7 @@ export default function ReceivedLinks() {
   const [payAmount, setPayAmount] = useState("");
   const [isFullPay, setIsFullPay] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
   const [payError, setPayError] = useState("");
 
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -81,10 +87,30 @@ export default function ReceivedLinks() {
     return null;
   };
 
+  // react-native-web's Alert.alert() is a no-op — it never shows a dialog or
+  // fires button callbacks — so every Alert.alert call in this screen was
+  // silently doing nothing on the web build. Route web through window.confirm
+  // / window.alert instead; native platforms keep the real Alert.
+  const notify = (title: string, message?: string) => {
+    if (Platform.OS === "web") { window.alert(message ? `${title}\n\n${message}` : title); return; }
+    Alert.alert(title, message);
+  };
+
+  const confirm = (title: string, message: string, confirmLabel: string, onConfirm: () => void) => {
+    if (Platform.OS === "web") {
+      if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: confirmLabel, style: "destructive", onPress: onConfirm },
+    ]);
+  };
+
   const handleAddLink = async () => {
     const linkId = extractLinkId(addUrl);
     if (!linkId) {
-      Alert.alert("Invalid Link", "Please paste a valid BukkaPay payment link URL or link ID.");
+      notify("Invalid Link", "Please paste a valid BukkaPay payment link URL or link ID.");
       return;
     }
     setIsSaving(true);
@@ -98,9 +124,9 @@ export default function ReceivedLinks() {
       if (!res.ok) throw new Error(data.error || "Could not save link");
       setAddUrl("");
       fetchLinks();
-      Alert.alert("Saved!", "Payment link added to your inbox.");
+      notify("Saved!", "Payment link added to your inbox.");
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Could not save this link.");
+      notify("Error", e.message || "Could not save this link.");
     } finally {
       setIsSaving(false);
     }
@@ -114,7 +140,7 @@ export default function ReceivedLinks() {
     setIsPaying(false);
   };
 
-  const handleWalletPay = async () => {
+  const handleWalletPay = () => {
     if (!payModal) return;
     setPayError("");
     const amount = isFullPay ? payModal.remainingBalance : payAmount;
@@ -124,37 +150,40 @@ export default function ReceivedLinks() {
     if (payModal.minimumPayment && parseFloat(amount) < parseFloat(payModal.minimumPayment)) {
       setPayError(`Minimum payment is ${payModal.currency} ${parseFloat(payModal.minimumPayment).toFixed(2)}`); return;
     }
+    setShowPinPrompt(true);
+  };
+
+  const handlePinSubmit = async (pin: string) => {
+    if (!payModal) return;
+    const amount = isFullPay ? payModal.remainingBalance : payAmount;
     setIsPaying(true);
     try {
       const headers = await getAuthHeader();
       const res = await fetch(`${API_BASE}/api/payment-links/${payModal.id}/pay-wallet`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, pin }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Payment failed");
+      setShowPinPrompt(false);
       setPayModal(null);
       fetchLinks();
-      Alert.alert(
+      notify(
         "Payment Successful!",
         `${payModal.currency} ${parseFloat(amount).toFixed(2)} paid successfully via BukkaPay Wallet.`
       );
-    } catch (e: any) {
-      setPayError(e.message || "Payment failed. Please try again.");
     } finally {
       setIsPaying(false);
     }
   };
 
   const handleRemove = (link: ReceivedLink) => {
-    Alert.alert(
+    confirm(
       "Remove Link",
       `Remove "${link.description || "this payment link"}" from your inbox?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => doRemove(link.id) },
-      ]
+      "Remove",
+      () => doRemove(link.id)
     );
   };
 
@@ -168,7 +197,7 @@ export default function ReceivedLinks() {
       });
       setLinks(prev => prev.filter(l => l.id !== linkId));
     } catch {
-      Alert.alert("Error", "Could not remove this link.");
+      notify("Error", "Could not remove this link.");
     } finally {
       setRemovingId(null);
     }
@@ -190,7 +219,7 @@ export default function ReceivedLinks() {
         {/* Header */}
         <View style={s.topBar}>
           <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="#1A1A2E" />
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
           <View style={s.topBarCenter}>
             <Text style={s.topBarTitle}>Received Links</Text>
@@ -224,7 +253,7 @@ export default function ReceivedLinks() {
                 value={addUrl}
                 onChangeText={setAddUrl}
                 placeholder="https://app.bukkapay.com/pay/..."
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -399,7 +428,7 @@ export default function ReceivedLinks() {
                       onChangeText={setPayAmount}
                       placeholder={`Min: ${payModal.minimumPayment || "any amount"}`}
                       keyboardType="decimal-pad"
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={colors.textMuted}
                     />
                   )}
                 </View>
@@ -447,24 +476,32 @@ export default function ReceivedLinks() {
             </View>
           </View>
         </Modal>
+
+        <PinPrompt
+          visible={showPinPrompt}
+          subtitle={payModal ? `Confirm this payment` : undefined}
+          onCancel={() => setShowPinPrompt(false)}
+          onSubmit={handlePinSubmit}
+        />
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F3FF" },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F4F3FF" },
+function getStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
 
   topBar: {
     flexDirection: "row", alignItems: "center",
     paddingTop: Platform.OS === "ios" ? 52 : 40, paddingHorizontal: 20, paddingBottom: 14,
-    backgroundColor: "#fff", borderBottomWidth: 1, borderColor: "#EDE9FE",
+    backgroundColor: colors.card, borderBottomWidth: 1, borderColor: colors.cardBorder,
   },
   backBtn: { padding: 6, marginRight: 8 },
   topBarCenter: { flex: 1 },
-  topBarTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A2E" },
-  topBarSub: { fontSize: 12, color: "#9CA3AF", marginTop: 1 },
+  topBarTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  topBarSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
   topBarBadge: {
     minWidth: 28, height: 28, borderRadius: 14,
     backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center", paddingHorizontal: 8,
@@ -472,23 +509,23 @@ const s = StyleSheet.create({
   topBarBadgeText: { color: "#fff", fontWeight: "800", fontSize: 13 },
 
   addCard: {
-    margin: 16, backgroundColor: "#fff", borderRadius: 18, padding: 16,
-    borderWidth: 1.5, borderColor: "#EDE9FE",
+    margin: 16, backgroundColor: colors.card, borderRadius: 18, padding: 16,
+    borderWidth: 1.5, borderColor: colors.cardBorder,
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
   },
   addCardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   addIconWrap: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: "#F0EEFF", alignItems: "center", justifyContent: "center",
+    backgroundColor: colors.primaryLight, alignItems: "center", justifyContent: "center",
   },
-  addCardTitle: { fontSize: 15, fontWeight: "700", color: "#1A1A2E" },
-  addCardSub: { fontSize: 12, color: "#9CA3AF", marginTop: 1 },
+  addCardTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+  addCardSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
   addRow: { flexDirection: "row", gap: 8 },
   addInput: {
-    flex: 1, backgroundColor: "#F8F7FF", borderRadius: 12,
-    borderWidth: 1.5, borderColor: "#E5E7EB",
+    flex: 1, backgroundColor: colors.inputBg, borderRadius: 12,
+    borderWidth: 1.5, borderColor: colors.border,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 13, color: "#1A1A2E",
+    fontSize: 13, color: colors.text,
   },
   addBtn: {
     width: 46, height: 46, borderRadius: 12,
@@ -498,41 +535,41 @@ const s = StyleSheet.create({
   infoNote: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: "#EFF6FF", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: colors.primaryLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
   },
-  infoNoteText: { flex: 1, fontSize: 12, color: "#1D4ED8", lineHeight: 17 },
+  infoNoteText: { flex: 1, fontSize: 12, color: colors.primaryText, lineHeight: 17 },
 
   emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 40 },
   emptyIconWrap: {
     width: 80, height: 80, borderRadius: 24,
-    backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center", marginBottom: 16,
+    backgroundColor: colors.primaryLight, alignItems: "center", justifyContent: "center", marginBottom: 16,
   },
-  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#1A1A2E", textAlign: "center" },
-  emptySubtitle: { fontSize: 13, color: "#9CA3AF", textAlign: "center", marginTop: 6, lineHeight: 20 },
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: colors.text, textAlign: "center" },
+  emptySubtitle: { fontSize: 13, color: colors.textMuted, textAlign: "center", marginTop: 6, lineHeight: 20 },
 
   linksList: { paddingHorizontal: 16, gap: 12 },
   card: {
-    backgroundColor: "#fff", borderRadius: 18, padding: 14,
+    backgroundColor: colors.card, borderRadius: 18, padding: 14,
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
   },
   cardTop: { flexDirection: "row", alignItems: "center" },
   cardIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  cardDesc: { fontSize: 14, fontWeight: "700", color: "#1A1A2E" },
+  cardDesc: { fontSize: 14, fontWeight: "700", color: colors.text },
   cardSender: { fontSize: 12, color: PRIMARY, fontWeight: "600", marginTop: 1 },
-  cardDate: { fontSize: 11, color: "#9CA3AF", marginTop: 1 },
+  cardDate: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   cardRight: { alignItems: "flex-end", gap: 4 },
   statusPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusPillText: { fontSize: 11, fontWeight: "700" },
-  cardAmount: { fontSize: 15, fontWeight: "800", color: "#1A1A2E" },
+  cardAmount: { fontSize: 15, fontWeight: "800", color: colors.text },
 
   progressWrap: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8 },
-  progressTrack: { flex: 1, height: 5, backgroundColor: "#F3F4F6", borderRadius: 3, overflow: "hidden" },
+  progressTrack: { flex: 1, height: 5, backgroundColor: colors.divider, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
-  progressLabel: { fontSize: 11, color: "#9CA3AF", fontWeight: "600" },
+  progressLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
 
-  amountDueRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: "#F3F4F6" },
-  amountDueLabel: { fontSize: 12, color: "#6B7280", fontWeight: "600" },
+  amountDueRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: colors.divider },
+  amountDueLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
   amountDueValue: { fontSize: 15, fontWeight: "800" },
 
   actionsRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
@@ -554,29 +591,29 @@ const s = StyleSheet.create({
   // Modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   modalSheet: {
-    backgroundColor: "#fff", borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, paddingBottom: Platform.OS === "ios" ? 40 : 28,
   },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 20 },
   modalHeader: { alignItems: "center", marginBottom: 20 },
   modalIconWrap: {
-    width: 60, height: 60, borderRadius: 18, backgroundColor: "#F0EEFF",
+    width: 60, height: 60, borderRadius: 18, backgroundColor: colors.primaryLight,
     alignItems: "center", justifyContent: "center", marginBottom: 12,
   },
-  modalTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A2E", marginBottom: 4 },
-  modalDesc: { fontSize: 13, color: "#6B7280", marginBottom: 4, textAlign: "center" },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text, marginBottom: 4 },
+  modalDesc: { fontSize: 13, color: colors.textSecondary, marginBottom: 4, textAlign: "center" },
   modalAmount: { fontSize: 28, fontWeight: "900", color: PRIMARY, marginTop: 4 },
 
   amountSection: { marginBottom: 16 },
-  amountSectionLabel: { fontSize: 13, fontWeight: "700", color: "#6B7280", marginBottom: 8 },
+  amountSectionLabel: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, marginBottom: 8 },
   toggleRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  toggle: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: "#E5E7EB", alignItems: "center" },
+  toggle: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, alignItems: "center" },
   toggleActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  toggleTxt: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
+  toggleTxt: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   toggleTxtActive: { color: "#fff" },
   amountInput: {
-    backgroundColor: "#F8F7FF", borderRadius: 12, borderWidth: 1.5, borderColor: "#E5E7EB",
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A2E", fontWeight: "600",
+    backgroundColor: colors.inputBg, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: colors.text, fontWeight: "600",
   },
 
   errorBox: {
@@ -593,8 +630,9 @@ const s = StyleSheet.create({
   },
   modalPayBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   modalCancelBtn: { alignItems: "center", paddingVertical: 14 },
-  modalCancelTxt: { fontSize: 15, fontWeight: "600", color: "#9CA3AF" },
+  modalCancelTxt: { fontSize: 15, fontWeight: "600", color: colors.textMuted },
 
   modalFooter: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 16 },
-  modalFooterTxt: { fontSize: 12, color: "#9CA3AF" },
-});
+  modalFooterTxt: { fontSize: 12, color: colors.textMuted },
+  });
+}
