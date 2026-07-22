@@ -1,9 +1,23 @@
 from uuid import UUID
 
+from pydantic import field_validator
+
 from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalMoneyStr, OptionalRateStr
 
 
+def _mask_card_number(v: str) -> str:
+    digits = "".join(c for c in v if c.isdigit())
+    last4 = digits[-4:] if len(digits) >= 4 else digits
+    return f"•••• •••• •••• {last4}"
+
+
 class WalletCardResponse(CamelModel):
+    """The card number here is always masked to the last 4 digits, and the
+    CVV is never included — this is what every card list/browsing view uses.
+    The real, unmasked PAN/expiry/CVV are only ever returned by the separate
+    PIN-gated POST /api/cards/{id}/reveal endpoint, for the one legitimate
+    reason a user needs them: entering the card into an external checkout."""
+
     id: UUID
     user_id: UUID
     title: str
@@ -13,7 +27,6 @@ class WalletCardResponse(CamelModel):
     color: str
     card_number: str
     expiry_date: str | None
-    cvv: str | None
     stitch_card_id: str | None
     is_default: bool
     frozen: bool
@@ -22,9 +35,30 @@ class WalletCardResponse(CamelModel):
     spending_limit: OptionalMoneyStr
     created_at: JsDateTime
 
+    @field_validator("card_number", mode="before")
+    @classmethod
+    def _mask(cls, v: str) -> str:
+        return _mask_card_number(v)
+
+
+class RevealCardDetailsRequest(CamelModel):
+    pin: str
+
+
+class CardFullDetailsResponse(CamelModel):
+    card_number: str
+    expiry_date: str | None
+    cvv: str | None
+
 
 class CreateCardRequest(CamelModel):
     title: str
+    currency: str = "ZAR"
+
+
+class CardPricingResponse(CamelModel):
+    issuance_fee: MoneyStr
+    monthly_fee: MoneyStr
     currency: str = "ZAR"
 
 
@@ -66,6 +100,7 @@ class TransferRequest(CamelModel):
     destination_country_code: str | None = None
     purpose_category: str | None = None
     purpose_subcategory: str | None = None
+    pin: str | None = None
 
 
 class TransferRecipient(CamelModel):
@@ -99,3 +134,12 @@ class TransferQuoteResponse(CamelModel):
     fee: MoneyStr
     destination_amount: MoneyStr
     destination_currency: str
+
+
+class RecipientLookupResponse(CamelModel):
+    id: UUID
+    name: str
+    username: str
+    wallet_id: str
+    avatar: str | None
+    verified: bool

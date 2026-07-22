@@ -13,7 +13,31 @@ export async function createCard(card: any) {
     headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
     body: JSON.stringify(card),
   });
-  if (!res.ok) throw new Error("Failed to create card");
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || "Failed to create card");
+  }
+  return res.json();
+}
+
+export async function getCardPricing(): Promise<{ issuanceFee: string; monthlyFee: string; currency: string }> {
+  const res = await fetch(API_BASE + "/api/cards/pricing");
+  if (!res.ok) throw new Error("Failed to fetch card pricing");
+  return res.json();
+}
+
+export async function revealCardDetails(
+  cardId: string, pin: string
+): Promise<{ cardNumber: string; expiryDate: string | null; cvv: string | null }> {
+  const res = await fetch(API_BASE + `/api/cards/${cardId}/reveal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+    body: JSON.stringify({ pin }),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || "Could not verify PIN");
+  }
   return res.json();
 }
 
@@ -69,10 +93,41 @@ export async function createContact(contact: any) {
   return res.json();
 }
 
+export async function getPinStatus() {
+  const res = await fetch(API_BASE + "/api/auth/pin/status", { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error("Failed to fetch PIN status");
+  return res.json();
+}
+
+export async function setTransactionPin(newPin: string, currentPin?: string) {
+  const res = await fetch(API_BASE + "/api/auth/pin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+    body: JSON.stringify({ newPin, currentPin }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Could not update PIN");
+  }
+  return res.json();
+}
+
+export async function lookupRecipient(identifier: string) {
+  const res = await fetch(API_BASE + `/api/wallet/lookup/${encodeURIComponent(identifier)}`, {
+    headers: await getAuthHeader(),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Recipient not found");
+  }
+  return res.json();
+}
+
 export interface SendMoneyOptions {
   destinationCountryCode?: string;
   purposeCategory?: string;
   purposeSubcategory?: string;
+  pin?: string;
 }
 
 export async function sendMoney(

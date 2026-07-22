@@ -56,14 +56,26 @@ async def test_transfer_recipient_not_found(client: AsyncClient, funded_user: di
     assert r.status_code == 404
 
 
-async def test_create_card_and_list(client: AsyncClient, user: dict):
+async def test_create_card_requires_fee_balance(client: AsyncClient, user: dict):
+    # The user's free signup card starts at a balance of 0, and issuing a
+    # second card costs the admin-configured issuance fee — so with nothing
+    # to pay it from, the request is rejected rather than issuing for free.
     r = await client.post("/api/cards", json={"title": "Groceries"}, headers=user["headers"])
+    assert r.status_code == 400
+    assert "insufficient" in r.json()["error"].lower()
+
+
+async def test_create_card_and_list(client: AsyncClient, funded_user: dict):
+    r = await client.post("/api/cards", json={"title": "Groceries"}, headers=funded_user["headers"])
     assert r.status_code == 201
     assert r.json()["balance"] == "0.00"  # string, not a JSON number
 
-    r = await client.get("/api/cards", headers=user["headers"])
+    r = await client.get("/api/cards", headers=funded_user["headers"])
     assert r.status_code == 200
     assert len(r.json()) == 2  # default card + the one just created
+
+    default_card = next(c for c in r.json() if c["isDefault"])
+    assert default_card["balance"] == "950.00"  # 1000.00 funded - 50.00 issuance fee
 
 
 async def test_transaction_history_records_transfer(client: AsyncClient, funded_user: dict, other_user: dict):

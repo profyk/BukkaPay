@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useToast } from "../hooks/use-toast";
 import { queryClient } from "../lib/queryClient";
-import { createCard } from "../lib/api";
+import { createCard, getCardPricing } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
@@ -27,6 +27,7 @@ export default function AddCardDialog() {
   const [cardName, setCardName] = useState("");
   const currency = "ZAR" as const;
   const [userName, setUserName] = useState("Card Holder");
+  const [pricing, setPricing] = useState<{ issuanceFee: string; monthlyFee: string } | null>(null);
   const { toast } = useToast();
   const { colors } = useTheme();
 
@@ -37,6 +38,11 @@ export default function AddCardDialog() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    getCardPricing().then(setPricing).catch(() => setPricing(null));
+  }, [open]);
+
   const createCardMutation = useMutation({
     mutationFn: createCard,
     onSuccess: () => {
@@ -44,8 +50,8 @@ export default function AddCardDialog() {
       toast({ title: "Card Created", description: `"${cardName.trim()}" virtual card is ready.` });
       handleClose();
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to create card. Try again." });
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to create card. Try again." });
     },
   });
 
@@ -115,6 +121,14 @@ export default function AddCardDialog() {
                 maxLength={32}
               />
               <Text style={[styles.hint, { color: colors.textMuted }]}>A real Mastercard virtual card will be issued for your account.</Text>
+              {pricing && (Number(pricing.issuanceFee) > 0 || Number(pricing.monthlyFee) > 0) && (
+                <Text style={[styles.hint, { color: colors.textMuted }]}>
+                  {Number(pricing.issuanceFee) > 0 ? `${getCurrency(currency).symbol}${pricing.issuanceFee} issuance fee` : ""}
+                  {Number(pricing.issuanceFee) > 0 && Number(pricing.monthlyFee) > 0 ? " · " : ""}
+                  {Number(pricing.monthlyFee) > 0 ? `${getCurrency(currency).symbol}${pricing.monthlyFee}/month maintenance` : ""}
+                  {" — charged to your default card"}
+                </Text>
+              )}
             </View>
 
             {/* Create Button */}

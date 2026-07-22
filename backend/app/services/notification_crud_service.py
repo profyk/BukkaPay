@@ -11,9 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.notification import Notification
 
 
+MAX_NOTIFICATIONS_PAGE_SIZE = 100
+
+
 async def get_notifications(db: AsyncSession, user_id: uuid.UUID) -> list[Notification]:
     result = await db.execute(
-        select(Notification).where(Notification.user_id == user_id).order_by(Notification.created_at.desc())
+        select(Notification).where(Notification.user_id == user_id)
+        .order_by(Notification.created_at.desc())
+        .limit(MAX_NOTIFICATIONS_PAGE_SIZE)
     )
     return list(result.scalars().all())
 

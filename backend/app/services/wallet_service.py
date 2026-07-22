@@ -11,7 +11,7 @@ from app.integrations import stitch
 from app.models.enums import NotificationType, TransactionType, TransferPurpose, TransferZone, WalletCurrency
 from app.models.user import User
 from app.models.wallet import InternationalTransfer, Transaction, WalletCard
-from app.services import admin_platform_service, fx_service, notification_service
+from app.services import admin_platform_service, fx_service, notification_service, platform_wallet_service
 
 
 async def get_wallet_cards(db: AsyncSession, user_id: uuid.UUID) -> list[WalletCard]:
@@ -45,6 +45,11 @@ async def get_wallet_card(db: AsyncSession, card_id: str, user_id: uuid.UUID) ->
 async def create_wallet_card(
     db: AsyncSession, user_id: uuid.UUID, title: str, currency: str = "ZAR"
 ) -> WalletCard:
+    """Any card beyond the free one auto-issued at signup (`_issue_default_card`
+    in auth_service, which never calls this function) costs the admin-configured
+    "virtual_card" issuance fee, paid from the user's existing default card —
+    a chicken-and-egg-free rule since every user always has that first free
+    card by the time they can reach this flow."""
     if not title.strip():
         raise ApiError("Card title is required")
     if currency not in WalletCurrency.__members__.values():
@@ -52,6 +57,22 @@ async def create_wallet_card(
 
     user_result = await db.execute(select(User).where(User.id == user_id))
     user = user_result.scalar_one_or_none()
+
+    pricing = (await admin_platform_service.get_pricing())["virtual_card"]
+    issuance_fee = Decimal(str(pricing["issuance_fee"]))
+
+    paying_card = None
+    if issuance_fee > 0:
+        cards = await get_wallet_cards(db, user_id)
+        paying_card = next((c for c in cards if c.is_default), None) or next(
+            (c for c in cards if c.currency == currency), None
+        )
+        if paying_card is None:
+            raise ApiError("You need an existing card to pay the issuance fee from")
+        if paying_card.balance < issuance_fee:
+            raise ApiError(
+                f"Insufficient balance to cover the {issuance_fee} {paying_card.currency} card issuance fee"
+            )
 
     card_ref = f"BUKKAPAY-{str(user_id)[:8].upper()}-{int(time.time() * 1000)}"
     issued = await stitch.issue_virtual_card(user.name if user else "Card Holder", card_ref)
@@ -71,6 +92,20 @@ async def create_wallet_card(
     )
     db.add(card)
     await db.flush()
+
+    if paying_card is not None and issuance_fee > 0:
+        paying_card.balance = paying_card.balance - issuance_fee
+        await platform_wallet_service.credit_fee(db, paying_card.currency, issuance_fee)
+        db.add(Transaction(
+            user_id=user_id,
+            card_id=paying_card.id,
+            title=f'Card Issuance Fee ("{card.title}")',
+            category="card_fee",
+            amount=issuance_fee,
+            type=TransactionType.DEBIT,
+            icon="card",
+        ))
+        await db.flush()
 
     await notification_service.create_notification(
         db,
@@ -112,16 +147,18 @@ async def update_wallet_card_balance(
     return card
 
 
+MAX_TRANSACTIONS_PAGE_SIZE = 100
+
+
 async def get_transactions(
     db: AsyncSession, user_id: uuid.UUID, limit: int | None = None
 ) -> list[Transaction]:
     stmt = (
         select(Transaction)
-        .where(Transaction.user_id == user_id)
+        .where(Transaction.user_id == user_id, Transaction.deleted_at.is_(None))
         .order_by(Transaction.created_at.desc())
+        .limit(min(limit, MAX_TRANSACTIONS_PAGE_SIZE) if limit else MAX_TRANSACTIONS_PAGE_SIZE)
     )
-    if limit:
-        stmt = stmt.limit(limit)
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -233,6 +270,13 @@ async def _resolve_user(db: AsyncSession, identifier: str) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def lookup_recipient(db: AsyncSession, identifier: str) -> User | None:
+    """Public-facing counterpart to `_resolve_user`, used by the QR/scan-to-pay
+    flow so a payer sees the real recipient's name/avatar before confirming a
+    transfer, instead of the raw scanned wallet ID string."""
+    return await _resolve_user(db, identifier)
+
+
 async def send_money(
     db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_user_id: str,
     amount: str, destination_country_code: str | None = None,
@@ -305,6 +349,12 @@ async def send_money(
     sender_card.balance = new_sender_balance
     recipient_card.balance = recipient_card.balance + destination_amount
     await db.flush()
+
+    # The fee above (source currency, both branches) was deducted from the
+    # sender and withheld from the recipient — credit it to the platform's
+    # own wallet now so it's real, collectible revenue instead of value that
+    # just vanished from the ledger.
+    await platform_wallet_service.credit_fee(db, sender_card.currency, fee)
 
     recipient_display = recipient.name or recipient.username
     sender_display = (sender.name if sender else None) or (sender.username if sender else None) or "BukkaPay User"

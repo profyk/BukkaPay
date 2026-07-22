@@ -6,7 +6,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.models.enums import TransactionType, TransferPurpose, TransferZone, WalletCurrency
-from app.models.mixins import CreatedOnlyMixin, ExchangeRate, Money, TimestampMixin, UUIDFk, UUIDPk
+from app.models.mixins import (
+    CreatedOnlyMixin,
+    ExchangeRate,
+    Money,
+    OptionalTimestamp,
+    TimestampMixin,
+    UUIDFk,
+    UUIDPk,
+)
 
 _wallet_currency_enum = Enum(
     WalletCurrency, name="wallet_currency", native_enum=True, values_callable=lambda x: [e.value for e in x]
@@ -41,6 +49,7 @@ class WalletCard(Base, TimestampMixin):
     flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     spending_limit: Mapped[Money | None]
+    last_maintenance_fee_at: Mapped[OptionalTimestamp]
 
 
 class Transaction(Base, TimestampMixin):
@@ -72,6 +81,7 @@ class Transaction(Base, TimestampMixin):
     purpose_subcategory: Mapped[str | None] = mapped_column(Text)
     destination_country_code: Mapped[str | None] = mapped_column(Text)
     destination_zone: Mapped[TransferZone | None] = mapped_column(_transfer_zone_enum)
+    deleted_at: Mapped[OptionalTimestamp]
 
 
 class CurrencyCorridor(Base, TimestampMixin):

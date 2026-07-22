@@ -24,6 +24,7 @@ class User(Base, CreatedOnlyMixin):
     frozen: Mapped[bool] = mapped_column(Boolean, default=False)
     role: Mapped[str] = mapped_column(String(20), default="user")
     loyalty_points: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_at: Mapped[OptionalTimestamp]
 
     kyc_status: Mapped[KycStatus] = mapped_column(
         Enum(KycStatus, name="kyc_status", native_enum=True, values_callable=lambda x: [e.value for e in x]),
@@ -37,6 +38,10 @@ class User(Base, CreatedOnlyMixin):
     kyc_submitted_at: Mapped[OptionalTimestamp]
     kyc_reviewed_at: Mapped[OptionalTimestamp]
     kyc_rejection_reason: Mapped[str | None] = mapped_column(Text)
+
+    transaction_pin: Mapped[str | None] = mapped_column(Text)
+    pin_failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    pin_locked_until: Mapped[OptionalTimestamp]
 
 
 class UserSession(Base, CreatedOnlyMixin):

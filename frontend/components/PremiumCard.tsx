@@ -31,6 +31,7 @@ export default function PremiumCard({
   const [showBalance, setShowBalance] = useState(true);
 
   const formatCardNumber = (num: string) => {
+    if (/[•*]/.test(num)) return num; // already masked server-side, e.g. "•••• •••• •••• 1234"
     const cleaned = num.replace(/\D/g, "").slice(0, 16);
     const padded = cleaned.padEnd(16, "0");
     return padded.match(/.{1,4}/g)?.join(" ") || "0000 0000 0000 0000";

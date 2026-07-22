@@ -73,17 +73,3 @@ async def create_challenge(
 async def get_virtual_cards(db: AsyncSession, user_id: uuid.UUID) -> list[VirtualCard]:
     result = await db.execute(select(VirtualCard).where(VirtualCard.user_id == user_id))
     return list(result.scalars().all())
-
-
-async def create_virtual_card(
-    db: AsyncSession, user_id: uuid.UUID, *, card_number: str, expiry_date: str, spending_limit: str | None,
-    is_active: bool | None,
-) -> VirtualCard:
-    card = VirtualCard(
-        user_id=user_id, card_number=card_number, expiry_date=expiry_date,
-        spending_limit=Decimal(spending_limit) if spending_limit else None,
-        is_active=True if is_active is None else is_active,
-    )
-    db.add(card)
-    await db.flush()
-    return card

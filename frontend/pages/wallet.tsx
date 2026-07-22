@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, Modal } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import PremiumCard from "../components/PremiumCard";
 import AddCardDialog from "../components/AddCardDialog";
-import { fetchCards, setDefaultCard } from "../lib/api";
+import PinPrompt from "../components/PinPrompt";
+import { fetchCards, setDefaultCard, revealCardDetails } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import { getCurrentUser } from "../lib/auth";
 import { getCurrency } from "../lib/currency";
@@ -20,6 +22,21 @@ export default function Wallet() {
   const { colors, darkMode } = useTheme();
   const { toast } = useToast();
   const [userName, setUserName] = useState("Card Holder");
+  const [revealCardId, setRevealCardId] = useState<string | null>(null);
+  const [revealedDetails, setRevealedDetails] = useState<{ cardNumber: string; expiryDate: string | null; cvv: string | null } | null>(null);
+
+  const handleRevealSubmit = async (pin: string) => {
+    if (!revealCardId) return;
+    const details = await revealCardDetails(revealCardId, pin);
+    setRevealCardId(null);
+    setRevealedDetails(details);
+  };
+
+  const handleCopyCardNumber = async () => {
+    if (!revealedDetails) return;
+    await Clipboard.setStringAsync(revealedDetails.cardNumber.replace(/\s/g, ""));
+    toast({ title: "Copied", description: "Card number copied to clipboard." });
+  };
 
   useEffect(() => {
     (async () => {
@@ -151,6 +168,10 @@ export default function Wallet() {
               <Text style={[styles.setDefaultText, { color: colors.primary }]}>Set as Default</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity style={styles.setDefaultBtn} onPress={() => setRevealCardId(card.id)}>
+            <Ionicons name="eye-outline" size={14} color={colors.primary} />
+            <Text style={[styles.setDefaultText, { color: colors.primary }]}>Show Card Details</Text>
+          </TouchableOpacity>
           <View style={styles.stitchRow}>
             <Ionicons name="shield-checkmark" size={11} color={colors.textMuted} />
             <Text style={[styles.stitchText, { color: colors.textMuted }]}>Issued by Stitch · Mastercard</Text>
@@ -167,6 +188,43 @@ export default function Wallet() {
       )}
 
       <AddCardDialog />
+
+      <PinPrompt
+        visible={revealCardId !== null}
+        title="Confirm PIN"
+        subtitle="Enter your transaction PIN to view the full card details."
+        onCancel={() => setRevealCardId(null)}
+        onSubmit={handleRevealSubmit}
+      />
+
+      <Modal visible={revealedDetails !== null} transparent animationType="fade" onRequestClose={() => setRevealedDetails(null)}>
+        <View style={styles.revealOverlay}>
+          <View style={[styles.revealSheet, { backgroundColor: colors.card }]}>
+            <Text style={[styles.revealTitle, { color: colors.text }]}>Card Details</Text>
+            {revealedDetails && (
+              <>
+                <TouchableOpacity onPress={handleCopyCardNumber} style={styles.revealRow}>
+                  <Text style={[styles.revealNumber, { color: colors.text }]}>{revealedDetails.cardNumber}</Text>
+                  <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <View style={styles.revealMetaRow}>
+                  <View>
+                    <Text style={[styles.revealLabel, { color: colors.textMuted }]}>Expiry</Text>
+                    <Text style={[styles.revealValue, { color: colors.text }]}>{revealedDetails.expiryDate || "—"}</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.revealLabel, { color: colors.textMuted }]}>CVV</Text>
+                    <Text style={[styles.revealValue, { color: colors.text }]}>{revealedDetails.cvv || "—"}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+            <TouchableOpacity style={[styles.revealCloseBtn, { backgroundColor: colors.primary }]} onPress={() => setRevealedDetails(null)}>
+              <Text style={styles.revealCloseText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -174,6 +232,16 @@ export default function Wallet() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingHorizontal: 24, paddingBottom: 120 },
+  revealOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
+  revealSheet: { width: "100%", borderRadius: 20, padding: 24 },
+  revealTitle: { fontSize: 16, fontWeight: "700", marginBottom: 16 },
+  revealRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
+  revealNumber: { fontFamily: "monospace", fontSize: 18, letterSpacing: 1.5, fontWeight: "600" },
+  revealMetaRow: { flexDirection: "row", gap: 32, marginTop: 16, marginBottom: 20 },
+  revealLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
+  revealValue: { fontSize: 16, fontWeight: "600" },
+  revealCloseBtn: { borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  revealCloseText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
   header: {
     paddingTop: Platform.OS === "ios" ? 56 : 44,
     paddingBottom: 16,

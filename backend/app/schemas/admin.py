@@ -1,6 +1,9 @@
 from uuid import UUID
 
+from pydantic import field_validator
+
 from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalJsDateTime, OptionalMoneyStr, RateStr
+from app.schemas.wallet import _mask_card_number
 
 # ─── Pagination ─────────────────────────────────────────────────────────────
 
@@ -192,6 +195,11 @@ class AdminWalletRow(CamelModel):
     user_email: str
     user_name: str
 
+    @field_validator("card_number", mode="before")
+    @classmethod
+    def _mask(cls, v: str) -> str:
+        return _mask_card_number(v)
+
 
 class AdminWalletsListResponse(CamelModel):
     wallets: list[AdminWalletRow]
@@ -262,6 +270,11 @@ class AdminVirtualCardRow(CamelModel):
     created_at: JsDateTime
     user: TransactionUserSummary
 
+    @field_validator("card_number", mode="before")
+    @classmethod
+    def _mask(cls, v: str) -> str:
+        return _mask_card_number(v)
+
 
 class AdminVirtualCardsListResponse(CamelModel):
     virtual_cards: list[AdminVirtualCardRow]
@@ -292,6 +305,15 @@ class SavingsGroupsListResponse(CamelModel):
 class UpdatePricingRequest(CamelModel):
     category: str
     values: dict
+
+
+class PlatformWalletBalance(CamelModel):
+    currency: str
+    balance: MoneyStr
+
+
+class PlatformWalletResponse(CamelModel):
+    balances: list[PlatformWalletBalance]
 
 
 # ─── Currency corridors (cross-border FX pricing) ──────────────────────────

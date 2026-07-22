@@ -8,7 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
+from app.models.enums import NotificationType
 from app.models.misc import PurchaseTransaction
+from app.services import notification_service
+
+
+MAX_PURCHASE_TRANSACTIONS_PAGE_SIZE = 100
 
 
 async def get_transactions_by_user(
@@ -28,8 +33,7 @@ async def get_transactions_by_user(
     stmt = stmt.order_by(PurchaseTransaction.created_at.desc())
     if offset:
         stmt = stmt.offset(offset)
-    if limit:
-        stmt = stmt.limit(limit)
+    stmt = stmt.limit(min(limit, MAX_PURCHASE_TRANSACTIONS_PAGE_SIZE) if limit else MAX_PURCHASE_TRANSACTIONS_PAGE_SIZE)
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -59,6 +63,23 @@ async def create_transaction(
     )
     db.add(transaction)
     await db.flush()
+
+    # Every other transaction-creating path (wallet transfers, rent, travel
+    # bookings) notifies the user — this generic purchase path (topups, gift
+    # cards, virtual cards, and anything else posted straight to
+    # /api/purchase-transactions) never did, so those purchases were
+    # invisible on the Notifications screen even though they're real
+    # transactions.
+    is_credit = category == "topup"
+    formatted = f"{currency or 'ZAR'} {parsed_amount:,.2f}"
+    await notification_service.create_notification(
+        db, user_id,
+        NotificationType.SUCCESS if is_credit else NotificationType.INFO,
+        "Money Received" if is_credit else "Purchase Successful",
+        f"{merchant_name} — {formatted}",
+        related_id=str(transaction.id),
+        related_type="purchase_transaction",
+    )
     return transaction
 
 

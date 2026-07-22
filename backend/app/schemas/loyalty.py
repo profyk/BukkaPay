@@ -80,10 +80,3 @@ class VirtualCardResponse(CamelModel):
     spending_limit: OptionalMoneyStr
     is_active: bool
     created_at: JsDateTime
-
-
-class CreateVirtualCardRequest(CamelModel):
-    card_number: str
-    expiry_date: str
-    spending_limit: str | None = None
-    is_active: bool | None = None

@@ -13,6 +13,7 @@ from arq.cron import cron
 from app.core.config import get_settings
 from app.core.logging import configure_logging, log
 from app.workers.tasks import (
+    charge_monthly_card_maintenance_fees,
     sweep_expired_claim_payments,
     sweep_expired_payment_requests,
     sweep_expired_rent_payment_links,
@@ -38,6 +39,7 @@ class WorkerSettings:
         cron(sweep_expired_claim_payments, minute=set(range(0, 60, 5))),
         cron(sweep_expired_payment_requests, minute=set(range(0, 60, 5))),
         cron(sweep_expired_rent_payment_links, minute=set(range(0, 60, 5))),
+        cron(charge_monthly_card_maintenance_fees, hour=3, minute=0),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

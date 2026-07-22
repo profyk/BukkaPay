@@ -10,7 +10,6 @@ from app.schemas.loyalty import (
     CreateAutoPayRequest,
     CreateBeneficiaryRequest,
     CreateChallengeRequest,
-    CreateVirtualCardRequest,
     LoyaltyRewardResponse,
     VirtualCardResponse,
 )
@@ -89,12 +88,11 @@ async def list_virtual_cards(
     return [VirtualCardResponse.model_validate(c) for c in cards]
 
 
-@router.post("/virtual-cards", status_code=201)
-async def create_virtual_card(
-    body: CreateVirtualCardRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
-) -> VirtualCardResponse:
-    card = await svc.create_virtual_card(
-        db, user_id, card_number=body.card_number, expiry_date=body.expiry_date,
-        spending_limit=body.spending_limit, is_active=body.is_active,
-    )
-    return VirtualCardResponse.model_validate(card)
+# No public POST /virtual-cards here on purpose: it used to take card_number
+# and expiry_date directly from the client and store them as-is — anyone
+# could fabricate an arbitrary card record with no issuer involved. It also
+# had zero callers anywhere in the app; the real "Issue Virtual Card" flow
+# (AddCardDialog.tsx) has always gone through POST /api/cards
+# (wallet_service.create_wallet_card), which actually calls Stitch and now
+# charges the admin-configured issuance fee. This route is orphaned twice
+# over, so it's removed rather than fixed.

@@ -6,8 +6,12 @@ from app.core.errors import ApiError
 from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
 from app.schemas.wallet import (
+    CardFullDetailsResponse,
+    CardPricingResponse,
     CreateCardRequest,
     CreateTransactionRequest,
+    RecipientLookupResponse,
+    RevealCardDetailsRequest,
     TransactionResponse,
     TransferQuoteRequest,
     TransferQuoteResponse,
@@ -16,9 +20,17 @@ from app.schemas.wallet import (
     UpdateCardBalanceRequest,
     WalletCardResponse,
 )
-from app.services import fx_service, wallet_service
+from app.services import admin_platform_service, fx_service, pin_service, wallet_service
 
 router = APIRouter(prefix="/api", tags=["wallet"])
+
+
+@router.get("/cards/pricing")
+async def get_card_pricing() -> CardPricingResponse:
+    pricing = (await admin_platform_service.get_pricing())["virtual_card"]
+    return CardPricingResponse.model_validate({
+        "issuanceFee": pricing["issuance_fee"], "monthlyFee": pricing["monthly_fee"],
+    })
 
 
 @router.get("/cards")
@@ -37,6 +49,20 @@ async def get_card(
     if card is None:
         raise ApiError("Card not found", status_code=404)
     return WalletCardResponse.model_validate(card)
+
+
+@router.post("/cards/{card_id}/reveal")
+async def reveal_card_details(
+    card_id: str, body: RevealCardDetailsRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+) -> CardFullDetailsResponse:
+    """The one place the real, unmasked PAN/expiry/CVV are returned — gated
+    behind the transaction PIN so a stolen session token alone can't lift a
+    usable card number, same as any money-moving endpoint."""
+    await pin_service.verify_pin(db, user_id, body.pin)
+    card = await wallet_service.get_wallet_card(db, card_id, user_id)
+    if card is None:
+        raise ApiError("Card not found", status_code=404)
+    return CardFullDetailsResponse.model_validate(card)
 
 
 @router.post("/cards", status_code=201)
@@ -101,12 +127,25 @@ async def create_transaction(
     return TransactionResponse.model_validate(transaction)
 
 
+@router.get("/wallet/lookup/{identifier}")
+async def lookup_recipient(
+    identifier: str, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+) -> RecipientLookupResponse:
+    recipient = await wallet_service.lookup_recipient(db, identifier)
+    if recipient is None:
+        raise ApiError("No BukkaPay user found for this wallet ID", status_code=404)
+    if recipient.id == user_id:
+        raise ApiError("This is your own wallet ID")
+    return RecipientLookupResponse.model_validate(recipient)
+
+
 @router.post("/transfer", dependencies=[Depends(rate_limit("payment", 30, 60))])
 async def transfer(
     body: TransferRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> TransferResponse:
     if not body.from_card_id or not body.to_user_id or not body.amount:
         raise ApiError("fromCardId, toUserId, and amount are required")
+    await pin_service.verify_pin(db, user_id, body.pin)
     result = await wallet_service.send_money(
         db, user_id,
         from_card_id=body.from_card_id, to_user_id=body.to_user_id, amount=body.amount,

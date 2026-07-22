@@ -20,8 +20,8 @@ from app.services import notification_service
 async def list_users(
     db: AsyncSession, *, page: int, limit: int, q: str | None, frozen: bool | None,
 ) -> tuple[list[User], int]:
-    stmt = select(User)
-    count_stmt = select(func.count()).select_from(User)
+    stmt = select(User).where(User.deleted_at.is_(None))
+    count_stmt = select(func.count()).select_from(User).where(User.deleted_at.is_(None))
 
     if q:
         pattern = f"%{q}%"
@@ -126,7 +126,23 @@ async def set_verified(db: AsyncSession, user: User, verified: bool) -> User:
 
 
 async def delete_user(db: AsyncSession, user: User) -> None:
-    await db.delete(user)
+    """Soft-delete: anonymize PII and freeze the account rather than hard-
+    deleting the row. Every FK from transactions/wallet_cards/
+    international_transfers/notifications back to users is
+    ondelete="CASCADE" — an actual DELETE would silently wipe that user's
+    entire financial audit trail along with them. Uniqueness on email/
+    username means the anonymized values must still be unique, hence the
+    user id suffix."""
+    anon_suffix = str(user.id)
+    user.name = "Deleted User"
+    user.email = f"deleted-{anon_suffix}@bukkapay.internal"
+    user.username = f"deleted-{anon_suffix}"
+    user.phone = None
+    user.avatar = None
+    user.password = None
+    user.biometric_enabled = False
+    user.frozen = True
+    user.deleted_at = datetime.now(UTC)
     await db.flush()
 
 

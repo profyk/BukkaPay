@@ -13,16 +13,22 @@ from app.models.wallet import CurrencyCorridor, InternationalTransfer, Transacti
 async def list_transactions(
     db: AsyncSession, *, page: int, limit: int, user_id: str | None,
 ) -> tuple[list[tuple[Transaction, User]], int]:
-    stmt = select(Transaction, User).join(User, Transaction.user_id == User.id)
+    stmt = (
+        select(Transaction, User).join(User, Transaction.user_id == User.id)
+        .where(Transaction.deleted_at.is_(None))
+    )
+    count_stmt = select(func.count()).select_from(Transaction).where(Transaction.deleted_at.is_(None))
     if user_id:
         try:
-            stmt = stmt.where(Transaction.user_id == uuid.UUID(user_id))
+            parsed_user_id = uuid.UUID(user_id)
+            stmt = stmt.where(Transaction.user_id == parsed_user_id)
+            count_stmt = count_stmt.where(Transaction.user_id == parsed_user_id)
         except ValueError:
             pass
     stmt = stmt.order_by(Transaction.created_at.desc()).limit(limit).offset((page - 1) * limit)
     rows = (await db.execute(stmt)).all()
 
-    total = (await db.execute(select(func.count()).select_from(Transaction))).scalar_one()
+    total = (await db.execute(count_stmt)).scalar_one()
     return rows, total
 
 
@@ -33,6 +39,8 @@ async def flag_transaction(transaction_id: str) -> dict:
 
 
 async def delete_transaction(db: AsyncSession, transaction_id: str) -> None:
+    """Soft-delete: a financial ledger should stay append-only, so this
+    hides the row from normal views instead of destroying it outright."""
     try:
         transaction_uuid = uuid.UUID(transaction_id)
     except ValueError:
@@ -40,7 +48,8 @@ async def delete_transaction(db: AsyncSession, transaction_id: str) -> None:
     result = await db.execute(select(Transaction).where(Transaction.id == transaction_uuid))
     transaction = result.scalar_one_or_none()
     if transaction is not None:
-        await db.delete(transaction)
+        from datetime import UTC, datetime
+        transaction.deleted_at = datetime.now(UTC)
         await db.flush()
 
 
