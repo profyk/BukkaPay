@@ -35,15 +35,26 @@ jobs:
         run: |
           mkdir -p .vercel/output/static
           cp -r dist/. .vercel/output/static/
+
+          # Vercel's static file serving doesn't resolve paths containing
+          # literal [brackets] (Expo's own dynamic-route file naming), even
+          # with a routes rewrite pointing at them -- copy each dynamic
+          # route's prerendered HTML to a bracket-free filename that the
+          # routes below can actually reach.
+          cp ".vercel/output/static/pay/[linkId].html" ".vercel/output/static/pay/_dynamic.html"
+          cp ".vercel/output/static/pay-rent/[linkCode].html" ".vercel/output/static/pay-rent/_dynamic.html"
+          cp ".vercel/output/static/claim/[id].html" ".vercel/output/static/claim/_dynamic.html"
+          cp ".vercel/output/static/merchant-pay/[paymentLink].html" ".vercel/output/static/merchant-pay/_dynamic.html"
+
           cat > .vercel/output/config.json << 'EOF'
           {
             "version": 3,
             "routes": [
               { "handle": "filesystem" },
-              { "src": "^/pay/[^/]+$", "dest": "/pay/[linkId].html", "check": true },
-              { "src": "^/pay-rent/[^/]+$", "dest": "/pay-rent/[linkCode].html", "check": true },
-              { "src": "^/claim/[^/]+$", "dest": "/claim/[id].html", "check": true },
-              { "src": "^/merchant-pay/[^/]+$", "dest": "/merchant-pay/[paymentLink].html", "check": true },
+              { "src": "^/pay/[^/]+$", "dest": "/pay/_dynamic.html", "check": true },
+              { "src": "^/pay-rent/[^/]+$", "dest": "/pay-rent/_dynamic.html", "check": true },
+              { "src": "^/claim/[^/]+$", "dest": "/claim/_dynamic.html", "check": true },
+              { "src": "^/merchant-pay/[^/]+$", "dest": "/merchant-pay/_dynamic.html", "check": true },
               { "src": "/(.*)", "dest": "/index.html" }
             ]
           }
