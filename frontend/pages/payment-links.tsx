@@ -10,8 +10,7 @@ import { useRouter } from "expo-router";
 import { API_BASE, APP_URL } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
-import { useCurrency } from "../lib/CurrencyContext";
-import { convertAmount } from "../lib/currency";
+import { getCurrency, CurrencyCode } from "../lib/currency";
 
 const logoImage = require("../assets/logo.png");
 
@@ -56,7 +55,6 @@ const STATUS_LABELS: Record<string, string> = {
 export default function PaymentLinks() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { currency } = useCurrency();
   const [links, setLinks] = useState<PaymentLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,20 +106,37 @@ export default function PaymentLinks() {
     }
   };
 
+  // react-native-web's Alert.alert() is a no-op — it never shows a dialog or
+  // fires button callbacks — so every Alert.alert call in this screen was
+  // silently doing nothing on the web build. Route web through window.confirm
+  // / window.alert instead; native platforms keep the real Alert.
+  const notify = (title: string, message?: string) => {
+    if (Platform.OS === "web") { window.alert(message ? `${title}\n\n${message}` : title); return; }
+    Alert.alert(title, message);
+  };
+
+  const confirm = (title: string, message: string, onConfirm: () => void) => {
+    if (Platform.OS === "web") {
+      if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: onConfirm },
+    ]);
+  };
+
   const copyLink = async (link: PaymentLink) => {
     const url = getLinkUrl(link);
     await Clipboard.setStringAsync(url);
-    Alert.alert("Copied!", "Payment link copied to clipboard.");
+    notify("Copied!", "Payment link copied to clipboard.");
   };
 
   const confirmDelete = (link: PaymentLink) => {
-    Alert.alert(
+    confirm(
       "Delete Payment Link",
       `Are you sure you want to delete "${link.description || "this payment link"}"? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteLink(link.id) },
-      ]
+      () => deleteLink(link.id)
     );
   };
 
@@ -137,10 +152,10 @@ export default function PaymentLinks() {
         setLinks(prev => prev.filter(l => l.id !== id));
       } else {
         const d = await res.json().catch(() => ({}));
-        Alert.alert("Error", d.error || "Could not delete this link. Please try again.");
+        notify("Error", d.error || "Could not delete this link. Please try again.");
       }
     } catch {
-      Alert.alert("Error", "Network error. Please check your connection.");
+      notify("Error", "Network error. Please check your connection.");
     } finally {
       setDeletingId(null);
     }
@@ -171,12 +186,12 @@ export default function PaymentLinks() {
     ? Math.round((sentLinks.filter(l => l.status === "paid" || l.status === "partial").length / sentLinks.length) * 100)
     : 0;
   const mainCurrency = sentLinks[0]?.currency || "ZAR";
+  const mainSymbol = getCurrency(mainCurrency as CurrencyCode).symbol;
 
-  const fmtAmt = (zarAmount: number) => {
-    const converted = convertAmount(zarAmount, currency.code);
-    if (converted >= 1000000) return `${currency.symbol}${(converted / 1000000).toFixed(1)}M`;
-    if (converted >= 1000) return `${currency.symbol}${(converted / 1000).toFixed(1)}K`;
-    return `${currency.symbol}${converted.toFixed(2)}`;
+  const fmtAmt = (amount: number) => {
+    if (amount >= 1000000) return `${mainSymbol}${(amount / 1000000).toFixed(1)}M`;
+    if (amount >= 1000) return `${mainSymbol}${(amount / 1000).toFixed(1)}K`;
+    return `${mainSymbol}${amount.toFixed(2)}`;
   };
 
   if (isLoading) {
@@ -389,13 +404,12 @@ function PaymentLinkCard({
   onViewDetails: () => void;
 }) {
   const { colors } = useTheme();
-  const { currency } = useCurrency();
   const progress = parseFloat(link.amount) > 0
     ? parseFloat(link.amountPaid) / parseFloat(link.amount) : 0;
   const isReceived = link.direction === "received";
   const isPaid = link.status === "paid";
   const statusColor = STATUS_COLORS[link.status] || "#6B7280";
-  const displayAmount = `${currency.symbol}${convertAmount(parseFloat(link.amount), currency.code).toFixed(2)}`;
+  const displayAmount = `${getCurrency(link.currency as CurrencyCode).symbol}${parseFloat(link.amount).toFixed(2)}`;
 
   return (
     <TouchableOpacity
