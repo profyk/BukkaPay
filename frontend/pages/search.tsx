@@ -97,6 +97,20 @@ const ALL_ITEMS: AppItem[] = [
     icon: "add-circle-outline", iconBg: "#EFF6FF", iconColor: "#2563EB",
     route: "/(screens)/create-payment-link",
   },
+  {
+    id: "received-links", category: "Payment Links",
+    title: "Received Links", description: "Payment links others sent you, ready to pay from your wallet",
+    keywords: ["received", "inbox", "payment link", "pay", "wallet"],
+    icon: "arrow-down-circle-outline", iconBg: "#EFF6FF", iconColor: "#3B82F6",
+    route: "/(screens)/received-links",
+  },
+  {
+    id: "billing-links", category: "Payment Links",
+    title: "Billing Pay Links", description: "Recurring or invoice-style payment links for regular billing",
+    keywords: ["billing", "invoice", "recurring", "payment link"],
+    icon: "receipt-outline", iconBg: "#F0FDF4", iconColor: "#16A34A",
+    route: "/(screens)/billing-links",
+  },
 
   // ── Cards & Finance ────────────────────────────────────────
   {
@@ -144,6 +158,13 @@ const ALL_ITEMS: AppItem[] = [
     keywords: ["contributions", "stokvel", "savings", "history"],
     icon: "wallet-outline", iconBg: "#F0FDF4", iconColor: "#059669",
     route: "/(screens)/contributions",
+  },
+  {
+    id: "bill-split", category: "Community",
+    title: "Bill Splitting", description: "Split a bill with friends and settle up in the app",
+    keywords: ["bill", "split", "group", "friends", "settle", "share"],
+    icon: "people-outline", iconBg: "#FFF7ED", iconColor: "#EA580C",
+    route: "/(screens)/bill-split",
   },
   {
     id: "loyalty", category: "Community",
@@ -260,7 +281,7 @@ const ALL_ITEMS: AppItem[] = [
 
 const QUICK_ACCESS: AppItem["id"][] = [
   "send-money", "topup", "qr-pay", "request",
-  "marketplace", "payment-links", "analytics", "contributions",
+  "wallet", "payment-links", "analytics", "contributions",
 ];
 
 export default function Search() {
@@ -288,7 +309,7 @@ export default function Search() {
     return map;
   }, [filteredResults]);
 
-  const quickItems = QUICK_ACCESS.map((id) => ALL_ITEMS.find((i) => i.id === id)!);
+  const quickItems = QUICK_ACCESS.map((id) => ALL_ITEMS.find((i) => i.id === id)).filter((i): i is AppItem => !!i);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>

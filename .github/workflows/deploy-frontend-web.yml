@@ -39,6 +39,10 @@ jobs:
           {
             "version": 3,
             "routes": [
+              { "src": "^/pay/[^/]+$", "dest": "/pay/[linkId].html" },
+              { "src": "^/pay-rent/[^/]+$", "dest": "/pay-rent/[linkCode].html" },
+              { "src": "^/claim/[^/]+$", "dest": "/claim/[id].html" },
+              { "src": "^/merchant-pay/[^/]+$", "dest": "/merchant-pay/[paymentLink].html" },
               { "handle": "filesystem" },
               { "src": "/(.*)", "dest": "/index.html" }
             ]

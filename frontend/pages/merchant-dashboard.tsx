@@ -9,10 +9,8 @@ import { useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import QRCode from "react-native-qrcode-svg";
-import { API_BASE } from "../lib/config";
+import { API_BASE, APP_URL } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
-import { useCurrency } from "../lib/CurrencyContext";
-import { convertAmount } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
@@ -195,7 +193,6 @@ export default function MerchantDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { colors } = useTheme();
-  const { currency } = useCurrency();
   const [selectedMerchantId, setSelectedMerchantId] = useState<string | null>(null);
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -297,10 +294,10 @@ export default function MerchantDashboard() {
 
   const chartMax = analytics ? Math.max(...analytics.dailyChart.map(d => d.amount), 1) : 1;
   const balance = parseFloat(selectedMerchant?.walletBalance || "0");
-  const sym = currency.symbol;
+  const sym = "R";
 
   const fmtAmt = (zarAmount: number) =>
-    formatCurrency(convertAmount(zarAmount, currency.code), sym);
+    formatCurrency(zarAmount, sym);
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
@@ -316,12 +313,12 @@ export default function MerchantDashboard() {
   }, [queryClient, selectedMerchant?.id]);
 
   const sharePaymentLink = async () => {
-    const link = `${API_BASE}/merchant-pay/${selectedMerchant?.paymentLink}`;
+    const link = `${APP_URL}/merchant-pay/${selectedMerchant?.paymentLink}`;
     try { await Share.share({ message: `Pay ${selectedMerchant?.businessName} via BukkaPay: ${link}` }); } catch {}
   };
 
   const copyPaymentLink = async () => {
-    const link = `${API_BASE}/merchant-pay/${selectedMerchant?.paymentLink}`;
+    const link = `${APP_URL}/merchant-pay/${selectedMerchant?.paymentLink}`;
     await Clipboard.setStringAsync(link);
     Alert.alert("Copied", "Payment link copied!");
   };
@@ -464,7 +461,7 @@ export default function MerchantDashboard() {
           <View style={styles.balanceTopRow}>
             <View>
               <Text style={styles.balanceCardLabel}>Available Balance</Text>
-              <Text style={styles.balanceCardValue}>{sym}{convertAmount(balance, currency.code).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              <Text style={styles.balanceCardValue}>{sym}{balance.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               <Text style={styles.balanceCardSub}>{selectedMerchant.businessName}</Text>
             </View>
             <View style={[styles.statusPill, { backgroundColor: selectedMerchant.isActive ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)" }]}>
@@ -1146,7 +1143,7 @@ export default function MerchantDashboard() {
               </View>
               <View style={styles.qrCodeWrap}>
                 <QRCode
-                  value={selectedMerchant.qrCode || `bukkapay://merchant/${selectedMerchant.id}`}
+                  value={`${APP_URL}/merchant-pay/${selectedMerchant.paymentLink}`}
                   size={180} color="#001A72" backgroundColor="#FFFFFF" logo={logoImage}
                   logoSize={30} logoBackgroundColor="#FFFFFF"
                 />

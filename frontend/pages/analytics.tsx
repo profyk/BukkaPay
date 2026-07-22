@@ -1,11 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "../lib/ThemeContext";
-import { useCurrency } from "../lib/CurrencyContext";
-import { convertAmount } from "../lib/currency";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 
@@ -38,19 +36,27 @@ function AlertIcon({ type }: { type: string }) {
 export default function Analytics() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { currency } = useCurrency();
   const [timeframe, setTimeframe] = useState<Timeframe>("month");
 
-  const { data: txData = [], isLoading } = useQuery<any[]>({
-    queryKey: ["analytics-transactions", timeframe],
+  const { data: rawTxData = [], isLoading } = useQuery<any[]>({
+    queryKey: ["analytics-transactions"],
     queryFn: async () => {
-      const days = timeframe === "week" ? 7 : timeframe === "month" ? 30 : 365;
       const headers = await getAuthHeader();
       const res = await fetch(`${API_BASE}/api/transactions?limit=200`, { headers });
       if (!res.ok) return [];
       return res.json();
     },
   });
+
+  // The timeframe tabs used to be decorative — `days` was computed but
+  // never actually applied to the fetch, so Week/Month/Year all showed the
+  // same 200 most-recent transactions. The backend has no date-range filter
+  // on this endpoint, so filter what we already fetched instead.
+  const txData = useMemo(() => {
+    const days = timeframe === "week" ? 7 : timeframe === "month" ? 30 : 365;
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return rawTxData.filter((t: any) => new Date(t.createdAt).getTime() >= cutoff);
+  }, [rawTxData, timeframe]);
 
   // Derive analytics from real transactions
   const totalSpent = txData.reduce((sum: number, t: any) => {
@@ -85,14 +91,14 @@ export default function Analytics() {
     alerts.push({ type: "warning", message: `${categoryEntries[0][0]} is your biggest spend category at ${((categoryEntries[0][1] / totalSpent) * 100).toFixed(0)}%.` });
   }
   if (totalReceived > 0) {
-    alerts.push({ type: "success", message: `You received ${currency.symbol}${convertAmount(totalReceived, currency.code).toFixed(2)} this period.` });
+    alerts.push({ type: "success", message: `You received R${totalReceived.toFixed(2)} this period.` });
   }
   if (alerts.length === 0) {
     alerts.push({ type: "info", message: "Make a few transactions to see spending insights here." });
   }
 
-  const fmt = (usd: number) =>
-    `${currency.symbol}${convertAmount(usd, currency.code).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (amount: number) =>
+    `R${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <ScrollView
