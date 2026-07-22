@@ -10,6 +10,7 @@ from app.schemas.rental import (
     CreateRentPaymentLinkRequest,
     CreateTenantRequest,
     LinkTenantRequest,
+    PayViaLinkRequest,
     PayViaLinkResponse,
     PropertyResponse,
     PropertyUnitResponse,
@@ -21,7 +22,7 @@ from app.schemas.rental import (
     TenantLookupResponse,
     TenantResponse,
 )
-from app.services import rental_service
+from app.services import pin_service, rental_service
 
 router = APIRouter(prefix="/api/rental", tags=["rental"])
 
@@ -190,8 +191,10 @@ async def get_payment_link(link_code: str, db: AsyncSession = Depends(get_db)) -
 
 @router.post("/payment-links/{link_code}/pay")
 async def pay_via_link(
-    link_code: str, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+    link_code: str, body: PayViaLinkRequest = PayViaLinkRequest(),
+    user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db),
 ) -> PayViaLinkResponse:
+    await pin_service.verify_pin(db, user_id, body.pin)
     payment = await rental_service.pay_via_link(db, user_id, link_code)
     return PayViaLinkResponse.model_validate({
         "success": True, "message": "Rent payment successful!", "payment": payment,

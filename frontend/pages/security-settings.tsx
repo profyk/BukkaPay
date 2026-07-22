@@ -5,13 +5,13 @@ import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../lib/ThemeContext";
+import { getPinStatus, setTransactionPin } from "../lib/api";
 
 export default function SecuritySettings() {
   const router = useRouter();
   const { toast } = useToast();
   const { colors } = useTheme();
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [transactionPinEnabled, setTransactionPinEnabled] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
   const [transactionLimit, setTransactionLimit] = useState("1000");
   const [dailyLimit, setDailyLimit] = useState("5000");
@@ -21,32 +21,34 @@ export default function SecuritySettings() {
   const [confirmPin, setConfirmPin] = useState("");
   const [showCurrentPin, setShowCurrentPin] = useState(false);
   const [showNewPin, setShowNewPin] = useState(false);
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [savingPin, setSavingPin] = useState(false);
+
+  const refreshPinStatus = async () => {
+    try {
+      const status = await getPinStatus();
+      setHasPin(status.hasPin);
+    } catch {}
+  };
 
   useEffect(() => {
     (async () => {
       const tfa = await AsyncStorage.getItem("2fa_enabled");
-      const tpe = await AsyncStorage.getItem("transaction_pin_enabled");
       const la = await AsyncStorage.getItem("login_alerts");
       const tl = await AsyncStorage.getItem("transaction_limit");
       const dl = await AsyncStorage.getItem("daily_limit");
       if (tfa !== null) setTwoFactorEnabled(tfa === "true");
-      if (tpe !== null) setTransactionPinEnabled(tpe !== "false");
       if (la !== null) setLoginAlerts(la !== "false");
       if (tl) setTransactionLimit(tl);
       if (dl) setDailyLimit(dl);
     })();
+    refreshPinStatus();
   }, []);
 
   const handle2FAToggle = async (enabled: boolean) => {
     setTwoFactorEnabled(enabled);
     await AsyncStorage.setItem("2fa_enabled", String(enabled));
     toast({ title: enabled ? "2FA Enabled" : "2FA Disabled" });
-  };
-
-  const handleTransactionPinToggle = async (enabled: boolean) => {
-    setTransactionPinEnabled(enabled);
-    await AsyncStorage.setItem("transaction_pin_enabled", String(enabled));
-    toast({ title: enabled ? "Transaction PIN enabled" : "Transaction PIN disabled" });
   };
 
   const handleLoginAlertsToggle = async (enabled: boolean) => {
@@ -62,26 +64,32 @@ export default function SecuritySettings() {
   };
 
   const handleChangePin = async () => {
-    const storedPin = (await AsyncStorage.getItem("wallet_pin")) || "1234";
-
-    if (currentPin !== storedPin) {
-      toast({ title: "Error", description: "Current PIN is incorrect", variant: "destructive" });
+    if (hasPin && !currentPin) {
+      toast({ title: "Error", description: "Enter your current PIN", variant: "destructive" });
       return;
     }
-    if (newPin.length < 4) {
-      toast({ title: "Error", description: "PIN must be at least 4 digits", variant: "destructive" });
+    if (!/^\d{4,6}$/.test(newPin)) {
+      toast({ title: "Error", description: "PIN must be 4 to 6 digits", variant: "destructive" });
       return;
     }
     if (newPin !== confirmPin) {
       toast({ title: "Error", description: "PINs do not match", variant: "destructive" });
       return;
     }
-    await AsyncStorage.setItem("wallet_pin", newPin);
-    setShowPinModal(false);
-    setCurrentPin("");
-    setNewPin("");
-    setConfirmPin("");
-    toast({ title: "Success", description: "PIN updated successfully" });
+    setSavingPin(true);
+    try {
+      await setTransactionPin(newPin, hasPin ? currentPin : undefined);
+      setShowPinModal(false);
+      setCurrentPin("");
+      setNewPin("");
+      setConfirmPin("");
+      await refreshPinStatus();
+      toast({ title: "Success", description: hasPin ? "PIN updated successfully" : "Transaction PIN set — you'll need it for every payment" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Could not update PIN", variant: "destructive" });
+    } finally {
+      setSavingPin(false);
+    }
   };
 
   return (
@@ -124,14 +132,11 @@ export default function SecuritySettings() {
           <Ionicons name="finger-print" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
             <Text style={[styles.settingTitle, { color: colors.text }]}>Transaction PIN</Text>
-            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Require PIN for all payments</Text>
+            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>
+              {hasPin === null ? "Checking…" : hasPin ? "Required for every payment and transfer" : "Not set — required before you can pay anyone"}
+            </Text>
           </View>
-          <Switch
-            value={transactionPinEnabled}
-            onValueChange={handleTransactionPinToggle}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFFFFF"
-          />
+          <Ionicons name={hasPin ? "checkmark-circle" : "alert-circle"} size={20} color={hasPin ? "#10B981" : "#F59E0B"} />
         </View>
 
         <View style={[styles.settingDivider, { backgroundColor: colors.divider }]} />
@@ -155,8 +160,8 @@ export default function SecuritySettings() {
         <TouchableOpacity onPress={() => setShowPinModal(true)} style={styles.settingRow}>
           <Ionicons name="lock-closed" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
-            <Text style={[styles.settingTitle, { color: colors.text }]}>Change PIN</Text>
-            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Update your wallet PIN</Text>
+            <Text style={[styles.settingTitle, { color: colors.text }]}>{hasPin ? "Change PIN" : "Set Transaction PIN"}</Text>
+            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>{hasPin ? "Update your transaction PIN" : "Set a 4-6 digit PIN to start making payments"}</Text>
           </View>
           <Ionicons name="key" size={18} color={colors.textMuted} />
         </TouchableOpacity>
@@ -213,27 +218,32 @@ export default function SecuritySettings() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Change PIN</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{hasPin ? "Change PIN" : "Set Transaction PIN"}</Text>
               <TouchableOpacity onPress={() => setShowPinModal(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.modalLabel, { color: colors.text }]}>Current PIN</Text>
-            <View style={[styles.pinInputRow, { borderColor: colors.border }]}>
-              <TextInput
-                value={currentPin}
-                onChangeText={setCurrentPin}
-                secureTextEntry={!showCurrentPin}
-                placeholder="Enter current PIN"
-                placeholderTextColor={colors.textMuted}
-                maxLength={6}
-                style={[styles.pinInput, { color: colors.text }]}
-              />
-              <TouchableOpacity onPress={() => setShowCurrentPin(!showCurrentPin)}>
-                <Ionicons name={showCurrentPin ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
+            {hasPin && (
+              <>
+                <Text style={[styles.modalLabel, { color: colors.text }]}>Current PIN</Text>
+                <View style={[styles.pinInputRow, { borderColor: colors.border }]}>
+                  <TextInput
+                    value={currentPin}
+                    onChangeText={setCurrentPin}
+                    secureTextEntry={!showCurrentPin}
+                    placeholder="Enter current PIN"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    style={[styles.pinInput, { color: colors.text }]}
+                  />
+                  <TouchableOpacity onPress={() => setShowCurrentPin(!showCurrentPin)}>
+                    <Ionicons name={showCurrentPin ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
 
             <Text style={[styles.modalLabel, { color: colors.text }]}>New PIN</Text>
             <View style={[styles.pinInputRow, { borderColor: colors.border }]}>
@@ -243,6 +253,7 @@ export default function SecuritySettings() {
                 secureTextEntry={!showNewPin}
                 placeholder="Enter new PIN"
                 placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
                 maxLength={6}
                 style={[styles.pinInput, { color: colors.text }]}
               />
@@ -258,12 +269,13 @@ export default function SecuritySettings() {
               secureTextEntry
               placeholder="Confirm new PIN"
               placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
               maxLength={6}
               style={[styles.modalInput, { borderColor: colors.border, color: colors.text }]}
             />
 
-            <TouchableOpacity onPress={handleChangePin} style={styles.updatePinButton}>
-              <Text style={styles.updatePinButtonText}>Update PIN</Text>
+            <TouchableOpacity onPress={handleChangePin} style={[styles.updatePinButton, savingPin && { opacity: 0.6 }]} disabled={savingPin}>
+              <Text style={styles.updatePinButtonText}>{savingPin ? "Saving…" : hasPin ? "Update PIN" : "Set PIN"}</Text>
             </TouchableOpacity>
           </View>
         </View>

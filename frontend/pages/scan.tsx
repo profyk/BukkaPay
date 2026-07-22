@@ -48,25 +48,41 @@ export default function Scan() {
     }
   }, [mode, scanLineAnim]);
 
+  // react-native-web's Alert.alert() is a no-op — never shows a dialog or
+  // fires button callbacks — so the "unrecognized QR" fallback below was
+  // silently doing nothing on the web build.
+  const notify = (title: string, message?: string) => {
+    if (Platform.OS === "web") { window.alert(message ? `${title}\n\n${message}` : title); return; }
+    Alert.alert(title, message);
+  };
+
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
 
+    // Two distinct kinds of scannable BukkaPay QR: a personal "My Code"
+    // wallet QR uses the bukkapay:// custom scheme (below) for instant P2P
+    // transfer; a merchant/payment-link/rent QR is a real https URL (so it
+    // also works when scanned by any phone's default camera, not just
+    // inside this app) and must route to its own payment screen, not qr-pay.
+    const merchantMatch = data.match(/\/merchant-pay\/([^/?#]+)/);
+    const rentMatch = data.match(/\/pay-rent\/([^/?#]+)/);
+    const payLinkMatch = data.match(/\/pay\/([^/?#]+)/);
+
     if (data.startsWith("bukkapay://pay/")) {
       const payId = data.replace("bukkapay://pay/", "");
       router.push(`/(screens)/qr-pay?walletId=${payId}` as any);
+    } else if (merchantMatch) {
+      router.push(`/(screens)/merchant-pay?paymentLink=${merchantMatch[1]}` as any);
+    } else if (rentMatch) {
+      router.push(`/pay-rent/${rentMatch[1]}` as any);
+    } else if (payLinkMatch) {
+      router.push(`/pay/${payLinkMatch[1]}` as any);
     } else if (data.startsWith("bukkapay://")) {
       const walletTarget = data.replace("bukkapay://", "");
       router.push(`/(screens)/qr-pay?walletId=${walletTarget}` as any);
     } else {
-      Alert.alert(
-        "QR Code Scanned",
-        `Data: ${data}`,
-        [
-          { text: "Scan Again", onPress: () => setScanned(false) },
-          { text: "OK" },
-        ]
-      );
+      notify("Unrecognized QR Code", "This doesn't look like a BukkaPay payment code.");
     }
 
     setTimeout(() => setScanned(false), 3000);

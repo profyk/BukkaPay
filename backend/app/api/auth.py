@@ -11,14 +11,16 @@ from app.schemas.user import (
     AuthTokenResponse,
     ForgotPasswordRequest,
     LoginRequest,
+    PinStatusResponse,
     ResetPasswordRequest,
+    SetPinRequest,
     SignupRequest,
     UpdateProfileRequest,
     UserLoginPayload,
     UserMePayload,
     UserProfilePayload,
 )
-from app.services import auth_service
+from app.services import auth_service, pin_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -95,3 +97,19 @@ async def update_profile(
         db, user_id, name=body.name, phone=body.phone, avatar=body.avatar
     )
     return UserProfilePayload.model_validate(user)
+
+
+@router.get("/pin/status")
+async def pin_status(
+    user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+) -> PinStatusResponse:
+    status = await pin_service.get_status(db, user_id)
+    return PinStatusResponse.model_validate(status)
+
+
+@router.post("/pin", dependencies=[Depends(rate_limit("pin-set", 10, 3600))])
+async def set_pin(
+    body: SetPinRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+) -> dict:
+    await pin_service.set_pin(db, user_id, new_pin=body.new_pin, current_pin=body.current_pin)
+    return {"success": True}

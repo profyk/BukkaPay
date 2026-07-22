@@ -11,6 +11,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import Head from "expo-router/head";
 import { API_BASE, APP_URL } from "../lib/config";
 import { getAuthHeader, getCurrentUser } from "../lib/auth";
+import PinPrompt from "../components/PinPrompt";
 
 const NAVY   = "#0F172A";
 const BLUE   = "#1D4ED8";
@@ -90,6 +91,7 @@ export default function PayLink() {
   const [stitchPaymentId, setStitchPaymentId] = useState("");
 
   const [isPaying, setIsPaying] = useState(false);
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -119,18 +121,24 @@ export default function PayLink() {
     } finally { setIsLoading(false); }
   };
 
-  const handleWalletPay = async () => {
+  const handleWalletPay = () => {
     if (!linkData) return;
     setInlineError("");
     const amount = isFullPay ? linkData.remainingBalance : payAmount;
     if (!amount || parseFloat(amount) <= 0) { setInlineError("Please enter a valid amount."); return; }
+    setShowPinPrompt(true);
+  };
+
+  const handlePinSubmit = async (pin: string) => {
+    if (!linkData) return;
+    const amount = isFullPay ? linkData.remainingBalance : payAmount;
     setIsPaying(true);
     try {
       const headers = await getAuthHeader();
       const res = await fetch(`${API_BASE}/api/payment-links/${linkData.id}/pay-wallet`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, pin }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Payment failed");
@@ -139,11 +147,10 @@ export default function PayLink() {
           method: "POST", headers: { "Content-Type": "application/json", ...headers },
         });
       } catch {}
+      setShowPinPrompt(false);
       setSuccessMsg(`Payment of ${currencySymbol(linkData.currency)}${parseFloat(amount).toFixed(2)} was successful!`);
       setStep("success");
       fetchLink();
-    } catch (e: any) {
-      setInlineError(e.message || "Payment failed. Please try again.");
     } finally { setIsPaying(false); }
   };
 
@@ -885,6 +892,13 @@ export default function PayLink() {
           </TouchableOpacity>
         </View>
       )}
+
+      <PinPrompt
+        visible={showPinPrompt}
+        subtitle={`Confirm this payment to ${displayName}`}
+        onCancel={() => setShowPinPrompt(false)}
+        onSubmit={handlePinSubmit}
+      />
     </KeyboardAvoidingView>
   );
 }

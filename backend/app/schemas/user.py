@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.schemas.base import CamelModel
+from app.schemas.base import CamelModel, OptionalJsDateTime
 
 
 class UserAuthPayload(CamelModel):
@@ -89,3 +89,14 @@ class UpdateProfileRequest(CamelModel):
     name: str | None = None
     phone: str | None = None
     avatar: str | None = None
+
+
+class SetPinRequest(CamelModel):
+    new_pin: str
+    current_pin: str | None = None
+
+
+class PinStatusResponse(CamelModel):
+    has_pin: bool
+    locked: bool
+    locked_until: OptionalJsDateTime = None

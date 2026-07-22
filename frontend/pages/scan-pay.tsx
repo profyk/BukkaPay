@@ -7,26 +7,32 @@ import { useToast } from "../hooks/use-toast";
 import { sendMoney, fetchCards } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import { getCountries, getBanksByCountry } from "../lib/banksData";
-import { useCurrency } from "../lib/CurrencyContext";
 import { useTheme } from "../lib/ThemeContext";
+import PinPrompt from "../components/PinPrompt";
 
 export default function SendMoney() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { toast } = useToast();
-  const { currency } = useCurrency();
   const { colors } = useTheme();
 
   const isFloatingButtonMode = params.mode === "qr";
-  const initialMode = isFloatingButtonMode ? "scan" : "method";
-  const initialPaymentMethod = isFloatingButtonMode ? "qr" : null;
 
-  const [stage, setStage] = useState<"method" | "scan" | "wallet-id" | "card-select" | "amount" | "confirm" | "success">(initialMode as any);
-  const [paymentMethod, setPaymentMethod] = useState<"qr" | "bukka" | "mobile" | "bank" | null>(initialPaymentMethod as any);
+  const [stage, setStage] = useState<"method" | "wallet-id" | "card-select" | "amount" | "confirm" | "success">("method");
+  const [paymentMethod, setPaymentMethod] = useState<"bukka" | "mobile" | "bank" | null>(null);
+
+  // The tab bar's camera scanner (scan.tsx) is the single real QR scanner in
+  // the app. This screen used to fake one here — a static icon labelled
+  // "Camera QR scanning" with no actual camera behind it — so redirect to
+  // the real one instead of rendering that.
+  useEffect(() => {
+    if (isFloatingButtonMode) router.replace("/(tabs)/scan" as any);
+  }, [isFloatingButtonMode]);
   const [walletId, setWalletId] = useState("");
   const [amount, setAmount] = useState("");
   const [selectedCard, setSelectedCard] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
 
   const [bankDetails, setBankDetails] = useState({
     accountName: "",
@@ -84,25 +90,26 @@ export default function SendMoney() {
     setStage("confirm");
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
+    setShowPinPrompt(true);
+  };
+
+  const handlePinSubmit = async (pin: string) => {
     setLoading(true);
     try {
-      if (paymentMethod === "qr") {
-        await sendMoney(selectedCard, recipientData?.userId || recipientData?.id, amount);
-      } else if (paymentMethod === "bukka" || paymentMethod === "mobile") {
-        await sendMoney(selectedCard, recipientData.id, amount);
+      if (paymentMethod === "bukka" || paymentMethod === "mobile") {
+        await sendMoney(selectedCard, recipientData.id, amount, { pin });
       } else if (paymentMethod === "bank") {
-        await sendMoney(selectedCard, recipientData.accountNumber, amount);
+        await sendMoney(selectedCard, recipientData.accountNumber, amount, { pin });
       }
 
+      setShowPinPrompt(false);
       setStage("success");
-      toast({ title: "Payment Sent", description: `${currency.symbol}${amount} sent successfully` });
+      toast({ title: "Payment Sent", description: `R${amount} sent successfully` });
 
       setTimeout(() => {
         router.push("/(tabs)");
       }, 2000);
-    } catch (error: any) {
-      toast({ title: "Transfer Failed", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -137,20 +144,18 @@ export default function SendMoney() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>How would you like to send?</Text>
           <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Choose your preferred payment method</Text>
 
-          {isFloatingButtonMode && (
-            <TouchableOpacity
-              onPress={() => { setPaymentMethod("qr"); setStage("scan"); }}
-              style={[styles.methodCard, { backgroundColor: "rgba(124,58,237,0.05)", borderColor: "#7C3AED" }]}
-            >
-              <View style={[styles.methodIcon, { backgroundColor: "rgba(124,58,237,0.2)" }]}>
-                <Ionicons name="qr-code" size={24} color="#7C3AED" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.methodTitle, { color: colors.text }]}>Scan QR Code</Text>
-                <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>Fast P2P payment with BukkaPay users</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/scan" as any)}
+            style={[styles.methodCard, { backgroundColor: "rgba(124,58,237,0.05)", borderColor: "#7C3AED" }]}
+          >
+            <View style={[styles.methodIcon, { backgroundColor: "rgba(124,58,237,0.2)" }]}>
+              <Ionicons name="qr-code" size={24} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.methodTitle, { color: colors.text }]}>Scan QR Code</Text>
+              <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>Fast P2P payment with BukkaPay users</Text>
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity onPress={() => handleMethodSelect("bukka")} style={[styles.methodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.methodIcon, { backgroundColor: "rgba(139,92,246,0.2)" }]}>
@@ -185,42 +190,6 @@ export default function SendMoney() {
           <TouchableOpacity onPress={() => router.push("/(tabs)")} style={[styles.cancelButton, { borderColor: colors.border }]}>
             <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
           </TouchableOpacity>
-        </View>
-      )}
-
-      {stage === "scan" && paymentMethod === "qr" && (
-        <View style={styles.section}>
-          <View style={styles.scanPlaceholder}>
-            <Ionicons name="qr-code" size={64} color="#6B7280" />
-            <Text style={styles.scanPlaceholderText}>Camera QR scanning</Text>
-            <Text style={styles.scanPlaceholderSubtext}>Point your camera at a QR code</Text>
-          </View>
-          <Text style={[styles.inputLabel, { color: colors.text }]}>Or enter Wallet ID manually</Text>
-          <TextInput
-            value={walletId}
-            onChangeText={setWalletId}
-            placeholder="BKP-XXXXXXXX"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-          />
-          <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={() => { setStage("method"); setPaymentMethod(null); }} style={[styles.secondaryButton, { borderColor: colors.border }]}>
-              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                if (walletId.trim()) {
-                  setRecipientData({ id: walletId, type: "qr" });
-                  setStage("card-select");
-                } else {
-                  toast({ title: "Error", description: "Enter a wallet ID", variant: "destructive" });
-                }
-              }}
-              style={styles.primaryButton}
-            >
-              <Text style={styles.primaryButtonText}>Continue</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       )}
 
@@ -362,7 +331,7 @@ export default function SendMoney() {
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>{card.title}</Text>
                   <Text style={[styles.cardBalance, { color: colors.textSecondary }]}>
-                    Balance: {currency.symbol}{parseFloat(card.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    Balance: R{parseFloat(card.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
                 {selectedCard === card.id && (
@@ -401,7 +370,7 @@ export default function SendMoney() {
 
           <Text style={[styles.inputLabel, { color: colors.text }]}>Amount</Text>
           <View style={[styles.amountInputRow, { borderColor: colors.border }]}>
-            <Text style={styles.amountDollar}>{currency.symbol}</Text>
+            <Text style={styles.amountDollar}>R</Text>
             <TextInput
               value={amount}
               onChangeText={setAmount}
@@ -415,10 +384,7 @@ export default function SendMoney() {
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              onPress={() => {
-                if (paymentMethod === "qr") setStage("scan");
-                else setStage("wallet-id");
-              }}
+              onPress={() => setStage("wallet-id")}
               style={[styles.secondaryButton, { borderColor: colors.border }]}
             >
               <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Back</Text>
@@ -456,7 +422,7 @@ export default function SendMoney() {
           <View style={styles.confirmGrid}>
             <View style={[styles.confirmGridItem, { backgroundColor: colors.surface }]}>
               <Text style={[styles.confirmGridLabel, { color: colors.textSecondary }]}>Amount</Text>
-              <Text style={styles.confirmGridValue}>{currency.symbol}{amount}</Text>
+              <Text style={styles.confirmGridValue}>R{amount}</Text>
             </View>
             <View style={[styles.confirmGridItem, { backgroundColor: colors.surface }]}>
               <Text style={[styles.confirmGridLabel, { color: colors.textSecondary }]}>From Card</Text>
@@ -479,7 +445,7 @@ export default function SendMoney() {
               style={[styles.primaryButton, loading && { opacity: 0.5 }]}
             >
               <Ionicons name="send" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.primaryButtonText}>{loading ? "Sending..." : `Pay ${currency.symbol}${amount}`}</Text>
+              <Text style={styles.primaryButtonText}>{loading ? "Sending..." : `Pay R${amount}`}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -491,10 +457,17 @@ export default function SendMoney() {
             <Ionicons name="checkmark" size={40} color="#FFFFFF" />
           </View>
           <Text style={[styles.successTitle, { color: colors.text }]}>Payment Sent!</Text>
-          <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>{currency.symbol}{amount} has been sent successfully</Text>
+          <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>R{amount} has been sent successfully</Text>
           <Text style={[styles.successRedirect, { color: colors.textMuted }]}>Redirecting to home...</Text>
         </View>
       )}
+
+      <PinPrompt
+        visible={showPinPrompt}
+        subtitle={`Confirm sending R${amount}`}
+        onCancel={() => setShowPinPrompt(false)}
+        onSubmit={handlePinSubmit}
+      />
     </ScrollView>
   );
 }

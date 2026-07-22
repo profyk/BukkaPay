@@ -98,6 +98,7 @@ class CreatePaymentLinkRequest(CamelModel):
 
 class PayWalletRequest(CamelModel):
     amount: str | None = None
+    pin: str | None = None
 
 
 class PayWalletResponse(CamelModel):

@@ -22,7 +22,7 @@ from app.schemas.payment_link import (
     PayWalletRequest,
     PayWalletResponse,
 )
-from app.services import payment_link_service
+from app.services import payment_link_service, pin_service
 
 router = APIRouter(prefix="/api", tags=["payment-links"])
 
@@ -117,6 +117,7 @@ async def pay_with_wallet(
     link = await payment_link_service.get_payment_link(db, link_id)
     if link is None:
         raise ApiError("Payment link not found", status_code=404)
+    await pin_service.verify_pin(db, user_id, body.pin)
     result = await payment_link_service.pay_with_wallet(db, link, user_id, body.amount)
     return PayWalletResponse.model_validate(result)
 
