@@ -6,13 +6,11 @@ import { useToast } from "../hooks/use-toast";
 import { getCurrentUser, getAuthToken } from "../lib/auth";
 import { API_BASE } from "../lib/config";
 import * as Clipboard from "expo-clipboard";
-import { useCurrency } from "../lib/CurrencyContext";
 import { useTheme } from "../lib/ThemeContext";
 
 export default function Request() {
   const router = useRouter();
   const { toast } = useToast();
-  const { currency } = useCurrency();
   const { colors } = useTheme();
   const [amount, setAmount] = useState("0");
   const [recipientName, setRecipientName] = useState("");
@@ -91,7 +89,7 @@ export default function Request() {
 
   const handleShareLink = async () => {
     try {
-      await Share.share({ message: `I'm requesting ${currency.symbol}${amount} payment from you via BukkaPay. Click here to pay: ${requestLink}` });
+      await Share.share({ message: `I'm requesting R${amount} payment from you via BukkaPay. Click here to pay: ${requestLink}` });
     } catch {}
   };
 
@@ -166,7 +164,7 @@ export default function Request() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.confirmContent}>
           <View style={[styles.confirmCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>Amount</Text>
-            <Text style={[styles.confirmAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
+            <Text style={[styles.confirmAmount, { color: colors.text }]}>R{amount}</Text>
             <View style={[styles.divider, { backgroundColor: colors.divider }]} />
             <Text style={[styles.confirmDetailLabel, { color: colors.textMuted }]}>Recipient</Text>
             <Text style={[styles.confirmDetailValue, { color: colors.text }]}>{recipientName}</Text>
@@ -206,7 +204,7 @@ export default function Request() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.shareContent}>
         <View style={styles.shareCard}>
           <Text style={styles.shareLabel}>Request Amount</Text>
-          <Text style={styles.shareAmount}>{currency.symbol}{amount}</Text>
+          <Text style={styles.shareAmount}>R{amount}</Text>
           <Text style={styles.shareFrom}>From {user?.name}</Text>
         </View>
 

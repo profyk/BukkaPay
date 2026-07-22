@@ -7,7 +7,6 @@ import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../lib/ThemeContext";
-import { useCurrency } from "../../lib/CurrencyContext";
 import { API_BASE } from "../../lib/config";
 import { getAuthHeader } from "../../lib/auth";
 import AppBar from "../../components/AppBar";
@@ -16,7 +15,6 @@ const STEPS = ["Recipient", "Amount", "Security PIN", "Review"];
 
 export default function SendToAnyoneScreen() {
   const { colors } = useTheme();
-  const { currency } = useCurrency();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -179,7 +177,7 @@ export default function SendToAnyoneScreen() {
             <View style={s.card}>
               <Text style={s.stepTitle}>How much?</Text>
               <View style={s.amountRow}>
-                <Text style={s.currency}>{currency.symbol}</Text>
+                <Text style={s.currency}>R</Text>
                 <TextInput style={s.amountInput} placeholder="0.00" placeholderTextColor={colors.textSecondary}
                   value={amount} onChangeText={t => { setAmount(t); setInlineError(""); }} keyboardType="decimal-pad" />
               </View>

@@ -6,13 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { fetchCards } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
-import { useCurrency } from "../lib/CurrencyContext";
 import { useTheme } from "../lib/ThemeContext";
 
 export default function Transfer() {
   const router = useRouter();
   const { toast } = useToast();
-  const { currency } = useCurrency();
   const { colors } = useTheme();
   const [step, setStep] = useState<"select" | "amount" | "confirm" | "success">("select");
   const [amount, setAmount] = useState("0");
@@ -261,7 +259,7 @@ export default function Transfer() {
 
           <View style={styles.confirmRow}>
             <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>Amount</Text>
-            <Text style={[styles.confirmAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
+            <Text style={[styles.confirmAmount, { color: colors.text }]}>R{amount}</Text>
           </View>
 
           <View style={styles.warningBox}>
@@ -291,7 +289,7 @@ export default function Transfer() {
 
       <View style={[styles.successCard, { backgroundColor: colors.surface }]}>
         <Text style={[styles.successCardLabel, { color: colors.textMuted }]}>Amount Transferred</Text>
-        <Text style={[styles.successAmount, { color: colors.text }]}>{currency.symbol}{amount}</Text>
+        <Text style={[styles.successAmount, { color: colors.text }]}>R{amount}</Text>
         <View style={[styles.confirmDivider, { backgroundColor: colors.divider }]} />
         <View style={styles.confirmRow}>
           <Text style={[styles.confirmLabel, { color: colors.textMuted }]}>From</Text>

@@ -13,7 +13,6 @@ import { apiRequest } from "../lib/queryClient";
 import { getKycStatus } from "../lib/api";
 import { useToast } from "../hooks/use-toast";
 import { useTheme } from "../lib/ThemeContext";
-import { useCurrency } from "../lib/CurrencyContext";
 import * as Clipboard from "expo-clipboard";
 
 const languages = [
@@ -51,7 +50,6 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { darkMode, setDarkMode, colors } = useTheme();
-  const { currency } = useCurrency();
   const [user, setUser] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -354,7 +352,7 @@ export default function Profile() {
 
       <View style={styles.statsRow}>
         <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{hideBalance ? "****" : `${currency.symbol}${totalBalance.toFixed(2)}`}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{hideBalance ? "****" : `R${totalBalance.toFixed(2)}`}</Text>
           <Text style={[styles.statLabel, { color: colors.textMuted }]}>Wallet Balance</Text>
         </View>
         <View style={[styles.statBox, { backgroundColor: colors.surface }]}>

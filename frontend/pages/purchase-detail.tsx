@@ -8,8 +8,6 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import * as Clipboard from "expo-clipboard";
-import { useCurrency } from "../lib/CurrencyContext";
-import { convertAmount } from "../lib/currency";
 import { apiRequest, queryClient } from "../lib/queryClient";
 import { cancelTravelBooking } from "../lib/api";
 import { useToast } from "../hooks/use-toast";
@@ -56,7 +54,6 @@ const metadataLabels: Record<string, Record<string, string>> = {
 function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
   transaction: any; onToggleUsed: () => void; onCancel: () => void; cancelling: boolean;
 }) {
-  const { currency } = useCurrency();
   const { colors, darkMode } = useTheme();
   const meta = transaction.metadata || {};
   const isBus = meta.ticketType === "bus";
@@ -321,7 +318,6 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
 export default function PurchaseDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { currency } = useCurrency();
   const { toast } = useToast();
   const { colors } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -369,7 +365,7 @@ export default function PurchaseDetail() {
 
   const handleShare = async () => {
     if (transaction) {
-      const text = `BukkaPay Transaction\nMerchant: ${transaction.merchantName}\nAmount: ${currency.symbol}${convertAmount(Number(transaction.amount), currency.code).toFixed(2)}\nReference: ${transaction.reference}\nDate: ${format(new Date(transaction.createdAt), "MMM d, yyyy 'at' h:mm a")}`;
+      const text = `BukkaPay Transaction\nMerchant: ${transaction.merchantName}\nAmount: R${Number(transaction.amount).toFixed(2)}\nReference: ${transaction.reference}\nDate: ${format(new Date(transaction.createdAt), "MMM d, yyyy 'at' h:mm a")}`;
       try {
         await Share.share({ message: text, title: "BukkaPay Receipt" });
       } catch {
@@ -450,7 +446,7 @@ export default function PurchaseDetail() {
             <View style={styles.heroAmountContainer}>
               <Text style={styles.heroAmountLabel}>Amount</Text>
               <Text style={styles.heroAmount}>
-                {currency.symbol}{convertAmount(Number(transaction.amount), currency.code).toFixed(2)}
+                R{Number(transaction.amount).toFixed(2)}
               </Text>
             </View>
           </View>

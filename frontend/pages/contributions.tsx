@@ -10,8 +10,6 @@ import { useToast } from "../hooks/use-toast";
 import { apiRequest, queryClient } from "../lib/queryClient";
 import * as Clipboard from "expo-clipboard";
 import { useTheme } from "../lib/ThemeContext";
-import { useCurrency } from "../lib/CurrencyContext";
-import { convertAmount } from "../lib/currency";
 
 // Local types (schema lives in backend — import types here)
 interface ContributionGroup {
@@ -215,16 +213,14 @@ function ShareModal({ group, visible, onClose }: { group: ContributionGroup; vis
 function GroupCard({ group }: { group: ContributionGroup }) {
   const router = useRouter();
   const { colors } = useTheme();
-  const { currency } = useCurrency();
   const [shareVisible, setShareVisible] = useState(false);
   const catInfo = CATEGORIES.find((c) => c.id === group.category) || CATEGORIES[5];
 
-  const currentUSD = parseFloat(group.currentAmount || "0");
-  const targetUSD = group.targetAmount ? parseFloat(group.targetAmount) : null;
-  const progress = targetUSD ? Math.min((currentUSD / targetUSD) * 100, 100) : 0;
+  const currentAmount = parseFloat(group.currentAmount || "0");
+  const targetAmount = group.targetAmount ? parseFloat(group.targetAmount) : null;
+  const progress = targetAmount ? Math.min((currentAmount / targetAmount) * 100, 100) : 0;
 
-  const fmt = (usd: number) =>
-    `${currency.symbol}${convertAmount(usd, currency.code).toFixed(2)}`;
+  const fmt = (amount: number) => `R${amount.toFixed(2)}`;
 
   return (
     <>
@@ -242,15 +238,15 @@ function GroupCard({ group }: { group: ContributionGroup }) {
                 <Text style={[styles.categorySmallText, { color: colors.textSecondary }]}>{catInfo.label}</Text>
               </View>
               <Text style={[styles.groupTitle, { color: colors.text }]} numberOfLines={1}>{group.title}</Text>
-              <Text style={[styles.groupAmount, { color: colors.primary }]}>{fmt(currentUSD)}</Text>
+              <Text style={[styles.groupAmount, { color: colors.primary }]}>{fmt(currentAmount)}</Text>
 
-              {targetUSD && (
+              {targetAmount && (
                 <View style={{ marginTop: 8 }}>
                   <View style={[styles.progressBar, { backgroundColor: colors.surface }]}>
                     <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: colors.primary }]} />
                   </View>
                   <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-                    {Math.round(progress)}% of {fmt(targetUSD)} goal
+                    {Math.round(progress)}% of {fmt(targetAmount)} goal
                   </Text>
                 </View>
               )}
