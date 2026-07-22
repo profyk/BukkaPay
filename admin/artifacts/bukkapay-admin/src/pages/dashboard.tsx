@@ -84,10 +84,10 @@ export default function DashboardPage() {
           <>
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard index={0} label="Total Users"         value={data!.total_users.toLocaleString()}        icon={Users}          color="bg-primary"         sub={`${data!.active_users} active · ${data!.frozen_users} frozen`} />
-              <StatCard index={1} label="Total Transactions"  value={data!.total_transactions.toLocaleString()} icon={ArrowRightLeft}  color="bg-blue-500"        sub="Platform-wide" />
-              <StatCard index={2} label="Total Volume"        value={formatCurrency(data!.total_volume)}        icon={Wallet}         color="bg-emerald-500"     sub="All time ZAR" />
-              <StatCard index={3} label="Pending KYC"         value={data!.pending_kyc}                         icon={Clock}          color="bg-amber-500"       sub="Awaiting verification" />
+              <StatCard index={0} label="Total Users"         value={data!.totalUsers.toLocaleString()}        icon={Users}          color="bg-primary"         sub={`${data!.activeUsers} active · ${data!.frozenUsers} frozen`} />
+              <StatCard index={1} label="Total Transactions"  value={data!.totalTransactions.toLocaleString()} icon={ArrowRightLeft}  color="bg-blue-500"        sub="Platform-wide" />
+              <StatCard index={2} label="Total Volume"        value={formatCurrency(data!.totalVolume)}        icon={Wallet}         color="bg-emerald-500"     sub="All time ZAR" />
+              <StatCard index={3} label="Pending KYC"         value={data!.pendingKyc}                         icon={Clock}          color="bg-amber-500"       sub="Awaiting verification" />
             </div>
 
             {/* Charts row */}
@@ -102,9 +102,9 @@ export default function DashboardPage() {
                   <TrendingUp className="w-5 h-5 text-primary" />
                   <h2 className="font-semibold text-foreground">Transaction Volume</h2>
                 </div>
-                {data!.recent_transactions?.length ? (
+                {data!.recentTransactions?.length ? (
                   <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={data!.recent_transactions} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                    <AreaChart data={data!.recentTransactions} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                       <defs>
                         <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%"  stopColor="#4F46E5" stopOpacity={0.25} />
@@ -113,7 +113,7 @@ export default function DashboardPage() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
+                      <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `R${(v / 1000).toFixed(0)}k`} />
                       <Tooltip
                         contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "0.75rem" }}
                         formatter={(v: number) => [formatCurrency(v), "Volume"]}
@@ -136,9 +136,9 @@ export default function DashboardPage() {
                   <Users className="w-5 h-5 text-emerald-500" />
                   <h2 className="font-semibold text-foreground">New User Registrations</h2>
                 </div>
-                {data!.user_growth?.length ? (
+                {data!.userGrowth?.length ? (
                   <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={data!.user_growth} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                    <BarChart data={data!.userGrowth} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
@@ -162,9 +162,9 @@ export default function DashboardPage() {
               className="grid grid-cols-1 sm:grid-cols-3 gap-4"
             >
               {[
-                { label: "Frozen Accounts",      value: data!.frozen_users,           icon: AlertTriangle, color: "text-amber-500",    href: "/users" },
-                { label: "Merchants",             value: (data as any).total_merchants ?? 0, icon: Store, color: "text-violet-500",  href: "/merchants" },
-                { label: "Active Payment Links",  value: (data as any).active_payment_links ?? 0, icon: Link2, color: "text-emerald-500", href: "/payment-links" },
+                { label: "Frozen Accounts",      value: data!.frozenUsers,           icon: AlertTriangle, color: "text-amber-500",    href: "/users" },
+                { label: "Merchants",             value: data!.totalMerchants ?? 0, icon: Store, color: "text-violet-500",  href: "/merchants" },
+                { label: "Active Payment Links",  value: data!.activePaymentLinks ?? 0, icon: Link2, color: "text-emerald-500", href: "/payment-links" },
               ].map(({ label, value, icon: Icon, color, href }) => (
                 <Link key={label} href={href} className="block">
                   <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 shadow-sm hover:border-primary/40 transition-colors cursor-pointer">

@@ -198,6 +198,17 @@ async def update_payment_link_status(
     return {"success": True, "paymentLink": {c.name: getattr(link, c.name) for c in link.__table__.columns}}
 
 
+@router.delete("/payment-links/{link_id}")
+async def delete_payment_link(
+    link_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+) -> dict:
+    link = await svc.get_payment_link(db, link_id)
+    if link is None:
+        raise ApiError("Payment link not found", status_code=404)
+    await svc.delete_payment_link(db, link)
+    return {"success": True}
+
+
 @router.get("/corridors")
 async def list_corridors(
     _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)

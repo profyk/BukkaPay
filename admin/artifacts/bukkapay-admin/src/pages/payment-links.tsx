@@ -1,19 +1,22 @@
 import { useState, useMemo } from "react"
 import { motion } from "framer-motion"
-import { AlertCircle, Loader2, Link2, Search, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { AlertCircle, Loader2, Link2, Search, X, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { usePaymentLinks, usePaymentLinkActions } from "@/hooks/use-payment-links"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
-    case "active":    return <Badge variant="success">Active</Badge>
-    case "expired":   return <Badge variant="secondary">Expired</Badge>
+    case "pending":   return <Badge variant="secondary">Pending</Badge>
+    case "partial":   return <Badge variant="warning">Partial</Badge>
+    case "paid":      return <Badge variant="success">Paid</Badge>
+    case "expired":   return <Badge variant="outline">Expired</Badge>
     case "cancelled": return <Badge variant="destructive">Cancelled</Badge>
     default:          return <Badge variant="outline">{status}</Badge>
   }
@@ -26,7 +29,7 @@ export default function PaymentLinksPage() {
   const [processingId, setProcessingId] = useState<string | null>(null)
 
   const { data, isLoading, isError, error } = usePaymentLinks(page)
-  const { updateStatus } = usePaymentLinkActions()
+  const { updateStatus, deletePaymentLink } = usePaymentLinkActions()
   const { toast } = useToast()
 
   const links = data?.paymentLinks ?? []
@@ -37,7 +40,7 @@ export default function PaymentLinksPage() {
     if (statusFilter !== "all") list = list.filter((l) => l.status === statusFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter((l) => l.user_email.toLowerCase().includes(q) || l.description.toLowerCase().includes(q))
+      list = list.filter((l) => l.user.email.toLowerCase().includes(q) || (l.description ?? "").toLowerCase().includes(q))
     }
     return list
   }, [links, search, statusFilter])
@@ -47,6 +50,18 @@ export default function PaymentLinksPage() {
     try {
       await updateStatus.mutateAsync({ id, status })
       toast({ title: "Status updated", description: `Link marked as ${status}` })
+    } catch (e: any) {
+      toast({ title: "Failed", description: e.message, variant: "destructive" })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    setProcessingId(id)
+    try {
+      await deletePaymentLink.mutateAsync(id)
+      toast({ title: "Payment link deleted" })
     } catch (e: any) {
       toast({ title: "Failed", description: e.message, variant: "destructive" })
     } finally {
@@ -72,7 +87,9 @@ export default function PaymentLinksPage() {
             <SelectTrigger className="w-40"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="partial">Partial</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="expired">Expired</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
@@ -100,7 +117,6 @@ export default function PaymentLinksPage() {
                     <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Description</th>
                     <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Amount</th>
                     <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
-                    <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Expires</th>
                     <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Created</th>
                     <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Actions</th>
                   </tr>
@@ -109,28 +125,53 @@ export default function PaymentLinksPage() {
                   {filtered.map((link) => (
                     <tr key={link.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-medium">{link.user_name || link.user_email}</p>
-                        <p className="text-xs text-muted-foreground">{link.user_email}</p>
+                        <p className="font-medium">{link.user.name || link.user.username}</p>
+                        <p className="text-xs text-muted-foreground">{link.user.email}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-muted-foreground max-w-xs truncate">{link.description || "—"}</td>
                       <td className="px-6 py-4 font-bold">{formatCurrency(link.amount, link.currency)}</td>
                       <td className="px-6 py-4"><StatusBadge status={link.status} /></td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">{formatDate(link.expiresAt) || "No expiry"}</td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">{formatDate(link.created_at)}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">{formatDate(link.createdAt)}</td>
                       <td className="px-6 py-4 text-right">
-                        {processingId === link.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-primary inline" />
-                        ) : link.status === "active" ? (
-                          <Button variant="outline" size="sm" className="text-destructive border-destructive/20 hover:bg-destructive/5"
-                            onClick={() => handleStatusChange(link.id, "cancelled")}>
-                            Cancel
-                          </Button>
-                        ) : link.status === "cancelled" ? (
-                          <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                            onClick={() => handleStatusChange(link.id, "active")}>
-                            Reactivate
-                          </Button>
-                        ) : null}
+                        <div className="flex items-center justify-end gap-2">
+                          {processingId === link.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-primary inline" />
+                          ) : (
+                            <>
+                              {(link.status === "pending" || link.status === "partial") && (
+                                <Button variant="outline" size="sm" className="text-destructive border-destructive/20 hover:bg-destructive/5"
+                                  onClick={() => handleStatusChange(link.id, "cancelled")}>
+                                  Cancel
+                                </Button>
+                              )}
+                              {link.status === "cancelled" && (
+                                <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                                  onClick={() => handleStatusChange(link.id, "pending")}>
+                                  Reactivate
+                                </Button>
+                              )}
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete this payment link?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      {formatCurrency(link.amount, link.currency)} link by {link.user.email} will be permanently removed.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => handleDelete(link.id)}>Delete</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

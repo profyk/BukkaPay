@@ -119,6 +119,11 @@ async def update_payment_link_status(link: PaymentLink, status: str) -> PaymentL
     return link
 
 
+async def delete_payment_link(db: AsyncSession, link: PaymentLink) -> None:
+    await db.delete(link)
+    await db.flush()
+
+
 async def list_corridors(db: AsyncSession) -> list[CurrencyCorridor]:
     result = await db.execute(
         select(CurrencyCorridor).order_by(CurrencyCorridor.from_currency, CurrencyCorridor.to_currency)

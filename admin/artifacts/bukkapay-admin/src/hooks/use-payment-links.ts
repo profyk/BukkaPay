@@ -3,14 +3,13 @@ import { api } from "@/lib/api";
 
 export interface PaymentLink {
   id: string;
-  user_email: string;
-  user_name: string;
-  amount: number;
+  senderId: string;
+  amount: string;
   currency: string;
-  description: string;
-  status: "active" | "expired" | "cancelled" | string;
-  expiresAt: string | null;
-  created_at: string | null;
+  description: string | null;
+  status: "pending" | "partial" | "paid" | "expired" | "cancelled" | string;
+  createdAt: string;
+  user: { id: string; name: string; username: string; email: string };
 }
 
 export const PAYMENT_LINKS_KEY = ["payment-links"];
@@ -36,5 +35,12 @@ export function usePaymentLinkActions() {
     onSuccess: invalidate,
   });
 
-  return { updateStatus };
+  const deletePaymentLink = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/admin/payment-links/${id}`);
+    },
+    onSuccess: invalidate,
+  });
+
+  return { updateStatus, deletePaymentLink };
 }

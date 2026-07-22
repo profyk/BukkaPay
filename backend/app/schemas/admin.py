@@ -220,6 +220,7 @@ class AdminPaymentLinkRow(CamelModel):
     sender_id: UUID
     amount: MoneyStr
     currency: str
+    description: str | None
     status: str
     created_at: JsDateTime
     user: TransactionUserSummary
