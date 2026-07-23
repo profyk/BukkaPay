@@ -10,7 +10,7 @@ import { apiRequest } from "../lib/queryClient";
 import { useTheme } from "../lib/ThemeContext";
 import { useToast } from "../hooks/use-toast";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 const BILL_TYPES = [
   { id: "water", label: "Water & Sanitation", icon: "water" as const, color: "#3B82F6" },

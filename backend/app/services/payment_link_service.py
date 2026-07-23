@@ -258,5 +258,3 @@ async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUI
 # The Paystack card-checkout flow and its webhook confirmation used to live
 # here; both are removed along with the "Debit / Credit Card" option on the
 # public pay-link page.
-
-    await db.flush()
