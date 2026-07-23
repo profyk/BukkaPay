@@ -6,12 +6,14 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.errors import ApiError
-from app.models.enums import PaymentLinkStatus, TransactionType
+from app.integrations import stitch
+from app.models.enums import NotificationType, PaymentLinkStatus, TransactionType
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.user import User
 from app.models.wallet import Transaction, WalletCard
+from app.services import notification_service
+from app.services.stitch_service import STITCH_BANKS
 
 PAYMENT_URL_BASE = "https://app.bukkapay.com/pay"
 
@@ -33,6 +35,20 @@ async def create_payment_link(
         raise ApiError("Valid amount is required") from e
     if parsed_amount <= 0:
         raise ApiError("Valid amount is required")
+
+    if destination == "bank":
+        bd = bank_details or {}
+        bank_id = bd.get("bankId") or bd.get("bank_id")
+        account_holder = bd.get("accountHolder") or bd.get("account_holder")
+        account_number = bd.get("accountNumber") or bd.get("account_number")
+        if not bank_id or bank_id not in {b["id"] for b in STITCH_BANKS}:
+            raise ApiError("Select a valid bank to receive this payment")
+        if not account_holder or not account_number:
+            raise ApiError("Account holder name and account number are required")
+        bank_details = {
+            "bankId": bank_id, "accountHolder": account_holder, "accountNumber": account_number,
+            "accountType": bd.get("accountType") or bd.get("account_type") or "savings",
+        }
 
     link = PaymentLink(
         sender_id=user_id,
@@ -149,6 +165,30 @@ async def get_payments_by_link(db: AsyncSession, link_id: uuid.UUID) -> list[Inv
     return list(result.scalars().all())
 
 
+async def _settle_link_destination(db: AsyncSession, link: PaymentLink, amount: Decimal) -> None:
+    """Route a confirmed payment to wherever the link actually says it
+    should go. destination="wallet" credits the link creator's BukkaPay
+    wallet. destination="bank" pays out via a real Stitch disbursement to
+    the bank details saved on the link — previously this branch did
+    nothing at all, so the payer's money was silently destroyed instead of
+    reaching anyone."""
+    if link.destination == "bank":
+        if not stitch.is_stitch_payments_configured():
+            raise ApiError("Bank payouts are not yet available. Please contact support.", status_code=503)
+        bd = link.bank_details or {}
+        reference = f"LINK-{str(link.id)[:8].upper()}-{secrets.token_hex(4).upper()}"
+        await stitch.create_disbursement(
+            amount=float(amount), currency=link.currency, reference=reference,
+            recipient_name=bd.get("accountHolder"), bank_id=bd.get("bankId"),
+            account_number=bd.get("accountNumber"), account_type=bd.get("accountType") or "savings",
+        )
+    else:
+        sender_result = await db.execute(select(WalletCard).where(WalletCard.user_id == link.sender_id))
+        sender_cards = list(sender_result.scalars().all())
+        if sender_cards:
+            sender_cards[0].balance = sender_cards[0].balance + amount
+
+
 async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUID, amount: str | None) -> dict:
     if link.status == PaymentLinkStatus.PAID:
         raise ApiError("This payment link has already been fully paid")
@@ -174,13 +214,12 @@ async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUI
     if payer_card.balance < pay_amount:
         raise ApiError("Insufficient wallet balance")
 
+    # Settle to the link's real destination before touching the payer's
+    # balance, so a bank-payout failure (e.g. Stitch not configured) raises
+    # cleanly with nothing changed yet, instead of debiting the payer and
+    # then losing the money.
+    await _settle_link_destination(db, link, pay_amount)
     payer_card.balance = payer_card.balance - pay_amount
-
-    if link.destination == "wallet":
-        sender_result = await db.execute(select(WalletCard).where(WalletCard.user_id == link.sender_id))
-        sender_cards = list(sender_result.scalars().all())
-        if sender_cards:
-            sender_cards[0].balance = sender_cards[0].balance + pay_amount
 
     payer_result = await db.execute(select(User).where(User.id == user_id))
     payer = payer_result.scalar_one_or_none()
@@ -213,82 +252,11 @@ async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUI
     }
 
 
-async def initialize_card_payment(
-    db: AsyncSession, link: PaymentLink, *, email: str, amount: str | None, payer_name: str | None,
-) -> dict:
-    import httpx
-
-    if link.status == PaymentLinkStatus.PAID:
-        raise ApiError("This payment link has already been fully paid")
-
-    remaining = link.remaining_balance if link.remaining_balance is not None else link.amount
-    try:
-        pay_amount = Decimal(amount) if amount else remaining
-    except InvalidOperation as e:
-        raise ApiError("Invalid payment amount") from e
-    if pay_amount <= 0 or pay_amount > remaining + Decimal("0.01"):
-        raise ApiError("Invalid payment amount")
-
-    settings = get_settings()
-    if not settings.paystack_secret_key:
-        raise ApiError("Card payment not configured. Please contact the business.", status_code=503)
-
-    reference = f"PAY-{int(datetime.now().timestamp() * 1000)}-{secrets.token_hex(4).upper()}"
-    amount_kobo = round(pay_amount * 100)
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.post(
-            "https://api.paystack.co/transaction/initialize",
-            headers={"Authorization": f"Bearer {settings.paystack_secret_key}", "Content-Type": "application/json"},
-            json={
-                "email": email, "amount": int(amount_kobo), "currency": link.currency,
-                "reference": reference,
-                "metadata": {"paymentLinkId": str(link.id), "payerName": payer_name or email},
-            },
-        )
-    data = response.json()
-    if not data.get("status"):
-        raise ApiError(data.get("message") or "Payment initialization failed")
-
-    db.add(InvoicePayment(
-        payment_link_id=link.id, amount=pay_amount, currency=link.currency, method="card",
-        payer_name=payer_name, payer_email=email, payer_user_id=None, reference=reference,
-        gateway="paystack",
-    ))
-    await db.flush()
-
-    return {"authorizationUrl": data["data"]["authorization_url"], "reference": reference}
-
-
-async def handle_paystack_webhook(db: AsyncSession, event: str, data: dict) -> None:
-    if event != "charge.success":
-        return
-
-    reference = data.get("reference")
-    result = await db.execute(select(InvoicePayment).where(InvoicePayment.reference == reference))
-    payment = result.scalar_one_or_none()
-    if payment is None or payment.status == "completed":
-        return
-
-    payment.status = "completed"
-    payment.gateway_ref = str(data.get("id")) if data.get("id") is not None else None
-
-    link_result = await db.execute(select(PaymentLink).where(PaymentLink.id == payment.payment_link_id))
-    link = link_result.scalar_one_or_none()
-    if link is None:
-        await db.flush()
-        return
-
-    new_amount_paid = link.amount_paid + payment.amount
-    new_remaining = link.amount - new_amount_paid
-    link.amount_paid = new_amount_paid
-    link.remaining_balance = max(Decimal("0"), new_remaining)
-    link.status = PaymentLinkStatus.PAID if new_remaining <= Decimal("0.01") else PaymentLinkStatus.PARTIAL
-
-    if link.destination == "wallet":
-        sender_result = await db.execute(select(WalletCard).where(WalletCard.user_id == link.sender_id))
-        sender_cards = list(sender_result.scalars().all())
-        if sender_cards:
-            sender_cards[0].balance = sender_cards[0].balance + payment.amount
+# No card/Paystack payment path here on purpose: payment links only settle
+# via a BukkaPay wallet balance or a real Stitch instant-EFT payment now —
+# neither ever puts raw card details anywhere near this app or its logs.
+# The Paystack card-checkout flow and its webhook confirmation used to live
+# here; both are removed along with the "Debit / Credit Card" option on the
+# public pay-link page.
 
     await db.flush()

@@ -23,9 +23,6 @@ class Settings(BaseSettings):
     stripe_secret_key: str | None = Field(default=None, alias="STRIPE_SECRET_KEY")
     stripe_webhook_secret: str | None = Field(default=None, alias="STRIPE_WEBHOOK_SECRET")
 
-    # Paystack
-    paystack_secret_key: str | None = Field(default=None, alias="PAYSTACK_SECRET_KEY")
-
     # Stitch (South African instant EFT)
     stitch_client_id: str | None = Field(default=None, alias="STITCH_CLIENT_ID")
     stitch_client_secret: str | None = Field(default=None, alias="STITCH_CLIENT_SECRET")

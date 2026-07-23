@@ -39,12 +39,6 @@ interface PaymentLinkData {
   businessName: string | null;
   businessLogo: string | null;
   paymentUrl: string;
-  bankDetails?: {
-    accountName?: string;
-    bankName?: string;
-    accountNumber?: string;
-    branchCode?: string;
-  } | null;
   invoice?: {
     customerName: string;
     customerEmail: string | null;
@@ -56,8 +50,8 @@ interface PaymentLinkData {
   payments?: Array<{ amount: string; method: string; status: string; createdAt: string }>;
 }
 
-type PayMethod = "card" | "wallet" | "eft" | "stitch";
-type Step = "choose" | "card-form" | "wallet-form" | "eft-form" | "stitch-form" | "stitch-pending" | "success";
+type PayMethod = "wallet" | "stitch";
+type Step = "choose" | "wallet-form" | "stitch-form" | "stitch-pending" | "success";
 
 function currencySymbol(code: string) {
   if (code === "ZAR") return "R";
@@ -78,13 +72,9 @@ export default function PayLink() {
   const [successMsg, setSuccessMsg] = useState("");
 
   const [step, setStep] = useState<Step>("choose");
-  const [payMethod, setPayMethod] = useState<PayMethod>("card");
+  const [payMethod, setPayMethod] = useState<PayMethod>("wallet");
   const [payAmount, setPayAmount] = useState("");
   const [isFullPay, setIsFullPay] = useState(true);
-
-  const [cardEmail, setCardEmail] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [cardPhone, setCardPhone] = useState("");
 
   const [stitchPayerName, setStitchPayerName] = useState("");
   const [stitchPayerEmail, setStitchPayerEmail] = useState("");
@@ -110,8 +100,8 @@ export default function PayLink() {
         const data = await res.json();
         setLinkData(data);
         setPayAmount(data.remainingBalance);
-        if (data.invoice?.customerName) setCardName(data.invoice.customerName);
-        if (data.invoice?.customerEmail) setCardEmail(data.invoice.customerEmail);
+        if (data.invoice?.customerName) setStitchPayerName(data.invoice.customerName);
+        if (data.invoice?.customerEmail) setStitchPayerEmail(data.invoice.customerEmail);
       } else {
         const d = await res.json();
         setPageError(d.error || "Payment link not found");
@@ -208,35 +198,6 @@ export default function PayLink() {
     } finally { setIsPaying(false); }
   };
 
-  const handleCardPay = async () => {
-    if (!linkData) return;
-    setInlineError("");
-    if (!cardEmail.trim()) { setInlineError("Please enter your email address."); return; }
-    if (!cardName.trim()) { setInlineError("Please enter your full name."); return; }
-    const amount = isFullPay ? linkData.remainingBalance : payAmount;
-    if (!amount || parseFloat(amount) <= 0) { setInlineError("Please enter a valid amount."); return; }
-    setIsPaying(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/payment-links/${linkData.id}/pay-card/initialize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cardEmail.trim(), amount, payerName: cardName.trim(), payerPhone: cardPhone.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Card payment initialization failed");
-      if (data.authorizationUrl) {
-        if (Platform.OS === "web") {
-          window.location.href = data.authorizationUrl;
-        } else {
-          await Linking.openURL(data.authorizationUrl);
-          setSuccessMsg("Finish your payment in the browser. It will be confirmed automatically.");
-          setStep("success");
-        }
-      }
-    } catch (e: any) {
-      setInlineError(e.message || "Could not start payment. Please try again.");
-    } finally { setIsPaying(false); }
-  };
 
   const shareViaWhatsApp = async () => {
     if (!linkData) return;
@@ -269,16 +230,6 @@ export default function PayLink() {
     } else {
       Linking.openURL(`data:${mimeType};base64,${attachment.data}`).catch(() => {});
     }
-  };
-
-  const notifySenderViaWhatsApp = () => {
-    if (!linkData) return;
-    const sym = currencySymbol(linkData.currency);
-    const amount = isFullPay ? parseFloat(linkData.remainingBalance).toFixed(2) : parseFloat(payAmount || "0").toFixed(2);
-    const msg = `Hi ${linkData.businessName || linkData.senderName || "there"} 👋\n\nI've sent *${sym}${amount}* via EFT for "${linkData.description || "your payment request"}".\n\nPlease confirm receipt. 🙏\n\n_Paid via BukkaPay_`;
-    const encoded = encodeURIComponent(msg);
-    const waUrl = `whatsapp://send?text=${encoded}`;
-    Linking.openURL(waUrl).catch(() => Linking.openURL(`https://wa.me/?text=${encoded}`));
   };
 
   // ─── Loading ────────────────────────────────────────────────
@@ -342,7 +293,6 @@ export default function PayLink() {
   const isBusiness  = linkData.type === "business";
   const sym         = currencySymbol(linkData.currency);
   const payAmtVal   = isFullPay ? remaining : (parseFloat(payAmount) || 0);
-  const hasEFT      = !!(linkData.bankDetails?.accountNumber);
   const payUrl      = `${APP_URL}/pay/${linkData.id}`;
 
   // ─── Fully Paid ──────────────────────────────────────────────
@@ -560,18 +510,6 @@ export default function PayLink() {
             <Text style={[s.muted, { marginBottom: 16 }]}>Choose a secure payment method</Text>
 
             <TouchableOpacity style={s.methodRow} activeOpacity={0.82}
-              onPress={() => { setPayMethod("card"); setInlineError(""); setStep("card-form"); }}>
-              <View style={[s.methodIcon, { backgroundColor: "#EFF6FF" }]}>
-                <Ionicons name="card" size={24} color={BLUE} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.methodTitle}>Debit / Credit Card</Text>
-                <Text style={s.methodSub}>Visa · Mastercard · Amex — Powered by Paystack</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={s.methodRow} activeOpacity={0.82}
               onPress={() => { setPayMethod("wallet"); setInlineError(""); setStep("wallet-form"); }}>
               <View style={[s.methodIcon, { backgroundColor: "#F0FDF4" }]}>
                 <Ionicons name="wallet" size={24} color={GREEN} />
@@ -601,20 +539,6 @@ export default function PayLink() {
               <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
             </TouchableOpacity>
 
-            {hasEFT && (
-              <TouchableOpacity style={s.methodRow} activeOpacity={0.82}
-                onPress={() => { setPayMethod("eft"); setInlineError(""); setStep("eft-form"); }}>
-                <View style={[s.methodIcon, { backgroundColor: "#FFF7ED" }]}>
-                  <Ionicons name="swap-horizontal" size={24} color="#EA580C" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.methodTitle}>Manual EFT Transfer</Text>
-                  <Text style={s.methodSub}>Internet banking · Confirm via WhatsApp</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
-              </TouchableOpacity>
-            )}
-
             <TouchableOpacity style={[s.methodRow, { borderColor: "#DCFCE7", backgroundColor: "#F0FDF4" }]}
               activeOpacity={0.82} onPress={shareViaWhatsApp}>
               <View style={[s.methodIcon, { backgroundColor: "#DCFCE7" }]}>
@@ -631,58 +555,6 @@ export default function PayLink() {
               <Ionicons name="shield-checkmark" size={14} color={GREEN} />
               <Text style={s.trustTxt}>All payments are 256-bit encrypted and secured by BukkaPay</Text>
             </View>
-          </View>
-        )}
-
-        {/* ── STEP: Card form ── */}
-        {step === "card-form" && (
-          <View style={s.card}>
-            <TouchableOpacity onPress={() => { setStep("choose"); setInlineError(""); }} style={s.backRow}>
-              <Ionicons name="arrow-back" size={16} color={BLUE} />
-              <Text style={s.backText}>Back</Text>
-            </TouchableOpacity>
-
-            <View style={s.selectedMethodBadge}>
-              <Ionicons name="card" size={18} color={BLUE} />
-              <Text style={s.selectedMethodText}>Card Payment</Text>
-            </View>
-            <Text style={[s.muted, { marginBottom: 16 }]}>Amount: {sym}{payAmtVal.toFixed(2)}</Text>
-
-            <View style={s.paystackBanner}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <Ionicons name="lock-closed" size={13} color={BLUE} />
-                <Text style={s.paystackBadgeText}>Powered by Paystack</Text>
-              </View>
-              <Text style={s.paystackNoticeText}>
-                You'll be securely redirected to Paystack to enter your card details.
-                We never see or store your card information.
-              </Text>
-            </View>
-
-            <Text style={s.inputLabel}>Full Name *</Text>
-            <TextInput style={s.input} value={cardName} onChangeText={setCardName}
-              placeholder="e.g. Sipho Nkosi" autoCapitalize="words" placeholderTextColor="#94A3B8" />
-
-            <Text style={s.inputLabel}>Email Address *</Text>
-            <TextInput style={s.input} value={cardEmail} onChangeText={setCardEmail}
-              placeholder="your@email.com" keyboardType="email-address"
-              autoCapitalize="none" placeholderTextColor="#94A3B8" />
-
-            <Text style={s.inputLabel}>Phone Number (optional)</Text>
-            <TextInput style={s.input} value={cardPhone} onChangeText={setCardPhone}
-              placeholder="+27 000 000 0000" keyboardType="phone-pad" placeholderTextColor="#94A3B8" />
-
-            {!!inlineError && <ErrorBox text={inlineError} />}
-
-            <TouchableOpacity style={[s.primaryBtn, isPaying && { opacity: 0.7 }]}
-              onPress={handleCardPay} disabled={isPaying}>
-              {isPaying ? <ActivityIndicator color="#fff" /> : (
-                <>
-                  <Ionicons name="card" size={19} color="#fff" />
-                  <Text style={s.primaryBtnText}>Pay {sym}{payAmtVal.toFixed(2)} with Card</Text>
-                </>
-              )}
-            </TouchableOpacity>
           </View>
         )}
 
@@ -818,45 +690,6 @@ export default function PayLink() {
           </View>
         )}
 
-        {/* ── STEP: EFT form ── */}
-        {step === "eft-form" && hasEFT && (
-          <View style={s.card}>
-            <TouchableOpacity onPress={() => { setStep("choose"); setInlineError(""); }} style={s.backRow}>
-              <Ionicons name="arrow-back" size={16} color={BLUE} />
-              <Text style={s.backText}>Back</Text>
-            </TouchableOpacity>
-
-            <View style={[s.selectedMethodBadge, { backgroundColor: "#FFF7ED", borderColor: "#FFEDD5" }]}>
-              <Ionicons name="swap-horizontal" size={18} color="#EA580C" />
-              <Text style={[s.selectedMethodText, { color: "#EA580C" }]}>EFT Bank Transfer</Text>
-            </View>
-
-            <Text style={[s.muted, { marginBottom: 16 }]}>
-              Transfer {sym}{payAmtVal.toFixed(2)} to the account below, then confirm via WhatsApp.
-            </Text>
-
-            <View style={s.bankDetailsCard}>
-              <BankRow label="Bank" value={linkData.bankDetails?.bankName || "—"} />
-              <BankRow label="Account Name" value={linkData.bankDetails?.accountName || "—"} />
-              <BankRow label="Account Number" value={linkData.bankDetails?.accountNumber || "—"} copyable />
-              {linkData.bankDetails?.branchCode ? (
-                <BankRow label="Branch Code" value={linkData.bankDetails.branchCode} copyable />
-              ) : null}
-              <BankRow label="Reference" value={`BKP-${linkData.id.slice(0, 8).toUpperCase()}`} copyable />
-              <BankRow label="Amount" value={`${sym}${payAmtVal.toFixed(2)}`} />
-            </View>
-
-            <TouchableOpacity style={s.waBtn} onPress={notifySenderViaWhatsApp}>
-              <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-              <Text style={s.waBtnText}>I've paid — Notify via WhatsApp</Text>
-            </TouchableOpacity>
-
-            <Text style={[s.muted, { textAlign: "center", marginTop: 12, fontSize: 12 }]}>
-              Your payment will be confirmed once the sender verifies receipt.
-            </Text>
-          </View>
-        )}
-
         {/* ── Payment history ── */}
         {(linkData.payments || []).filter(p => p.status === "completed").length > 0 && (
           <View style={s.card}>
@@ -883,8 +716,8 @@ export default function PayLink() {
             <Text style={s.stickyLabel}>Amount due</Text>
             <Text style={s.stickyAmount}>{sym}{remaining.toFixed(2)}</Text>
           </View>
-          <TouchableOpacity style={s.stickyPayBtn} onPress={() => { setStep("card-form"); }}>
-            <Ionicons name="card" size={18} color="#fff" />
+          <TouchableOpacity style={s.stickyPayBtn} onPress={() => { setPayMethod("wallet"); setStep("wallet-form"); }}>
+            <Ionicons name="wallet" size={18} color="#fff" />
             <Text style={s.stickyPayText}>Pay Now</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.stickyWaBtn} onPress={shareViaWhatsApp}>
@@ -930,30 +763,6 @@ function ErrorBox({ text }: { text: string }) {
     <View style={s.errorBox}>
       <Ionicons name="alert-circle" size={16} color={RED} />
       <Text style={s.errorBoxText}>{text}</Text>
-    </View>
-  );
-}
-
-function BankRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
-  const handleCopy = async () => {
-    if (Platform.OS === "web") {
-      (navigator as any).clipboard?.writeText(value).catch(() => {});
-    } else {
-      const Clipboard = await import("expo-clipboard");
-      await Clipboard.setStringAsync(value);
-    }
-  };
-  return (
-    <View style={s.bankRow}>
-      <Text style={s.bankLabel}>{label}</Text>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Text style={s.bankValue}>{value}</Text>
-        {copyable && (
-          <TouchableOpacity onPress={handleCopy} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="copy-outline" size={14} color={MUTED} />
-          </TouchableOpacity>
-        )}
-      </View>
     </View>
   );
 }

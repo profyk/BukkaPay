@@ -40,11 +40,11 @@ export default function CreatePaymentLink() {
   const [senderName, setSenderName] = useState("");
   const [businessLogo, setBusinessLogo] = useState<string | null>(null);
   const [destination, setDestination] = useState<"wallet" | "bank">("wallet");
-  const [bankName, setBankName] = useState("");
+  const [bankId, setBankId] = useState("");
+  const [showBankPicker, setShowBankPicker] = useState(false);
   const [accountNumber, setAccountNumber] = useState("");
   const [accountHolder, setAccountHolder] = useState("");
-  const [branchCode, setBranchCode] = useState("");
-  const [bankCountry, setBankCountry] = useState("");
+  const [banks, setBanks] = useState<{ id: string; name: string }[]>([]);
   const [allowPartial, setAllowPartial] = useState(false);
   const [minimumPayment, setMinimumPayment] = useState("");
   const [hasInvoice, setHasInvoice] = useState(false);
@@ -72,6 +72,12 @@ export default function CreatePaymentLink() {
     (async () => {
       const user = await getCurrentUser();
       if (user?.name) setSenderName(user.name);
+    })();
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/merchants/banks`);
+        if (res.ok) setBanks(await res.json());
+      } catch {}
     })();
   }, []);
 
@@ -132,7 +138,7 @@ export default function CreatePaymentLink() {
   };
 
   const step1Valid = parseFloat(amount) > 0;
-  const step2Valid = destination !== "bank" || (bankName.trim() && accountNumber.trim() && accountHolder.trim());
+  const step2Valid = destination !== "bank" || (bankId && accountNumber.trim() && accountHolder.trim());
 
   const handleCreate = async () => {
     setIsLoading(true); setCreateError(null);
@@ -145,10 +151,8 @@ export default function CreatePaymentLink() {
         type,
         destination,
         bankDetails: destination === "bank" ? {
-          bankName: bankName.trim(), accountNumber: accountNumber.trim(),
+          bankId, accountNumber: accountNumber.trim(),
           accountHolder: accountHolder.trim(),
-          branchCode: branchCode.trim() || undefined,
-          country: bankCountry.trim() || undefined,
         } : undefined,
         businessName: type === "business"
           ? senderName.trim()
@@ -436,23 +440,48 @@ export default function CreatePaymentLink() {
             </View>
             {destination === "bank" && (
               <View style={{ gap: 10, marginTop: 12 }}>
-                {[
-                  { label: "Account Holder *", val: accountHolder, set: setAccountHolder, placeholder: "Full name" },
-                  { label: "Bank Name *", val: bankName, set: setBankName, placeholder: "e.g. First National Bank" },
-                  { label: "Account Number *", val: accountNumber, set: setAccountNumber, placeholder: "e.g. 62123456789", keyboard: "numeric" },
-                  { label: "Branch Code", val: branchCode, set: setBranchCode, placeholder: "Optional", keyboard: "numeric" },
-                  { label: "Country", val: bankCountry, set: setBankCountry, placeholder: "e.g. South Africa" },
-                ].map(f => (
-                  <View key={f.label}>
-                    <Text style={[c.optLabel, { color: colors.textSecondary }]}>{f.label}</Text>
-                    <TextInput
-                      style={[c.optInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                      value={f.val} onChangeText={f.set} placeholder={f.placeholder}
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType={(f.keyboard as any) || "default"}
-                    />
-                  </View>
-                ))}
+                <View>
+                  <Text style={[c.optLabel, { color: colors.textSecondary }]}>Account Holder *</Text>
+                  <TextInput
+                    style={[c.optInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                    value={accountHolder} onChangeText={setAccountHolder} placeholder="Full name"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+                <View>
+                  <Text style={[c.optLabel, { color: colors.textSecondary }]}>Bank *</Text>
+                  <TouchableOpacity
+                    style={[c.optInput, { backgroundColor: colors.surface, borderColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
+                    onPress={() => setShowBankPicker(v => !v)}
+                  >
+                    <Text style={{ color: bankId ? colors.text : colors.textMuted, fontSize: 14 }}>
+                      {banks.find(b => b.id === bankId)?.name || "Select your bank"}
+                    </Text>
+                    <Ionicons name={showBankPicker ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+                  </TouchableOpacity>
+                  {showBankPicker && (
+                    <View style={[c.optInput, { backgroundColor: colors.surface, borderColor: colors.border, paddingVertical: 4 }]}>
+                      {banks.map(b => (
+                        <TouchableOpacity
+                          key={b.id}
+                          style={{ paddingVertical: 8, flexDirection: "row", justifyContent: "space-between" }}
+                          onPress={() => { setBankId(b.id); setShowBankPicker(false); }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 14 }}>{b.name}</Text>
+                          {bankId === b.id && <Ionicons name="checkmark" size={16} color={PRIMARY} />}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <View>
+                  <Text style={[c.optLabel, { color: colors.textSecondary }]}>Account Number *</Text>
+                  <TextInput
+                    style={[c.optInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                    value={accountNumber} onChangeText={setAccountNumber} placeholder="e.g. 62123456789"
+                    placeholderTextColor={colors.textMuted} keyboardType="numeric"
+                  />
+                </View>
               </View>
             )}
           </SectionCard>

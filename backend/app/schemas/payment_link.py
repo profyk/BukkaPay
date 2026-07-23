@@ -1,6 +1,22 @@
 from uuid import UUID
 
+from pydantic import field_validator
+
 from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalJsDateTime, OptionalMoneyStr
+
+
+def _mask_bank_details(v: dict | None) -> dict | None:
+    """The public GET /payment-links/{id} endpoint has no auth at all — it's
+    the page anyone opens from a shared link — so the recipient's full bank
+    account number must never round-trip through it in the clear."""
+    if not v:
+        return v
+    masked = dict(v)
+    account_number = masked.get("accountNumber")
+    if account_number:
+        digits = "".join(c for c in str(account_number) if c.isdigit())
+        masked["accountNumber"] = f"••••{digits[-4:]}" if len(digits) >= 4 else "••••"
+    return masked
 
 
 class InvoiceItem(CamelModel):
@@ -79,6 +95,11 @@ class PaymentLinkResponse(CamelModel):
     payment_url: str = ""
     direction: str | None = None
 
+    @field_validator("bank_details", mode="before")
+    @classmethod
+    def _mask(cls, v: dict | None) -> dict | None:
+        return _mask_bank_details(v)
+
 
 class CreatePaymentLinkRequest(CamelModel):
     amount: str
@@ -106,14 +127,3 @@ class PayWalletResponse(CamelModel):
     amount_paid: str
     remaining: str
     status: str
-
-
-class PayCardInitializeRequest(CamelModel):
-    email: str
-    amount: str | None = None
-    payer_name: str | None = None
-
-
-class PayCardInitializeResponse(CamelModel):
-    authorization_url: str
-    reference: str

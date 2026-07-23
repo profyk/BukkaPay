@@ -1,13 +1,8 @@
-import hashlib
-import hmac
-import json
-
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id, get_optional_user_id
-from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
@@ -16,8 +11,6 @@ from app.models.user import User
 from app.schemas.payment_link import (
     CreatePaymentLinkRequest,
     InvoicePaymentResponse,
-    PayCardInitializeRequest,
-    PayCardInitializeResponse,
     PaymentLinkResponse,
     PayWalletRequest,
     PayWalletResponse,
@@ -122,19 +115,6 @@ async def pay_with_wallet(
     return PayWalletResponse.model_validate(result)
 
 
-@router.post("/payment-links/{link_id}/pay-card/initialize", dependencies=[Depends(rate_limit("payment", 30, 60))])
-async def pay_with_card_initialize(
-    link_id: str, body: PayCardInitializeRequest, db: AsyncSession = Depends(get_db)
-) -> PayCardInitializeResponse:
-    link = await payment_link_service.get_payment_link(db, link_id)
-    if link is None:
-        raise ApiError("Payment link not found", status_code=404)
-    result = await payment_link_service.initialize_card_payment(
-        db, link, email=body.email, amount=body.amount, payer_name=body.payer_name
-    )
-    return PayCardInitializeResponse.model_validate(result)
-
-
 @router.get("/payment-links/{link_id}/invoice/pdf")
 async def download_invoice_pdf(link_id: str, db: AsyncSession = Depends(get_db)) -> Response:
     link = await payment_link_service.get_payment_link(db, link_id)
@@ -166,17 +146,3 @@ async def list_link_payments(
     return [InvoicePaymentResponse.model_validate(p) for p in payments]
 
 
-@router.post("/payments/webhook/paystack")
-async def paystack_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
-    raw_body = await request.body()
-    settings = get_settings()
-    if settings.paystack_secret_key:
-        signature = hmac.new(
-            settings.paystack_secret_key.encode(), raw_body, hashlib.sha512
-        ).hexdigest()
-        if signature != request.headers.get("x-paystack-signature", ""):
-            raise ApiError("Invalid signature")
-
-    body = json.loads(raw_body or b"{}")
-    await payment_link_service.handle_paystack_webhook(db, body.get("event"), body.get("data") or {})
-    return {"received": True}
