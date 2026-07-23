@@ -1,6 +1,16 @@
 from uuid import UUID
 
+from pydantic import field_validator
+
 from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalMoneyStr
+
+
+def _mask_account_number(v: str | None) -> str | None:
+    if not v:
+        return v
+    digits = "".join(c for c in v if c.isdigit())
+    last4 = digits[-4:] if len(digits) >= 4 else digits
+    return f"••••{last4}"
 
 
 class MerchantResponse(CamelModel):
@@ -24,7 +34,17 @@ class MerchantResponse(CamelModel):
     subscription_plan: str
     subscription_status: str
     subscription_expires_at: JsDateTime | None
+    bank_id: str | None
+    bank_name: str | None
+    account_holder: str | None
+    account_number: str | None
+    account_type: str | None
     created_at: JsDateTime
+
+    @field_validator("account_number", mode="before")
+    @classmethod
+    def _mask(cls, v: str | None) -> str | None:
+        return _mask_account_number(v)
 
 
 class CreateMerchantRequest(CamelModel):
@@ -41,6 +61,30 @@ class CreateMerchantRequest(CamelModel):
     subscription_plan: str | None = None
     is_active: bool | None = None
     daily_limit: str | None = None
+
+
+class UpdateMerchantRequest(CamelModel):
+    business_name: str | None = None
+    business_category: str | None = None
+    business_logo: str | None = None
+    business_email: str | None = None
+    business_phone: str | None = None
+    business_address: str | None = None
+    business_reg_number: str | None = None
+    vat_number: str | None = None
+    website: str | None = None
+
+
+class UpdateMerchantBankingRequest(CamelModel):
+    bank_id: str
+    account_holder: str
+    account_number: str
+    account_type: str = "savings"
+
+
+class BankOption(CamelModel):
+    id: str
+    name: str
 
 
 class MerchantTransactionResponse(CamelModel):
@@ -77,7 +121,7 @@ class MerchantPayResponse(CamelModel):
 class MerchantWithdrawRequest(CamelModel):
     amount: str
     currency: str | None = None
-    banking_details: dict
+    pin: str | None = None
 
 
 class MerchantWithdrawResponse(CamelModel):
@@ -86,6 +130,38 @@ class MerchantWithdrawResponse(CamelModel):
     new_balance: str
     amount: str
     currency: str
+    disbursement_id: str | None = None
+    status: str | None = None
+
+
+class MerchantStaffResponse(CamelModel):
+    id: UUID
+    merchant_id: UUID
+    user_id: UUID | None
+    name: str
+    role: str
+    status: str
+    invite_code: str | None = None
+    linked_at: JsDateTime | None
+    created_at: JsDateTime
+
+
+class InviteStaffRequest(CamelModel):
+    name: str
+    role: str = "cashier"
+
+
+class InviteStaffResponse(CamelModel):
+    staff: MerchantStaffResponse
+    invite_link: str
+
+
+class LinkStaffRequest(CamelModel):
+    invite_code: str
+
+
+class UpdateStaffRoleRequest(CamelModel):
+    role: str
 
 
 class MerchantSubscribeRequest(CamelModel):

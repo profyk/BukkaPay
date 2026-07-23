@@ -6,6 +6,8 @@ from app.db.base import Base
 from app.models.enums import (
     BillingLinkStatus,
     MerchantBusinessType,
+    MerchantStaffRole,
+    MerchantStaffStatus,
     MerchantTransactionStatus,
     MerchantTransactionType,
     SubscriptionPlan,
@@ -59,6 +61,44 @@ class Merchant(Base, TimestampMixin):
         default=SubscriptionStatus.ACTIVE,
     )
     subscription_expires_at: Mapped[OptionalTimestamp]
+
+    # Payout banking details — where the Stitch payment gateway sends money
+    # when this merchant withdraws. Set once from Settings, reused for
+    # every withdrawal instead of re-entering bank details each time.
+    bank_id: Mapped[str | None] = mapped_column(Text)
+    bank_name: Mapped[str | None] = mapped_column(Text)
+    account_holder: Mapped[str | None] = mapped_column(Text)
+    account_number: Mapped[str | None] = mapped_column(Text)
+    account_type: Mapped[str | None] = mapped_column(Text, default="savings")
+
+
+class MerchantStaff(Base, TimestampMixin):
+    """A staff member with scoped dashboard access to one merchant. Follows
+    the same invite-code-then-link pattern as rental Tenants: the owner
+    creates a row with a shareable code and no user_id yet, the staff
+    member (an existing BukkaPay user) redeems the code to link their own
+    account — no separate staff login system, no email delivery needed."""
+
+    __tablename__ = "merchant_staff"
+
+    id: Mapped[UUIDPk]
+    merchant_id: Mapped[UUIDFk] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("merchants.id", ondelete="CASCADE"), index=True
+    )
+    invite_code: Mapped[str] = mapped_column(Text, unique=True, index=True)
+    user_id: Mapped[UUIDFk | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    name: Mapped[str] = mapped_column(Text)
+    role: Mapped[MerchantStaffRole] = mapped_column(
+        Enum(MerchantStaffRole, name="merchant_staff_role", native_enum=True, values_callable=lambda x: [e.value for e in x]),
+        default=MerchantStaffRole.CASHIER,
+    )
+    status: Mapped[MerchantStaffStatus] = mapped_column(
+        Enum(MerchantStaffStatus, name="merchant_staff_status", native_enum=True, values_callable=lambda x: [e.value for e in x]),
+        default=MerchantStaffStatus.PENDING,
+    )
+    linked_at: Mapped[OptionalTimestamp]
 
 
 class MerchantTransaction(Base, CreatedOnlyMixin):

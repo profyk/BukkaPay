@@ -12,6 +12,7 @@ import QRCode from "react-native-qrcode-svg";
 import { API_BASE, APP_URL } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
+import PinPrompt from "../components/PinPrompt";
 
 const logoImage = require("../assets/logo.png");
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -23,11 +24,17 @@ interface Merchant {
   businessName: string;
   businessType: string;
   businessCategory?: string;
+  businessLogo?: string;
   qrCode: string;
   paymentLink: string;
   walletBalance: string;
   isActive: boolean;
   dailyLimit: string;
+  bankId?: string;
+  bankName?: string;
+  accountHolder?: string;
+  accountNumber?: string;
+  accountType?: string;
   createdAt: string;
 }
 
@@ -80,84 +87,6 @@ interface PaymentLink {
 
 type TabKey = "overview" | "transactions" | "customers";
 
-// ─── Country / Banking Config ─────────────────────────────────────────────────
-
-interface CountryBankConfig {
-  flag: string;
-  name: string;
-  currency: string;
-  fields: ("bank_name" | "branch_code" | "sort_code" | "routing_number" | "iban" | "bic" | "bank_code" | "mpesa")[];
-  accountNumberLabel: string;
-  accountNumberPlaceholder: string;
-  extraLabel?: Record<string, string>;
-}
-
-const COUNTRY_BANK_CONFIG: Record<string, CountryBankConfig> = {
-  ZA: {
-    flag: "🇿🇦", name: "South Africa", currency: "ZAR",
-    fields: ["bank_name", "branch_code"],
-    accountNumberLabel: "Account Number",
-    accountNumberPlaceholder: "e.g. 1234567890",
-    extraLabel: { branch_code: "Branch Code (6 digits)" },
-  },
-  NG: {
-    flag: "🇳🇬", name: "Nigeria", currency: "NGN",
-    fields: ["bank_name", "bank_code"],
-    accountNumberLabel: "Account Number (NUBAN)",
-    accountNumberPlaceholder: "10-digit NUBAN",
-    extraLabel: { bank_code: "Bank Code (3 digits)" },
-  },
-  KE: {
-    flag: "🇰🇪", name: "Kenya", currency: "KES",
-    fields: ["bank_name", "branch_code"],
-    accountNumberLabel: "Account Number",
-    accountNumberPlaceholder: "e.g. 0123456789",
-    extraLabel: { branch_code: "Branch Code" },
-  },
-  GH: {
-    flag: "🇬🇭", name: "Ghana", currency: "GHS",
-    fields: ["bank_name", "branch_code"],
-    accountNumberLabel: "Account Number",
-    accountNumberPlaceholder: "e.g. 0123456789",
-    extraLabel: { branch_code: "Branch Code" },
-  },
-  ZW: {
-    flag: "🇿🇼", name: "Zimbabwe", currency: "USD",
-    fields: ["bank_name", "branch_code"],
-    accountNumberLabel: "Account Number",
-    accountNumberPlaceholder: "e.g. 0123456789",
-    extraLabel: { branch_code: "Branch Code" },
-  },
-  GB: {
-    flag: "🇬🇧", name: "United Kingdom", currency: "GBP",
-    fields: ["sort_code"],
-    accountNumberLabel: "Account Number",
-    accountNumberPlaceholder: "8 digits, e.g. 12345678",
-    extraLabel: { sort_code: "Sort Code (xx-xx-xx)" },
-  },
-  US: {
-    flag: "🇺🇸", name: "United States", currency: "USD",
-    fields: ["bank_name", "routing_number"],
-    accountNumberLabel: "Account Number",
-    accountNumberPlaceholder: "e.g. 000123456789",
-    extraLabel: { routing_number: "Routing Number (9 digits)" },
-  },
-  EU: {
-    flag: "🇪🇺", name: "Europe (SEPA)", currency: "EUR",
-    fields: ["iban", "bic"],
-    accountNumberLabel: "Account Number (optional if IBAN provided)",
-    accountNumberPlaceholder: "Leave blank if IBAN provided",
-    extraLabel: { iban: "IBAN", bic: "BIC / SWIFT Code" },
-  },
-  OTHER: {
-    flag: "🌍", name: "Other Country", currency: "USD",
-    fields: ["bank_name", "bic", "iban"],
-    accountNumberLabel: "Account Number",
-    accountNumberPlaceholder: "Your bank account number",
-    extraLabel: { bic: "SWIFT / BIC Code", iban: "IBAN (if applicable)" },
-  },
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCurrency(val: number, symbol = "$") {
@@ -207,23 +136,15 @@ export default function MerchantDashboard() {
   const [genLoading, setGenLoading] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<{ id: string; url: string; amount: string; currency: string; description: string } | null>(null);
 
-  // Withdraw state
+  // Withdraw state — banking details come from Settings (see
+  // merchant-settings.tsx), not re-entered here; the PIN prompt is the
+  // confirmation step, matching every other money-moving flow in the app.
   const [showWithdraw, setShowWithdraw] = useState(false);
-  const [withdrawStep, setWithdrawStep] = useState<"form" | "confirm" | "success">("form");
-  const wCountry = "ZA";
-  const [wBankName, setWBankName] = useState("");
-  const [wAccountHolder, setWAccountHolder] = useState("");
-  const [wAccountNumber, setWAccountNumber] = useState("");
-  const [wBranchCode, setWBranchCode] = useState("");
-  const [wSortCode, setWSortCode] = useState("");
-  const [wRoutingNumber, setWRoutingNumber] = useState("");
-  const [wIban, setWIban] = useState("");
-  const [wBic, setWBic] = useState("");
-  const [wBankCode, setWBankCode] = useState("");
-  const [wAccountType, setWAccountType] = useState<"current" | "savings" | "checking">("current");
+  const [withdrawStep, setWithdrawStep] = useState<"form" | "success">("form");
   const [wAmount, setWAmount] = useState("");
-  const [wReference, setWReference] = useState("");
   const [wLoading, setWLoading] = useState(false);
+  const [showWithdrawPin, setShowWithdrawPin] = useState(false);
+  const [withdrawResult, setWithdrawResult] = useState<{ disbursementId?: string; status?: string } | null>(null);
 
   // ─── Data Queries ──────────────────────────────────────────────────────────
 
@@ -353,43 +274,33 @@ export default function MerchantDashboard() {
     finally { setGenLoading(false); }
   };
 
-  const submitWithdrawal = async () => {
+  const submitWithdrawal = async (pin: string) => {
     setWLoading(true);
     try {
       const headers = await getAuthHeader();
-      const bankingDetails: any = {
-        country: wCountry, accountHolder: wAccountHolder,
-        accountNumber: wAccountNumber, accountType: wAccountType,
-        bankName: wBankName, reference: wReference,
-      };
-      const cfg = COUNTRY_BANK_CONFIG[wCountry];
-      if (cfg.fields.includes("branch_code")) bankingDetails.branchCode = wBranchCode;
-      if (cfg.fields.includes("sort_code")) bankingDetails.sortCode = wSortCode;
-      if (cfg.fields.includes("routing_number")) bankingDetails.routingNumber = wRoutingNumber;
-      if (cfg.fields.includes("iban")) bankingDetails.iban = wIban;
-      if (cfg.fields.includes("bic")) bankingDetails.bic = wBic;
-      if (cfg.fields.includes("bank_code")) bankingDetails.bankCode = wBankCode;
-
       const res = await fetch(`${API_BASE}/api/merchants/${selectedMerchant?.id}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ amount: wAmount, currency: "ZAR", merchantId: selectedMerchant?.id, bankingDetails }),
+        body: JSON.stringify({ amount: wAmount, currency: "ZAR", pin }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Withdrawal request failed. Please try again.");
       }
+      const data = await res.json();
+      setWithdrawResult({ disbursementId: data.disbursementId, status: data.status });
+      setShowWithdrawPin(false);
       setWithdrawStep("success");
       queryClient.invalidateQueries({ queryKey: ["/api/merchants"] });
-    } catch (e: any) { Alert.alert("Withdrawal Error", e.message); }
-    finally { setWLoading(false); }
+    } catch (e: any) {
+      throw e; // surfaced inline by PinPrompt
+    } finally {
+      setWLoading(false);
+    }
   };
 
   const resetWithdraw = () => {
-    setWithdrawStep("form"); setWBankName(""); setWAccountHolder("");
-    setWAccountNumber(""); setWBranchCode(""); setWSortCode("");
-    setWRoutingNumber(""); setWIban(""); setWBic(""); setWBankCode("");
-    setWAmount(""); setWReference("");
+    setWithdrawStep("form"); setWAmount(""); setWithdrawResult(null);
   };
 
   const deleteBusiness = (merchant: Merchant) => {
@@ -533,6 +444,27 @@ export default function MerchantDashboard() {
                 <Ionicons name="receipt" size={22} color="#F59E0B" />
               </View>
               <Text style={styles.qaLabel}>Billing</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.qaBtn} onPress={() => router.push("/(screens)/merchant-qr-slip" as any)}>
+              <View style={[styles.qaIcon, { backgroundColor: "rgba(16,185,129,0.15)" }]}>
+                <Ionicons name="print" size={22} color="#10B981" />
+              </View>
+              <Text style={styles.qaLabel}>Print Slip</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.qaBtn} onPress={() => router.push("/(screens)/merchant-staff" as any)}>
+              <View style={[styles.qaIcon, { backgroundColor: "rgba(59,130,246,0.15)" }]}>
+                <Ionicons name="people" size={22} color="#3B82F6" />
+              </View>
+              <Text style={styles.qaLabel}>Staff</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.qaBtn} onPress={() => router.push("/(screens)/merchant-settings" as any)}>
+              <View style={[styles.qaIcon, { backgroundColor: "rgba(107,114,128,0.12)" }]}>
+                <Ionicons name="settings" size={22} color="#6B7280" />
+              </View>
+              <Text style={styles.qaLabel}>Settings</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -845,169 +777,56 @@ export default function MerchantDashboard() {
 
   // ─── Withdraw Modal Content ────────────────────────────────────────────────
 
-  const bankCfg = COUNTRY_BANK_CONFIG[wCountry];
+  const hasBankingDetails = !!(selectedMerchant?.bankId && selectedMerchant?.accountNumber);
 
   const renderWithdrawForm = () => (
     <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <Text style={[styles.withdrawSubtitle, { color: colors.textSecondary }]}>
-        Funds will be transferred from your merchant wallet to your bank account within 1–3 business days.
+        Funds are paid out via Stitch straight to your saved bank account, usually within 1–2 business days.
       </Text>
 
-      {/* Amount */}
-      <Text style={[styles.wLabel, { color: colors.textSecondary }]}>Withdrawal Amount *</Text>
-      <TextInput
-        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-        value={wAmount} onChangeText={setWAmount}
-        placeholder="0.00 ZAR" keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
-      />
-      <Text style={styles.wBalanceHint}>Available: {sym}{balance.toFixed(2)}</Text>
-
-      {/* Country (South Africa only, for now) */}
-      <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Country</Text>
-      <View style={[styles.wCountryBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
-        <Text style={[styles.wCountryBtnText, { color: colors.text }]}>{bankCfg.flag} {bankCfg.name}</Text>
-      </View>
-
-      {/* Account Holder */}
-      <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Account Holder Name *</Text>
-      <TextInput
-        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-        value={wAccountHolder} onChangeText={setWAccountHolder}
-        placeholder="Full name as on bank account" placeholderTextColor={colors.textMuted}
-      />
-
-      {/* Bank Name (conditional) */}
-      {bankCfg.fields.includes("bank_name") && (
-        <>
-          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>Bank Name *</Text>
-          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBankName} onChangeText={setWBankName} placeholder="e.g. Standard Bank, FNB, GTBank" placeholderTextColor={colors.textMuted} />
-        </>
-      )}
-
-      {/* Account Number */}
-      <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.accountNumberLabel} *</Text>
-      <TextInput
-        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-        value={wAccountNumber} onChangeText={setWAccountNumber}
-        placeholder={bankCfg.accountNumberPlaceholder} keyboardType="default" placeholderTextColor={colors.textMuted}
-      />
-
-      {/* Country-specific fields */}
-      {bankCfg.fields.includes("branch_code") && (
-        <>
-          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.branch_code ?? "Branch Code"} *</Text>
-          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBranchCode} onChangeText={setWBranchCode} placeholder="e.g. 051001" keyboardType="number-pad" placeholderTextColor={colors.textMuted} />
-        </>
-      )}
-      {bankCfg.fields.includes("sort_code") && (
-        <>
-          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.sort_code ?? "Sort Code"} *</Text>
-          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wSortCode} onChangeText={setWSortCode} placeholder="xx-xx-xx" placeholderTextColor={colors.textMuted} />
-        </>
-      )}
-      {bankCfg.fields.includes("routing_number") && (
-        <>
-          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.routing_number ?? "Routing Number"} *</Text>
-          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wRoutingNumber} onChangeText={setWRoutingNumber} placeholder="9-digit ABA routing number" keyboardType="number-pad" placeholderTextColor={colors.textMuted} />
-        </>
-      )}
-      {bankCfg.fields.includes("iban") && (
-        <>
-          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.iban ?? "IBAN"}</Text>
-          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wIban} onChangeText={setWIban} placeholder="e.g. GB29 NWBK 6016 1331 9268 19" placeholderTextColor={colors.textMuted} autoCapitalize="characters" />
-        </>
-      )}
-      {bankCfg.fields.includes("bic") && (
-        <>
-          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.bic ?? "BIC / SWIFT"}</Text>
-          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBic} onChangeText={setWBic} placeholder="e.g. HBUKGB4B" placeholderTextColor={colors.textMuted} autoCapitalize="characters" />
-        </>
-      )}
-      {bankCfg.fields.includes("bank_code") && (
-        <>
-          <Text style={[styles.wLabel, { color: colors.textSecondary }]}>{bankCfg.extraLabel?.bank_code ?? "Bank Code"}</Text>
-          <TextInput style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} value={wBankCode} onChangeText={setWBankCode} placeholder="3-digit bank code" keyboardType="number-pad" placeholderTextColor={colors.textMuted} />
-        </>
-      )}
-
-      {/* Account Type */}
-      <Text style={[styles.wLabel, { marginTop: 4, color: colors.textSecondary }]}>Account Type</Text>
-      <View style={styles.accountTypeRow}>
-        {(["current", "savings", "checking"] as const).map(t => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.accountTypeBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }, wAccountType === t && styles.accountTypeBtnActive]}
-            onPress={() => setWAccountType(t)}
-          >
-            <Text style={[styles.accountTypeBtnText, { color: colors.textSecondary }, wAccountType === t && styles.accountTypeBtnTextActive]}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Reference */}
-      <Text style={[styles.wLabel, { marginTop: 8, color: colors.textSecondary }]}>Reference / Note (optional)</Text>
-      <TextInput
-        style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-        value={wReference} onChangeText={setWReference}
-        placeholder="e.g. Business withdrawal March 2026" placeholderTextColor={colors.textMuted}
-      />
-
-      <TouchableOpacity
-        style={[styles.wSubmitBtn, (!wAmount || !wAccountHolder || !wAccountNumber) && { opacity: 0.45 }]}
-        onPress={() => setWithdrawStep("confirm")}
-        disabled={!wAmount || !wAccountHolder || !wAccountNumber}
-      >
-        <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
-        <Text style={styles.wSubmitBtnText}>Review Withdrawal</Text>
-      </TouchableOpacity>
-      <View style={{ height: 40 }} />
-    </ScrollView>
-  );
-
-  const renderWithdrawConfirm = () => (
-    <ScrollView showsVerticalScrollIndicator={false}>
-      <View style={styles.confirmCard}>
-        <Ionicons name="alert-circle" size={36} color="#F59E0B" style={{ alignSelf: "center", marginBottom: 10 }} />
-        <Text style={styles.confirmTitle}>Confirm Withdrawal</Text>
-        <Text style={styles.confirmSubtitle}>Please review the details carefully before submitting.</Text>
-      </View>
-
-      {[
-        { label: "Amount", value: `ZAR ${parseFloat(wAmount || "0").toFixed(2)}`, highlight: true },
-        { label: "Account Holder", value: wAccountHolder },
-        { label: "Country", value: `${bankCfg.flag} ${bankCfg.name}` },
-        ...(wBankName ? [{ label: "Bank", value: wBankName }] : []),
-        { label: "Account Number", value: wAccountNumber },
-        ...(wBranchCode ? [{ label: "Branch Code", value: wBranchCode }] : []),
-        ...(wSortCode ? [{ label: "Sort Code", value: wSortCode }] : []),
-        ...(wRoutingNumber ? [{ label: "Routing Number", value: wRoutingNumber }] : []),
-        ...(wIban ? [{ label: "IBAN", value: wIban }] : []),
-        ...(wBic ? [{ label: "BIC/SWIFT", value: wBic }] : []),
-        { label: "Account Type", value: wAccountType.charAt(0).toUpperCase() + wAccountType.slice(1) },
-        ...(wReference ? [{ label: "Reference", value: wReference }] : []),
-      ].map((row, i) => (
-        <View key={i} style={[styles.confirmRow, { borderBottomColor: colors.divider }]}>
-          <Text style={[styles.confirmRowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
-          <Text style={[styles.confirmRowValue, { color: colors.text }, (row as any).highlight && { color: "#10B981", fontWeight: "800", fontSize: 17 }]}>
-            {row.value}
+      {!hasBankingDetails ? (
+        <View style={[styles.confirmCard, { alignItems: "center" }]}>
+          <Ionicons name="alert-circle" size={32} color="#F59E0B" />
+          <Text style={[styles.confirmTitle, { marginTop: 8 }]}>No banking details yet</Text>
+          <Text style={[styles.confirmSubtitle, { textAlign: "center" }]}>
+            Add your business bank account in Settings before you can withdraw.
           </Text>
+          <TouchableOpacity
+            style={[styles.wSubmitBtn, { marginTop: 16 }]}
+            onPress={() => { setShowWithdraw(false); router.push("/(screens)/merchant-settings" as any); }}
+          >
+            <Ionicons name="settings-outline" size={18} color="#fff" />
+            <Text style={styles.wSubmitBtnText}>Go to Settings</Text>
+          </TouchableOpacity>
         </View>
-      ))}
+      ) : (
+        <>
+          <View style={[styles.confirmRow, { borderBottomColor: colors.divider }]}>
+            <Text style={[styles.confirmRowLabel, { color: colors.textSecondary }]}>Payout to</Text>
+            <Text style={[styles.confirmRowValue, { color: colors.text }]}>
+              {selectedMerchant?.bankName} ••••{(selectedMerchant?.accountNumber || "").replace(/\D/g, "").slice(-4)}
+            </Text>
+          </View>
 
-      <View style={styles.confirmNote}>
-        <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-        <Text style={[styles.confirmNoteText, { color: colors.textSecondary }]}>Funds arrive within 1–3 business days.</Text>
-      </View>
+          <Text style={[styles.wLabel, { marginTop: 14, color: colors.textSecondary }]}>Withdrawal Amount *</Text>
+          <TextInput
+            style={[styles.wInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+            value={wAmount} onChangeText={setWAmount}
+            placeholder="0.00 ZAR" keyboardType="decimal-pad" placeholderTextColor={colors.textMuted}
+          />
+          <Text style={styles.wBalanceHint}>Available: {sym}{balance.toFixed(2)}</Text>
 
-      <TouchableOpacity style={styles.wSubmitBtn} onPress={submitWithdrawal} disabled={wLoading}>
-        {wLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-circle" size={20} color="#fff" />}
-        <Text style={styles.wSubmitBtnText}>{wLoading ? "Submitting…" : "Submit Withdrawal"}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.wBackBtn} onPress={() => setWithdrawStep("form")}>
-        <Text style={styles.wBackBtnText}>← Go Back & Edit</Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.wSubmitBtn, { marginTop: 20 }, (!wAmount || parseFloat(wAmount) <= 0) && { opacity: 0.45 }]}
+            onPress={() => setShowWithdrawPin(true)}
+            disabled={!wAmount || parseFloat(wAmount) <= 0}
+          >
+            <Ionicons name="lock-closed" size={18} color="#fff" />
+            <Text style={styles.wSubmitBtnText}>Confirm with PIN</Text>
+          </TouchableOpacity>
+        </>
+      )}
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -1019,20 +838,18 @@ export default function MerchantDashboard() {
       </View>
       <Text style={[styles.successTitle, { color: colors.text }]}>Withdrawal Submitted!</Text>
       <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
-        Your withdrawal of ZAR {parseFloat(wAmount || "0").toFixed(2)} to {wAccountHolder} has been received.
-        Funds arrive within 1–3 business days.
+        Your withdrawal of ZAR {parseFloat(wAmount || "0").toFixed(2)} to {selectedMerchant?.bankName} has been submitted.
+        Funds typically arrive within 1–2 business days.
       </Text>
-      <View style={[styles.successRefBox, { backgroundColor: colors.inputBg }]}>
-        <Text style={[styles.successRefLabel, { color: colors.textMuted }]}>To Account</Text>
-        <Text style={[styles.successRefValue, { color: colors.text }]}>{wAccountNumber}</Text>
-        {wBankName && <Text style={[styles.successRefMeta, { color: colors.textSecondary }]}>{wBankName}</Text>}
-      </View>
+      {withdrawResult?.disbursementId && (
+        <View style={[styles.successRefBox, { backgroundColor: colors.inputBg }]}>
+          <Text style={[styles.successRefLabel, { color: colors.textMuted }]}>Reference</Text>
+          <Text style={[styles.successRefValue, { color: colors.text }]}>{withdrawResult.disbursementId}</Text>
+        </View>
+      )}
       <TouchableOpacity style={styles.wSubmitBtn} onPress={() => { setShowWithdraw(false); resetWithdraw(); }}>
         <Ionicons name="checkmark" size={18} color="#fff" />
         <Text style={styles.wSubmitBtnText}>Done</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.wBackBtn} onPress={() => { resetWithdraw(); }}>
-        <Text style={styles.wBackBtnText}>Make Another Withdrawal</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1242,7 +1059,7 @@ export default function MerchantDashboard() {
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeaderRow}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {withdrawStep === "form" ? "Withdraw Funds" : withdrawStep === "confirm" ? "Confirm Details" : "Withdrawal Sent"}
+                {withdrawStep === "form" ? "Withdraw Funds" : "Withdrawal Sent"}
               </Text>
               {withdrawStep !== "success" && (
                 <TouchableOpacity onPress={() => setShowWithdraw(false)}>
@@ -1251,11 +1068,18 @@ export default function MerchantDashboard() {
               )}
             </View>
             {withdrawStep === "form" && renderWithdrawForm()}
-            {withdrawStep === "confirm" && renderWithdrawConfirm()}
             {withdrawStep === "success" && renderWithdrawSuccess()}
           </View>
         </View>
       </Modal>
+
+      <PinPrompt
+        visible={showWithdrawPin}
+        title="Confirm Withdrawal"
+        subtitle={`Enter your PIN to withdraw ${sym}${parseFloat(wAmount || "0").toFixed(2)}`}
+        onCancel={() => setShowWithdrawPin(false)}
+        onSubmit={submitWithdrawal}
+      />
     </View>
   );
 }

@@ -15,10 +15,10 @@ const businessTypes = [
   { id: "sme", label: "SME / Registered business", icon: "business" as const },
   { id: "tuckshop", label: "Tuckshop / Food stall", icon: "storefront" as const },
   { id: "street_vendor", label: "Street vendor / Informal trader", icon: "bag-handle" as const },
-  { id: "taxi", label: "Taxi / Transport", icon: "car" as const },
-  { id: "service", label: "Service provider", icon: "briefcase" as const },
+  { id: "logistics", label: "Logistics / Transport", icon: "car" as const },
+  { id: "services", label: "Service provider", icon: "briefcase" as const },
   { id: "online", label: "Online seller", icon: "cube" as const },
-  { id: "property", label: "Property / Rent collection", icon: "home" as const },
+  { id: "rental", label: "Property / Rent collection", icon: "home" as const },
   { id: "school", label: "School / Organisation", icon: "school" as const },
   { id: "utility", label: "Municipality / Utility", icon: "water" as const },
   { id: "other", label: "Other", icon: "storefront" as const },
@@ -207,7 +207,7 @@ export default function BecomeMerchant() {
         <TouchableOpacity onPress={() => {
           const prev: Record<Step, Step | null> = {
             intro: null, type: "intro", property_sub: "type",
-            details: selectedType === "property" ? "property_sub" : "type",
+            details: selectedType === "rental" ? "property_sub" : "type",
             plan: "details", review: "plan",
           };
           const p = prev[step];
@@ -290,7 +290,7 @@ export default function BecomeMerchant() {
               style={[s.primaryBtn, { marginTop: 24, opacity: selectedType ? 1 : 0.45 }]}
               disabled={!selectedType}
               onPress={() => {
-                if (selectedType === "property") setStep("property_sub");
+                if (selectedType === "rental") setStep("property_sub");
                 else setStep("details");
               }}
             >

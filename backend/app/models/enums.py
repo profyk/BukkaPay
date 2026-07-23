@@ -56,6 +56,24 @@ class MerchantBusinessType(StrEnum):
     SERVICES = "services"
     RENTAL = "rental"
     OTHER = "other"
+    SME = "sme"
+    TUCKSHOP = "tuckshop"
+    STREET_VENDOR = "street_vendor"
+    LOGISTICS = "logistics"
+    ONLINE = "online"
+    SCHOOL = "school"
+    UTILITY = "utility"
+
+
+class MerchantStaffRole(StrEnum):
+    MANAGER = "manager"
+    CASHIER = "cashier"
+
+
+class MerchantStaffStatus(StrEnum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    REMOVED = "removed"
 
 
 class MerchantTransactionType(StrEnum):

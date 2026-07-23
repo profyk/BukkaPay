@@ -8,7 +8,7 @@ from app.models.contribution import Contribution, ContributionGroup
 from app.models.dormant import ChatMessage, FamilyMember, SecuritySetting
 from app.models.gamification import Achievement, Challenge
 from app.models.loyalty import AutoPay, Beneficiary, LoyaltyReward
-from app.models.merchant import BillingLink, Merchant, MerchantSubscription, MerchantTransaction
+from app.models.merchant import BillingLink, Merchant, MerchantStaff, MerchantSubscription, MerchantTransaction
 from app.models.misc import Contact, PaymentRequest, PurchaseTransaction
 from app.models.notification import Notification
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
@@ -35,6 +35,7 @@ __all__ = [
     "LoyaltyReward",
     "BillingLink",
     "Merchant",
+    "MerchantStaff",
     "MerchantSubscription",
     "MerchantTransaction",
     "Contact",

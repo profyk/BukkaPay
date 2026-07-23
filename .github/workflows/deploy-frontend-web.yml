@@ -45,6 +45,7 @@ jobs:
           cp ".vercel/output/static/pay-rent/[linkCode].html" ".vercel/output/static/pay-rent/_dynamic.html"
           cp ".vercel/output/static/claim/[id].html" ".vercel/output/static/claim/_dynamic.html"
           cp ".vercel/output/static/merchant-pay/[paymentLink].html" ".vercel/output/static/merchant-pay/_dynamic.html"
+          cp ".vercel/output/static/staff-invite/[code].html" ".vercel/output/static/staff-invite/_dynamic.html"
 
           cat > .vercel/output/config.json << 'EOF'
           {
@@ -55,6 +56,7 @@ jobs:
               { "src": "^/pay-rent/[^/]+$", "dest": "/pay-rent/_dynamic", "check": true },
               { "src": "^/claim/[^/]+$", "dest": "/claim/_dynamic", "check": true },
               { "src": "^/merchant-pay/[^/]+$", "dest": "/merchant-pay/_dynamic", "check": true },
+              { "src": "^/staff-invite/[^/]+$", "dest": "/staff-invite/_dynamic", "check": true },
               { "src": "/(.*)", "dest": "/" }
             ]
           }
