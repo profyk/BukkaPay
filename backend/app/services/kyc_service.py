@@ -8,7 +8,8 @@ from app.models.user import User
 
 
 async def submit_kyc(
-    db: AsyncSession, user: User, *, full_name: str, document_type: str, document_number: str
+    db: AsyncSession, user: User, *, full_name: str, document_type: str, document_number: str,
+    photo_url: str | None = None,
 ) -> User:
     if not full_name.strip():
         raise ApiError("Full legal name is required")
@@ -26,5 +27,10 @@ async def submit_kyc(
     user.kyc_submitted_at = datetime.now(UTC)
     user.kyc_reviewed_at = None
     user.kyc_rejection_reason = None
+    # The KYC selfie becomes the profile avatar right away rather than
+    # waiting on approval — it's the one real photo of the user BukkaPay
+    # ever has, versus whatever generic placeholder was there before.
+    if photo_url:
+        user.avatar = photo_url
     await db.flush()
     return user

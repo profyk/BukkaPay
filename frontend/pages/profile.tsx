@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Switch, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Switch, ActivityIndicator, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -161,6 +161,9 @@ export default function Profile() {
     return avatarOptions.find((a) => a.id === avatarId)?.color;
   };
 
+  const isPhotoAvatar = (avatar: string | null | undefined) =>
+    !!avatar && (avatar.startsWith("data:") || avatar.startsWith("http"));
+
   const handleLanguageSelect = async (code: string) => {
     setSelectedLanguage(code);
     await AsyncStorage.setItem("app_language", code);
@@ -317,10 +320,14 @@ export default function Profile() {
         <View style={styles.profileTop}>
           <View style={styles.profileInfo}>
             <TouchableOpacity
-              style={[styles.avatarCircle, { backgroundColor: getAvatarColor(user.avatar) || "rgba(255,255,255,0.2)" }]}
+              style={[styles.avatarCircle, { backgroundColor: isPhotoAvatar(user.avatar) ? "transparent" : (getAvatarColor(user.avatar) || "rgba(255,255,255,0.2)") }]}
               onPress={() => setShowAvatarModal(true)}
             >
-              <Ionicons name="person" size={28} color="#FFFFFF" />
+              {isPhotoAvatar(user.avatar) ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarPhoto} />
+              ) : (
+                <Ionicons name="person" size={28} color="#FFFFFF" />
+              )}
               <View style={styles.avatarEditBadge}>
                 <Ionicons name="create" size={10} color="#6B7280" />
               </View>
@@ -664,6 +671,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.3)",
+    overflow: "hidden",
+  },
+  avatarPhoto: {
+    width: "100%",
+    height: "100%",
   },
   avatarEditBadge: {
     position: "absolute",

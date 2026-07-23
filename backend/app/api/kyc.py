@@ -15,7 +15,8 @@ async def submit_kyc(
     body: KycSubmitRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> KycStatusResponse:
     updated = await kyc_service.submit_kyc(
-        db, user, full_name=body.full_name, document_type=body.document_type, document_number=body.document_number
+        db, user, full_name=body.full_name, document_type=body.document_type, document_number=body.document_number,
+        photo_url=body.photo_url,
     )
     return KycStatusResponse.model_validate(updated)
 

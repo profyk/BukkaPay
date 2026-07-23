@@ -5,6 +5,7 @@ class KycSubmitRequest(CamelModel):
     full_name: str
     document_type: str
     document_number: str
+    photo_url: str | None = None
 
 
 class KycStatusResponse(CamelModel):

@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Image, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import { useToast } from "../hooks/use-toast";
-import { getCurrentUser } from "../lib/auth";
+import { getCurrentUser, getAuthHeader } from "../lib/auth";
 import { submitKyc } from "../lib/api";
+import { API_BASE } from "../lib/config";
 import { useTheme } from "../lib/ThemeContext";
 
 const DOCUMENT_TYPES: { value: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -23,6 +25,9 @@ export default function KycVerification() {
   const [documentType, setDocumentType] = useState("national_id");
   const [documentNumber, setDocumentNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photoMime, setPhotoMime] = useState("image/jpeg");
 
   useEffect(() => {
     (async () => {
@@ -31,6 +36,45 @@ export default function KycVerification() {
     })();
   }, []);
 
+  const takeSelfie = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      toast({ title: "Permission needed", description: "Please allow camera access to take a verification selfie." });
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      cameraType: ImagePicker.CameraType.front,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setPhotoUri(asset.uri);
+      if (asset.base64) {
+        setPhotoBase64(asset.base64);
+        setPhotoMime(asset.mimeType || "image/jpeg");
+      }
+    }
+  };
+
+  const uploadSelfie = async (): Promise<string | null> => {
+    if (!photoBase64) return null;
+    try {
+      const res = await fetch(`${API_BASE}/api/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+        body: JSON.stringify({ base64: photoBase64, mimeType: photoMime, filename: "kyc-selfie.jpg" }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.url ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!fullName.trim() || !documentNumber.trim()) {
       toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
@@ -38,7 +82,9 @@ export default function KycVerification() {
     }
     setSubmitting(true);
     try {
-      await submitKyc(fullName.trim(), documentType, documentNumber.trim());
+      let photoUrl: string | null = null;
+      if (photoBase64) photoUrl = await uploadSelfie();
+      await submitKyc(fullName.trim(), documentType, documentNumber.trim(), photoUrl);
       toast({ title: "Verification submitted", description: "We'll review your details shortly." });
       router.replace((returnTo || "/(tabs)") as any);
     } catch (error: any) {
@@ -62,6 +108,26 @@ export default function KycVerification() {
         </Text>
 
         <View style={styles.form}>
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { color: colors.text }]}>Verification Selfie</Text>
+            <TouchableOpacity style={[styles.selfieBox, { borderColor: colors.border, backgroundColor: colors.inputBg }]} onPress={takeSelfie}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.selfiePreview} />
+              ) : (
+                <View style={{ alignItems: "center", gap: 6 }}>
+                  <Ionicons name="camera" size={26} color={colors.primary} />
+                  <Text style={[styles.selfieHint, { color: colors.textMuted }]}>Tap to take a selfie</Text>
+                </View>
+              )}
+              {photoUri && (
+                <View style={[styles.selfieEditBadge, { backgroundColor: colors.primary }]}>
+                  <Ionicons name="pencil" size={12} color="#fff" />
+                </View>
+              )}
+            </TouchableOpacity>
+            <Text style={[styles.selfieSub, { color: colors.textMuted }]}>This becomes your BukkaPay profile picture.</Text>
+          </View>
+
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { color: colors.text }]}>Full Legal Name</Text>
             <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
@@ -151,6 +217,17 @@ const styles = StyleSheet.create({
   subtitle: { textAlign: "center", color: "#6B7280", fontSize: 13, lineHeight: 20, marginBottom: 28 },
   form: { gap: 12 },
   fieldGroup: { marginBottom: 4 },
+  selfieBox: {
+    alignSelf: "center", width: 120, height: 120, borderRadius: 60,
+    borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center",
+    overflow: "hidden", position: "relative",
+  },
+  selfiePreview: { width: "100%", height: "100%" },
+  selfieHint: { fontSize: 11, fontWeight: "600", textAlign: "center", paddingHorizontal: 8 },
+  selfieEditBadge: {
+    position: "absolute", bottom: 4, right: 4, borderRadius: 10, padding: 4,
+  },
+  selfieSub: { fontSize: 11, textAlign: "center", marginTop: 8 },
   label: { fontSize: 14, fontWeight: "500", color: "#1A1A2E", marginBottom: 8 },
   inputContainer: {
     flexDirection: "row", alignItems: "center",

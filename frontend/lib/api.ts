@@ -171,11 +171,11 @@ export async function receivePayment(fromUserId: string, toWalletId: string, amo
   return res.json();
 }
 
-export async function submitKyc(fullName: string, documentType: string, documentNumber: string) {
+export async function submitKyc(fullName: string, documentType: string, documentNumber: string, photoUrl?: string | null) {
   const res = await fetch(API_BASE + "/api/kyc/submit", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ fullName, documentType, documentNumber }),
+    body: JSON.stringify({ fullName, documentType, documentNumber, photoUrl: photoUrl || undefined }),
   });
   if (!res.ok) {
     const error = await res.json();
