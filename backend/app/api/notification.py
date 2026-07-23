@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
 from app.db.deps import get_db
-from app.schemas.notification import NotificationResponse
+from app.schemas.notification import NotificationResponse, UnreadCountResponse
 from app.services import notification_crud_service as svc
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -15,6 +15,14 @@ async def list_notifications(
 ) -> list[NotificationResponse]:
     notifications = await svc.get_notifications(db, user_id)
     return [NotificationResponse.model_validate(n) for n in notifications]
+
+
+@router.get("/unread-count")
+async def unread_count(
+    user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+) -> UnreadCountResponse:
+    count = await svc.get_unread_count(db, user_id)
+    return UnreadCountResponse.model_validate({"count": count})
 
 
 @router.patch("/{notification_id}/read")

@@ -5,7 +5,7 @@ notification_service.py — this is a separate module to avoid collision.
 
 import uuid
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
@@ -21,6 +21,14 @@ async def get_notifications(db: AsyncSession, user_id: uuid.UUID) -> list[Notifi
         .limit(MAX_NOTIFICATIONS_PAGE_SIZE)
     )
     return list(result.scalars().all())
+
+
+async def get_unread_count(db: AsyncSession, user_id: uuid.UUID) -> int:
+    result = await db.execute(
+        select(func.count()).select_from(Notification)
+        .where(Notification.user_id == user_id, Notification.read.is_(False))
+    )
+    return result.scalar_one()
 
 
 async def mark_read(db: AsyncSession, notification_id: str, user_id: uuid.UUID) -> None:

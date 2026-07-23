@@ -15,6 +15,10 @@ class NotificationResponse(CamelModel):
     created_at: JsDateTime
 
 
+class UnreadCountResponse(CamelModel):
+    count: int
+
+
 class UploadRequest(CamelModel):
     base64: str
     mime_type: str

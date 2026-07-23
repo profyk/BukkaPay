@@ -2,7 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { View, Text, TouchableOpacity, Image, StyleSheet, Modal, Pressable, Platform, StatusBar } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { logout, getCurrentUser } from "../lib/auth";
+import { getAuthHeader } from "../lib/auth";
+import { API_BASE } from "../lib/config";
 import QRCode from "react-native-qrcode-svg";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -32,6 +35,17 @@ export default function AppBar() {
     await logout();
     router.push("/(auth)/login");
   };
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["/api/notifications/unread-count"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/notifications/unread-count`, { headers: await getAuthHeader() });
+      if (!res.ok) return 0;
+      const data = await res.json();
+      return data.count as number;
+    },
+    refetchInterval: 30000,
+  });
 
   const qrValue = walletId ? `bukkapay://pay/${walletId}` : "bukkapay://invalid";
 
@@ -70,7 +84,7 @@ export default function AppBar() {
             onPress={() => router.push("/(screens)/notifications" as any)}
           >
             <Ionicons name="notifications-outline" size={20} color={colors.text} />
-            <View style={styles.notificationDot} />
+            {unreadCount > 0 && <View style={styles.notificationDot} />}
           </TouchableOpacity>
 
           <TouchableOpacity
