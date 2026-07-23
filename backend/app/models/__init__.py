@@ -3,9 +3,10 @@ Alembic autogenerate/FK resolution, so everything is re-exported here.
 """
 
 from app.models.admin import AdminSession, AdminUser
+from app.models.chat import ChatMessage
 from app.models.claim_payment import ClaimPayment
 from app.models.contribution import Contribution, ContributionGroup
-from app.models.dormant import ChatMessage, FamilyMember, SecuritySetting
+from app.models.dormant import FamilyMember, SecuritySetting
 from app.models.gamification import Achievement, Challenge
 from app.models.loyalty import AutoPay, Beneficiary, LoyaltyReward
 from app.models.merchant import BillingLink, Merchant, MerchantStaff, MerchantSubscription, MerchantTransaction

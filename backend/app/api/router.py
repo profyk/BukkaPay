@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from app.api import (
     auth,
     billing_link,
+    chat,
     claim_payment,
     contribution,
     kyc,
@@ -45,8 +46,10 @@ api_router.include_router(webauthn.router)
 api_router.include_router(stitch.router)
 api_router.include_router(kyc.router)
 api_router.include_router(travel.router)
+api_router.include_router(chat.router)
 
 from app.api.admin import auth as admin_auth
+from app.api.admin import chat as admin_chat
 from app.api.admin import finance as admin_finance
 from app.api.admin import platform as admin_platform
 from app.api.admin import travel as admin_travel
@@ -58,3 +61,4 @@ admin_router.include_router(admin_users.router)
 admin_router.include_router(admin_finance.router)
 admin_router.include_router(admin_platform.router)
 admin_router.include_router(admin_travel.router)
+admin_router.include_router(admin_chat.router)

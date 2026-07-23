@@ -4,6 +4,7 @@ import {
   FlaskConical, FileCheck, ScrollText, Wallet,
   Link2, Store, Megaphone, ChevronRight,
   ShieldCheck, Settings2, Globe2, PlaneTakeoff, Route as RouteIcon,
+  MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -29,6 +30,7 @@ const SECTIONS = [
     links: [
       { href: "/users",        label: "Users",           icon: Users },
       { href: "/kyc",          label: "KYC Review",      icon: FileCheck },
+      { href: "/support-chat", label: "Support Chat",    icon: MessageCircle },
     ],
   },
   {

@@ -3,6 +3,9 @@ in the entire app (verified via grep across routes.ts/admin-routes.ts) —
 same situation as the retired `stokvels*` tables, but these were never even
 given a read-only admin view. Kept as models for data fidelity (in case rows
 exist in prod) but intentionally have no service/router built for them.
+
+(chat_messages used to live here too — it's been activated as a real support
+chat and moved to app.models.chat.)
 """
 
 from sqlalchemy import Boolean, ForeignKey, Text
@@ -11,17 +14,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.models.mixins import CreatedOnlyMixin, Money, UUIDFk, UUIDPk
-
-
-class ChatMessage(Base, CreatedOnlyMixin):
-    __tablename__ = "chat_messages"
-
-    id: Mapped[UUIDPk]
-    user_id: Mapped[UUIDFk] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
-    message: Mapped[str] = mapped_column(Text)
-    is_user_message: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class SecuritySetting(Base, CreatedOnlyMixin):

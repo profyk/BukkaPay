@@ -44,6 +44,7 @@ import CorridorsPage from "@/pages/corridors"
 import InternationalTransfersPage from "@/pages/international-transfers"
 import TravelOperatorsPage from "@/pages/travel-operators"
 import TravelRoutesPage from "@/pages/travel-routes"
+import SupportChatPage from "@/pages/support-chat"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -75,6 +76,7 @@ function Router() {
       <Route path="/international-transfers" component={InternationalTransfersPage} />
       <Route path="/travel-operators" component={TravelOperatorsPage} />
       <Route path="/travel-routes"    component={TravelRoutesPage} />
+      <Route path="/support-chat"     component={SupportChatPage} />
       <Route component={NotFound} />
     </Switch>
   )
