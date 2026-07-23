@@ -83,6 +83,7 @@ export default function PayLink() {
   const [isPaying, setIsPaying] = useState(false);
   const [showPinPrompt, setShowPinPrompt] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [paidAmount, setPaidAmount] = useState("");
 
   useEffect(() => {
     if (linkId) { fetchLink(); checkAuth(); }
@@ -138,6 +139,7 @@ export default function PayLink() {
         });
       } catch {}
       setShowPinPrompt(false);
+      setPaidAmount(amount);
       setSuccessMsg(`Payment of ${currencySymbol(linkData.currency)}${parseFloat(amount).toFixed(2)} was successful!`);
       setStep("success");
       fetchLink();
@@ -183,6 +185,7 @@ export default function PayLink() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verification failed");
       if (data.status === "completed") {
+        setPaidAmount(isFullPay ? linkData.remainingBalance : payAmount);
         setSuccessMsg(`Instant bank payment confirmed!`);
         setStep("success");
         fetchLink();
@@ -199,12 +202,13 @@ export default function PayLink() {
   };
 
 
-  const shareViaWhatsApp = async () => {
+  const shareProofOfPayment = async (paidAmount: string) => {
     if (!linkData) return;
-    const url = `${APP_URL}/pay/${linkData.id}`;
     const sym = currencySymbol(linkData.currency);
     const name = linkData.businessName || linkData.senderName || "BukkaPay User";
-    const msg = `💳 *Payment Request from ${name}*\n\nAmount: *${sym}${parseFloat(linkData.amount).toFixed(2)}*${linkData.description ? `\nFor: _${linkData.description}_` : ""}\n\nPay securely here:\n${url}\n\n_Powered by BukkaPay — secure payments_`;
+    const reference = `BKP-${linkData.id.slice(0, 8).toUpperCase()}`;
+    const date = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
+    const msg = `✅ *Payment Confirmation*\n\nI've paid ${name} *${sym}${parseFloat(paidAmount).toFixed(2)}* via BukkaPay${linkData.description ? ` for "${linkData.description}"` : ""}.\n\nReference: ${reference}\nDate: ${date}\n\n_Paid via BukkaPay — secure payments_`;
     const encoded = encodeURIComponent(msg);
     const waUrl = `whatsapp://send?text=${encoded}`;
     const waWeb = `https://wa.me/?text=${encoded}`;
@@ -212,11 +216,11 @@ export default function PayLink() {
       const canOpen = await Linking.canOpenURL(waUrl);
       await Linking.openURL(canOpen ? waUrl : waWeb);
     } catch {
-      try { await Share.share({ message: msg, url }); } catch {}
+      try { await Share.share({ message: msg }); } catch {}
     }
   };
 
-  const handleViewAttachment = () => {
+  const handleViewAttachment = async () => {
     const attachment = linkData?.invoice?.attachment;
     if (!attachment) return;
     const mimeType = attachment.mimeType || "application/pdf";
@@ -227,8 +231,19 @@ export default function PayLink() {
       const blob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
-    } else {
-      Linking.openURL(`data:${mimeType};base64,${attachment.data}`).catch(() => {});
+      return;
+    }
+    // A raw data: URI isn't something iOS/Android know how to hand off to a
+    // viewer app via Linking.openURL (that only works in a browser address
+    // bar) — write it to a real local file first, then hand that off via
+    // the native share sheet so the user can view or save it.
+    try {
+      const FileSystem = await import("expo-file-system/legacy");
+      const fileUri = `${FileSystem.cacheDirectory}${attachment.name || "attachment"}`;
+      await FileSystem.writeAsStringAsync(fileUri, attachment.data, { encoding: FileSystem.EncodingType.Base64 });
+      await Share.share({ url: fileUri, title: attachment.name });
+    } catch {
+      setInlineError("Couldn't open the attachment on this device — try opening this payment link in a web browser instead.");
     }
   };
 
@@ -333,9 +348,9 @@ export default function PayLink() {
           <Text style={[s.muted, { textAlign: "center", marginBottom: 20 }]}>
             Thank you for paying {displayName} via BukkaPay.
           </Text>
-          <TouchableOpacity style={s.waBtn} onPress={shareViaWhatsApp}>
+          <TouchableOpacity style={s.waBtn} onPress={() => shareProofOfPayment(paidAmount)}>
             <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-            <Text style={s.waBtnText}>Share receipt on WhatsApp</Text>
+            <Text style={s.waBtnText}>Share proof of payment</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.outlineBtn, { marginTop: 10 }]}
             onPress={() => Linking.openURL("https://app.bukkapay.com")}>
@@ -381,10 +396,6 @@ export default function PayLink() {
               <Ionicons name="lock-closed" size={11} color={GREEN} />
               <Text style={s.sslPillText}>Secure</Text>
             </View>
-            <TouchableOpacity style={s.waPillBtn} onPress={shareViaWhatsApp} activeOpacity={0.8}>
-              <Ionicons name="logo-whatsapp" size={14} color="#fff" />
-              <Text style={s.waPillText}>Share</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -537,18 +548,6 @@ export default function PayLink() {
                 <Text style={s.instantText}>Instant</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[s.methodRow, { borderColor: "#DCFCE7", backgroundColor: "#F0FDF4" }]}
-              activeOpacity={0.82} onPress={shareViaWhatsApp}>
-              <View style={[s.methodIcon, { backgroundColor: "#DCFCE7" }]}>
-                <Ionicons name="logo-whatsapp" size={24} color={WA} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.methodTitle, { color: "#15803D" }]}>Share on WhatsApp</Text>
-                <Text style={s.methodSub}>Send this payment request to someone on WhatsApp</Text>
-              </View>
-              <Ionicons name="share-outline" size={20} color={WA} />
             </TouchableOpacity>
 
             <View style={s.trustRow}>
@@ -720,9 +719,6 @@ export default function PayLink() {
             <Ionicons name="wallet" size={18} color="#fff" />
             <Text style={s.stickyPayText}>Pay Now</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.stickyWaBtn} onPress={shareViaWhatsApp}>
-            <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-          </TouchableOpacity>
         </View>
       )}
 
@@ -803,8 +799,6 @@ const s = StyleSheet.create({
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   sslPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
   sslPillText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-  waPillBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: WA, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  waPillText: { color: "#fff", fontSize: 12, fontWeight: "700" },
 
   merchantCard: {
     margin: 16, backgroundColor: "#fff", borderRadius: 24, padding: 24, alignItems: "center",
@@ -926,7 +920,6 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
   },
   stickyPayText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  stickyWaBtn: { width: 50, height: 50, backgroundColor: WA, borderRadius: 14, alignItems: "center", justifyContent: "center" },
 
   footer: { marginTop: 24, marginBottom: 16, paddingHorizontal: 16, alignItems: "center", gap: 10 },
   footerBadgeRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
