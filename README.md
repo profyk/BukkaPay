@@ -54,6 +54,7 @@ The workspace now includes a hardened baseline for production-facing engineering
 - Supabase integration module for file/storage and future auth or realtime features.
 - Resend integration for password-reset and email verification emails.
 - OTP business flow and service layer for user verification and one-time codes.
+- Bank partnership integration scaffold for secure provider API calls and webhook verification.
 
 The operational workflow is:
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from app.api import (
     auth,
+    bank_partner,
     billing_link,
     chat,
     claim_payment,
@@ -44,6 +45,7 @@ api_router.include_router(notification.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
 api_router.include_router(stitch.router)
+api_router.include_router(bank_partner.router)
 api_router.include_router(kyc.router)
 api_router.include_router(travel.router)
 api_router.include_router(chat.router)

@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     supabase_anon_key: str | None = Field(default=None, alias="SUPABASE_ANON_KEY")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
     resend_from_email: str | None = Field(default="noreply@bukkapay.com", alias="RESEND_FROM_EMAIL")
+    bank_partner_api_url: str | None = Field(default=None, alias="BANK_PARTNER_API_URL")
+    bank_partner_api_key: str | None = Field(default=None, alias="BANK_PARTNER_API_KEY")
+    bank_partner_account_id: str | None = Field(default=None, alias="BANK_PARTNER_ACCOUNT_ID")
+    bank_partner_webhook_secret: str | None = Field(default=None, alias="BANK_PARTNER_WEBHOOK_SECRET")
 
     # CORS
     allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")
