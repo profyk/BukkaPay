@@ -46,14 +46,21 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="BukkaPay API", lifespan=lifespan)
+    app = FastAPI(
+        title="BukkaPay API",
+        version="2.0.0",
+        lifespan=lifespan,
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
+    )
 
     register_middleware(app)
     register_exception_handlers(app)
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if not settings.is_production else settings.allowed_origins_list or ["*"],
+        allow_origins=settings.allowed_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "x-admin-token", "x-api-key"],

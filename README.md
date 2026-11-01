@@ -36,3 +36,23 @@ Expo (SDK 54), React Native, expo-router, React Query, TypeScript. Ships to iOS/
 ## Cross-cutting changes
 
 Since the mobile app and admin panel both depend on the backend's API contract, changes to `backend/`'s schema or routes should be checked against both `admin/` and `frontend/` before merging.
+
+## Security and delivery baseline
+
+The workspace now includes a hardened baseline for production-facing engineering:
+
+- Strict environment validation in `backend/app/core/config.py` so production fails closed when required secrets are missing.
+- CORS restricted to explicit origin allowlists in production and API docs disabled outside local development.
+- Security headers on every response with `HSTS`, `CSP`, `X-Frame-Options`, and `Permissions-Policy` to reduce attack surface.
+- CI coverage for backend linting, typing, test execution, and frontend builds via GitHub Actions.
+- Dedicated security workflow for dependency audits, secret scanning, and vulnerability triage.
+- Architecture guidance and release guardrails in the repo docs for latency, data layering, and platform boundaries.
+
+The operational workflow is:
+
+1. Keep backend contracts stable across `backend/`, `frontend/`, and `admin/`.
+2. Treat `main` as protected and require CI/security checks before merge.
+3. Deploy backend via Railway and frontend via Vercel only with explicit environment secrets.
+4. Review infra and dependency drift during releases, particularly around Redis, Postgres, and external payment providers.
+
+See the workflow files under `.github/workflows/` and the project docs for the full security model.

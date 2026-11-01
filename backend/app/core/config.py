@@ -1,16 +1,23 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
 
     # Runtime
     env: str = Field(default="development", alias="ENV")
     port: int = Field(default=5000, alias="PORT")
     web_concurrency: int = Field(default=4, alias="WEB_CONCURRENCY")
+    secret_key: str | None = Field(default=None, alias="SECRET_KEY")
+    trusted_proxies: str = Field(default="127.0.0.1,::1", alias="TRUSTED_PROXIES")
 
     # Database
     database_url: str = Field(alias="DATABASE_URL")
@@ -49,15 +56,27 @@ class Settings(BaseSettings):
 
     @property
     def is_production(self) -> bool:
-        return self.env == "production"
+        return self.env.lower() == "production"
 
     @property
     def allowed_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        origins = [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        if not self.is_production:
+            return origins or [
+                "http://localhost:3000",
+                "http://localhost:8081",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:8081",
+            ]
+        return origins
 
     @property
     def admin_allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.admin_allowed_origins.split(",") if o.strip()]
+
+    @property
+    def trusted_proxies_list(self) -> list[str]:
+        return [o.strip() for o in self.trusted_proxies.split(",") if o.strip()]
 
     @property
     def sqlalchemy_database_url(self) -> str:
@@ -70,6 +89,24 @@ class Settings(BaseSettings):
         elif url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         return url
+
+    @model_validator(mode="after")
+    def validate_security_profile(self):
+        if self.is_production:
+            required = [
+                "database_url",
+                "secret_key",
+                "redis_url",
+                "admin_api_key",
+                "allowed_origins",
+            ]
+            missing = [name for name in required if not getattr(self, name)]
+            if missing:
+                raise ValueError(
+                    "Production requires secure secrets and CORS settings: "
+                    + ", ".join(missing)
+                )
+        return self
 
 
 @lru_cache

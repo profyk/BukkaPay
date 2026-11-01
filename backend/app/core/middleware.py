@@ -18,6 +18,17 @@ SECURITY_HEADERS = {
     "Cross-Origin-Resource-Policy": "cross-origin",
     "Referrer-Policy": "no-referrer",
     "X-DNS-Prefetch-Control": "off",
+    "X-Permitted-Cross-Domain-Policies": "none",
+    "Permissions-Policy": (
+        "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), "
+        "display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), "
+        "microphone=(), midi=(), payment=(), usb=()"
+    ),
+    "Content-Security-Policy": (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; "
+        "form-action 'self'; object-src 'none'"
+    ),
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
 }
 
 
@@ -28,8 +39,12 @@ def register_middleware(app: FastAPI) -> None:
     ) -> Response:
         start = time.perf_counter()
         response = await call_next(request)
+
         for key, value in SECURITY_HEADERS.items():
             response.headers[key] = value
+
+        if request.url.scheme == "https":
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 
         if request.url.path.startswith("/api"):
             duration_ms = round((time.perf_counter() - start) * 1000, 1)
