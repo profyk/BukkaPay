@@ -19,6 +19,7 @@ from app.schemas.user import (
     UserLoginPayload,
     UserMePayload,
     UserProfilePayload,
+    VerifyEmailRequest,
 )
 from app.services import auth_service, pin_service
 
@@ -74,6 +75,12 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
 async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)) -> dict:
     await auth_service.reset_password(db, token=body.token, password=body.password)
     return {"success": True, "message": "Password reset successful. Please log in again."}
+
+
+@router.post("/email/verify")
+async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    user = await auth_service.verify_email(db, email=body.email, token=body.token)
+    return {"success": True, "message": "Email verified successfully.", "user": UserMePayload.model_validate(user)}
 
 
 @router.get("/me")

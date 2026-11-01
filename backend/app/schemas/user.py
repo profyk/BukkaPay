@@ -85,6 +85,11 @@ class ResetPasswordRequest(CamelModel):
     password: str
 
 
+class VerifyEmailRequest(CamelModel):
+    email: str
+    token: str
+
+
 class UpdateProfileRequest(CamelModel):
     name: str | None = None
     phone: str | None = None

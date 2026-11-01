@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     admin_api_key: str | None = Field(default=None, alias="ADMIN_API_KEY")
     admin_allowed_origins: str = Field(default="", alias="ADMIN_ALLOWED_ORIGINS")
 
+    # Third-party platform integrations
+    supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
+    supabase_anon_key: str | None = Field(default=None, alias="SUPABASE_ANON_KEY")
+    resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
+    resend_from_email: str | None = Field(default="noreply@bukkapay.com", alias="RESEND_FROM_EMAIL")
+
     # CORS
     allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")
 

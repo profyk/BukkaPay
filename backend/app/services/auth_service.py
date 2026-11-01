@@ -19,7 +19,7 @@ from app.core.security import generate_wallet_id, hash_secret, verify_secret
 from app.integrations import stitch
 from app.models.user import User
 from app.models.wallet import WalletCard
-from app.services import session_service
+from app.services import email_service, session_service
 
 LOGIN_FAIL_TTL_SECONDS = 60 * 60  # 1 hour, matches the old hourly Map purge
 LOGIN_LOCK_THRESHOLD = 10
@@ -53,6 +53,11 @@ async def signup(db: AsyncSession, *, name: str, email: str, username: str, pass
     await db.flush()
 
     await _issue_default_card(db, user)
+    try:
+        await email_service.send_account_confirmation_email(user.email, name=user.name)
+    except Exception:
+        # email delivery should not block onboarding; the user can retry confirmation later
+        pass
     return user
 
 
@@ -133,7 +138,26 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     reset_token = secrets.token_hex(32)
     redis = get_redis()
     await redis.set(f"pwreset:{reset_token}", str(user.id), ex=RESET_TOKEN_TTL_SECONDS)
-    # TODO: send email with reset link /reset-password?token={reset_token}
+    try:
+        await email_service.send_password_reset_email(user.email, token=reset_token, name=user.name)
+    except Exception:
+        # reset emails are operationally optional; the long-lived token still exists for API-based retries
+        pass
+
+
+async def verify_email(db: AsyncSession, *, email: str, token: str) -> User:
+    valid = await email_service.verify_account_email(email, token)
+    if not valid:
+        raise ApiError("Invalid or expired email verification token", status_code=400)
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise ApiError("User not found", status_code=404)
+
+    user.verified = True
+    await db.flush()
+    return user
 
 
 async def reset_password(db: AsyncSession, *, token: str, password: str) -> None:

@@ -46,13 +46,20 @@ The workspace now includes a hardened baseline for production-facing engineering
 - Security headers on every response with `HSTS`, `CSP`, `X-Frame-Options`, and `Permissions-Policy` to reduce attack surface.
 - CI coverage for backend linting, typing, test execution, and frontend builds via GitHub Actions.
 - Dedicated security workflow for dependency audits, secret scanning, and vulnerability triage.
+- Production-ready business/integration split for auth, email, OTP, storage, and payment flows.
 - Architecture guidance and release guardrails in the repo docs for latency, data layering, and platform boundaries.
+
+## Platform services added
+
+- Supabase integration module for file/storage and future auth or realtime features.
+- Resend integration for password-reset and email verification emails.
+- OTP business flow and service layer for user verification and one-time codes.
 
 The operational workflow is:
 
 1. Keep backend contracts stable across `backend/`, `frontend/`, and `admin/`.
 2. Treat `main` as protected and require CI/security checks before merge.
 3. Deploy backend via Railway and frontend via Vercel only with explicit environment secrets.
-4. Review infra and dependency drift during releases, particularly around Redis, Postgres, and external payment providers.
+4. Review infra and dependency drift during releases, particularly around Redis, Postgres, Supabase, Resend, and external payment providers.
 
 See the workflow files under `.github/workflows/` and the project docs for the full security model.
