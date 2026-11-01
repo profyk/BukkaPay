@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     web_concurrency: int = Field(default=4, alias="WEB_CONCURRENCY")
     secret_key: str | None = Field(default=None, alias="SECRET_KEY")
     trusted_proxies: str = Field(default="127.0.0.1,::1", alias="TRUSTED_PROXIES")
+    trusted_hosts: str = Field(default="localhost,127.0.0.1", alias="TRUSTED_HOSTS")
 
     # Database
     database_url: str = Field(alias="DATABASE_URL")
@@ -77,6 +78,13 @@ class Settings(BaseSettings):
     @property
     def trusted_proxies_list(self) -> list[str]:
         return [o.strip() for o in self.trusted_proxies.split(",") if o.strip()]
+
+    @property
+    def trusted_hosts_list(self) -> list[str]:
+        hosts = [o.strip() for o in self.trusted_hosts.split(",") if o.strip()]
+        if not hosts:
+            return ["localhost", "127.0.0.1"]
+        return hosts
 
     @property
     def sqlalchemy_database_url(self) -> str:

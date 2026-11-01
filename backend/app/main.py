@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.api.router import admin_router, api_router
@@ -57,6 +58,11 @@ def create_app() -> FastAPI:
 
     register_middleware(app)
     register_exception_handlers(app)
+
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.trusted_hosts_list if settings.is_production else ["*"],
+    )
 
     app.add_middleware(
         CORSMiddleware,
