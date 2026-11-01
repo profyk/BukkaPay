@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // conversion) — converting between them only happens through Send Money's
 // Africa/International tiers, priced by the admin-configured corridor rate
 // (see /api/transfer/quote), never client-side.
-export type CurrencyCode = "USD" | "ZAR" | "BWP" | "NGN" | "KES" | "GHS" | "EUR" | "GBP";
+export type CurrencyCode = "USD" | "ZAR" | "BWP";
 
 export interface Currency {
   code: CurrencyCode;
@@ -17,11 +17,6 @@ export const CURRENCIES: Currency[] = [
   { code: "ZAR", symbol: "R", name: "South African Rand" },
   { code: "USD", symbol: "$", name: "US Dollar" },
   { code: "BWP", symbol: "P", name: "Botswana Pula" },
-  { code: "NGN", symbol: "₦", name: "Nigerian Naira" },
-  { code: "KES", symbol: "KSh", name: "Kenyan Shilling" },
-  { code: "GHS", symbol: "₵", name: "Ghanaian Cedi" },
-  { code: "EUR", symbol: "€", name: "Euro" },
-  { code: "GBP", symbol: "£", name: "British Pound" },
 ];
 
 export function getCurrency(code: CurrencyCode): Currency {
@@ -44,7 +39,7 @@ export function convertAmount(amount: number, _toCurrency: CurrencyCode): number
   return amount;
 }
 
-const VALID_CODES: CurrencyCode[] = ["USD", "ZAR", "BWP", "NGN", "KES", "GHS", "EUR", "GBP"];
+const VALID_CODES: CurrencyCode[] = ["USD", "ZAR", "BWP"];
 const DEFAULT_CURRENCY: CurrencyCode = "ZAR";
 
 export function getInitialCurrency(): CurrencyCode {

@@ -10,6 +10,7 @@ import {
   getBiometricType,
   biometricLogin,
   enableBiometricLogin,
+  signInWithGoogle,
 } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -74,10 +75,6 @@ export default function Login() {
       return;
     }
 
-    // Best-effort convenience: offer biometric login next time. This must
-    // never block getting into the app — a real login already succeeded
-    // above, so a failure here (e.g. no secure credential storage on this
-    // platform) is silently ignored rather than surfaced as a login error.
     try {
       const available = await isBiometricAvailable();
       const enabled = await isBiometricLoginEnabled();
@@ -90,6 +87,16 @@ export default function Login() {
 
     setLoading(false);
     router.replace((returnTo || "/(tabs)") as any);
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const demoGoogleToken = "google-demo-token";
+      await signInWithGoogle(demoGoogleToken, formData.email || undefined, "Google user");
+      router.push("/(auth)/otp-confirm" as any);
+    } catch (error: any) {
+      toast({ title: "Google sign-in failed", description: error.message, variant: "destructive" });
+    }
   };
 
   const biometricIconName = biometricLabel === "Face ID" ? "scan-outline" : "finger-print-outline";
@@ -186,6 +193,22 @@ export default function Login() {
             )}
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={[styles.googleButton, { borderColor: colors.border, backgroundColor: colors.card }]}
+          onPress={handleGoogleSignIn}
+        >
+          <Ionicons name="logo-google" size={20} color={colors.primary} />
+          <Text style={[styles.googleButtonText, { color: colors.text }]}>Continue with Google</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.otpButton, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}
+          onPress={() => router.push("/(auth)/otp-confirm" as any)}
+        >
+          <Ionicons name="keypad-outline" size={18} color={colors.primary} />
+          <Text style={[styles.otpButtonText, { color: colors.primary }]}>Use OTP code</Text>
+        </TouchableOpacity>
 
         <View style={styles.dividerContainer}>
           <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
@@ -345,6 +368,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 24,
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  googleButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  otpButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  otpButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   dividerLine: {
     flex: 1,

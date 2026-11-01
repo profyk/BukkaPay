@@ -18,6 +18,8 @@ class AdminUser(Base, CreatedOnlyMixin):
         Enum(AdminRole, name="admin_role", native_enum=True, values_callable=lambda x: [e.value for e in x]), default=AdminRole.ADMIN
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_login_at: Mapped[OptionalTimestamp]
 
 

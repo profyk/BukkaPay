@@ -1,15 +1,22 @@
+import secrets
+
 from fastapi import APIRouter, Depends, Header
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
+from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.rate_limit import rate_limit
+from app.core.security import generate_wallet_id, hash_secret
 from app.db.deps import get_db
 from app.models.user import User
 from app.schemas.user import (
     AuthTokenResponse,
     ForgotPasswordRequest,
+    GoogleSignInRequest,
     LoginRequest,
     PinStatusResponse,
     ResetPasswordRequest,
@@ -48,6 +55,56 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthT
     return AuthTokenResponse.model_validate(
         {"token": token, "user": UserLoginPayload.model_validate(user)}
     )
+
+
+@router.post("/google")
+async def google_login(body: GoogleSignInRequest, db: AsyncSession = Depends(get_db)) -> AuthTokenResponse:
+    settings = get_settings()
+    if not settings.google_client_id:
+        raise ApiError("Google sign-in is not configured on this environment", status_code=503)
+
+    try:
+        payload = google_id_token.verify_oauth2_token(
+            body.id_token,
+            google_requests.Request(),
+            settings.google_client_id,
+        )
+    except ValueError as exc:
+        raise ApiError("Invalid Google token", status_code=401) from exc
+
+    email = (payload.get("email") or body.email or "").strip().lower()
+    if not email:
+        raise ApiError("Google account email is required", status_code=400)
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        username = email.split("@")[0]
+        safe_username = username
+        suffix = 1
+        while True:
+            existing = await db.execute(select(User).where(User.username == safe_username))
+            if existing.scalar_one_or_none() is None:
+                break
+            safe_username = f"{username}{suffix}"
+            suffix += 1
+
+        user = User(
+            name=(body.name or payload.get("name") or safe_username).strip(),
+            email=email,
+            username=safe_username,
+            password=hash_secret(secrets.token_urlsafe(32)),
+            phone=None,
+            country_code=None,
+            wallet_id=generate_wallet_id(),
+            verified=True,
+        )
+        db.add(user)
+        await db.flush()
+        await auth_service._issue_default_card(db, user)
+
+    token, _ = await auth_service.create_session_for_user(db, user.id)
+    return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
 
 
 @router.post("/logout")

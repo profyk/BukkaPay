@@ -8,6 +8,17 @@ admin/      React + Vite admin panel (pnpm workspace)
 frontend/   Expo/React Native mobile app — also builds the public web app from the same source
 ```
 
+## Product operating model
+
+BukkaPay is now structured as a platform with three app surfaces that share one backend and one ledger:
+
+- `frontend/` — customer mobile app and customer wallet UX
+- `admin/` — admin operations console, risk and ops tooling, plus admin MFA and dark mode support
+- `apps/website/` — public website and marketing funnel
+- `apps/merchant/` — merchant-specific operations, payouts, and customer-to-merchant settlement flows
+
+This split keeps customer commerce, merchant operations, and admin controls separated while preserving a single shared financial backend and ledger.
+
 ## backend/
 
 FastAPI + Uvicorn, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2, ARQ + Redis for background jobs, plain PostgreSQL.

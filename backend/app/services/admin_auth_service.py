@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.business.mfa import generate_totp_secret, verify_totp
 from app.core.errors import ApiError
 from app.core.security import hash_secret, verify_secret
 from app.models.admin import AdminUser
@@ -27,7 +28,7 @@ async def create_first_super_admin(db: AsyncSession, *, email: str, name: str, p
     return admin
 
 
-async def login(db: AsyncSession, *, email: str, password: str) -> tuple[str, datetime, AdminUser]:
+async def login(db: AsyncSession, *, email: str, password: str, otp: str | None = None) -> tuple[str, datetime, AdminUser]:
     result = await db.execute(select(AdminUser).where(AdminUser.email == email.lower().strip()))
     admin = result.scalar_one_or_none()
     if admin is None:
@@ -39,10 +40,37 @@ async def login(db: AsyncSession, *, email: str, password: str) -> tuple[str, da
     if not valid:
         raise ApiError("Invalid email or password", status_code=401)
 
+    if admin.mfa_enabled:
+        if not admin.mfa_secret:
+            raise ApiError("MFA is enabled but no secret is configured", status_code=403)
+        if otp is None or not verify_totp(admin.mfa_secret, otp):
+            raise ApiError("MFA verification required", status_code=401)
+
     token, expires_at = await admin_session_service.issue_session(db, admin.id)
     admin.last_login_at = datetime.now(UTC)
     await db.flush()
     return token, expires_at, admin
+
+
+async def setup_mfa(db: AsyncSession, *, admin_id: str) -> dict:
+    try:
+        admin_uuid = uuid.UUID(admin_id)
+    except ValueError as exc:
+        raise ApiError("Admin not found", status_code=404) from exc
+
+    result = await db.execute(select(AdminUser).where(AdminUser.id == admin_uuid))
+    admin = result.scalar_one_or_none()
+    if admin is None:
+        raise ApiError("Admin not found", status_code=404)
+
+    secret = generate_totp_secret()
+    admin.mfa_secret = secret
+    admin.mfa_enabled = True
+    await db.flush()
+    return {
+        "secret": secret,
+        "otpauth_uri": f"otpauth://totp/BukkaPay:{admin.email}?secret={secret}&issuer=BukkaPay",
+    }
 
 
 async def logout(db: AsyncSession, token: str) -> None:

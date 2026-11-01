@@ -37,12 +37,15 @@ class AdminSetupRequest(CamelModel):
 class AdminLoginRequest(CamelModel):
     email: str
     password: str
+    otp: str | None = None
 
 
 class AdminLoginResponse(CamelModel):
-    token: str
-    expires_at: JsDateTime
-    admin: AdminUserResponse
+    token: str | None = None
+    expires_at: JsDateTime | None = None
+    admin: AdminUserResponse | None = None
+    mfa_required: bool = False
+    message: str | None = None
 
 
 class AdminMeResponse(CamelModel):

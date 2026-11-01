@@ -1,0 +1,16 @@
+# Core ownership for production-sensitive paths
+* @BukkaPay/platform-maintainers
+
+/backend @BukkaPay/backend-maintainers
+/backend/app/core @BukkaPay/security-maintainers
+/backend/app/api @BukkaPay/backend-maintainers
+/backend/app/business @BukkaPay/finance-maintainers
+/backend/app/models @BukkaPay/backend-maintainers
+
+/frontend @BukkaPay/mobile-maintainers
+/admin @BukkaPay/admin-maintainers
+/apps/website @BukkaPay/product-maintainers
+/apps/merchant @BukkaPay/merchant-maintainers
+
+.github/workflows @BukkaPay/platform-maintainers
+SECURITY.md @BukkaPay/security-maintainers

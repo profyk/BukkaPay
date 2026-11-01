@@ -38,8 +38,17 @@ async def setup(
 async def login(body: AdminLoginRequest, request: Request, db: AsyncSession = Depends(get_db)) -> AdminLoginResponse:
     if not is_allowed_admin_origin(request):
         raise ApiError("Admin login is only available from admin.bukkapay.com", status_code=403)
-    token, expires_at, admin = await svc.login(db, email=body.email, password=body.password)
+    token, expires_at, admin = await svc.login(db, email=body.email, password=body.password, otp=body.otp)
     return AdminLoginResponse.model_validate({"token": token, "expiresAt": expires_at, "admin": admin})
+
+
+@router.post("/auth/mfa/setup")
+async def setup_mfa(
+    ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+) -> dict:
+    if ctx.is_master_key or ctx.admin is None:
+        raise ApiError("Personal admin session required", status_code=401)
+    return await svc.setup_mfa(db, admin_id=str(ctx.admin.id))
 
 
 @router.get("/auth/me")

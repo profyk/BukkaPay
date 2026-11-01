@@ -22,11 +22,6 @@ class WalletCurrency(StrEnum):
     USD = "USD"
     ZAR = "ZAR"
     BWP = "BWP"
-    NGN = "NGN"
-    KES = "KES"
-    GHS = "GHS"
-    EUR = "EUR"
-    GBP = "GBP"
 
 
 class KycStatus(StrEnum):

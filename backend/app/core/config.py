@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     bank_partner_api_key: str | None = Field(default=None, alias="BANK_PARTNER_API_KEY")
     bank_partner_account_id: str | None = Field(default=None, alias="BANK_PARTNER_ACCOUNT_ID")
     bank_partner_webhook_secret: str | None = Field(default=None, alias="BANK_PARTNER_WEBHOOK_SECRET")
+    google_client_id: str | None = Field(default=None, alias="GOOGLE_CLIENT_ID")
+    google_client_secret: str | None = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
 
     # CORS
     allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")

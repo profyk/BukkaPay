@@ -76,6 +76,12 @@ class LoginRequest(CamelModel):
     password: str
 
 
+class GoogleSignInRequest(CamelModel):
+    id_token: str
+    email: str | None = None
+    name: str | None = None
+
+
 class ForgotPasswordRequest(CamelModel):
     email: str
 

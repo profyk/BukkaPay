@@ -188,3 +188,23 @@ export async function biometricLogin(): Promise<any> {
   const { email, password } = JSON.parse(credsStr);
   return login(email, password);
 }
+
+export async function signInWithGoogle(idToken: string, email?: string, name?: string) {
+  if (!idToken) throw new Error("Google sign-in requires a valid ID token");
+
+  const res = await fetch(API_BASE + "/api/auth/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken, email, name }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Google sign-in failed");
+  }
+
+  const data = await res.json();
+  await setAuthToken(data.token);
+  await setCurrentUser(data.user);
+  return data;
+}
