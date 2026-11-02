@@ -208,3 +208,33 @@ export async function signInWithGoogle(idToken: string, email?: string, name?: s
   await setCurrentUser(data.user);
   return data;
 }
+
+export async function requestOtp(email: string) {
+  const res = await fetch(API_BASE + "/api/auth/otp/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "OTP request failed");
+  }
+
+  return await res.json();
+}
+
+export async function verifyOtp(email: string, code: string) {
+  const res = await fetch(API_BASE + "/api/auth/otp/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "OTP verification failed");
+  }
+
+  return await res.json();
+}

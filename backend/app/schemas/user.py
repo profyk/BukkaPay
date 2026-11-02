@@ -96,6 +96,16 @@ class VerifyEmailRequest(CamelModel):
     token: str
 
 
+class OtpRequestRequest(CamelModel):
+    email: str
+    code_length: int | None = 6
+
+
+class OtpVerifyRequest(CamelModel):
+    email: str
+    code: str
+
+
 class UpdateProfileRequest(CamelModel):
     name: str | None = None
     phone: str | None = None

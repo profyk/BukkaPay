@@ -2,21 +2,36 @@ import { useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../lib/ThemeContext";
+import { requestOtp, verifyOtp } from "../lib/auth";
 
 export default function OtpConfirm() {
   const router = useRouter();
   const { colors } = useTheme();
   const [otp, setOtp] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const handleRequestOtp = async () => {
+    if (!email.trim()) {
+      return;
+    }
+    setSending(true);
+    try {
+      await requestOtp(email.trim());
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleVerify = async () => {
-    if (otp.trim().length !== 6) {
+    if (!email.trim() || otp.trim().length !== 6) {
       return;
     }
 
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await verifyOtp(email.trim(), otp.trim());
       router.replace("/(tabs)" as any);
     } finally {
       setLoading(false);
@@ -28,6 +43,19 @@ export default function OtpConfirm() {
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.text }]}>Verify your login</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>Enter the 6-digit code sent to your email or phone.</Text>
+
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBg, marginBottom: 12 }]}
+        />
+
+        <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: colors.primaryLight }]} onPress={handleRequestOtp} disabled={sending}>
+          {sending ? <ActivityIndicator color={colors.primary} /> : <Text style={[styles.secondaryText, { color: colors.primary }]}>Send OTP</Text>}
+        </TouchableOpacity>
 
         <TextInput
           value={otp}

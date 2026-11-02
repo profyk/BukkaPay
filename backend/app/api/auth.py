@@ -18,6 +18,8 @@ from app.schemas.user import (
     ForgotPasswordRequest,
     GoogleSignInRequest,
     LoginRequest,
+    OtpRequestRequest,
+    OtpVerifyRequest,
     PinStatusResponse,
     ResetPasswordRequest,
     SetPinRequest,
@@ -28,7 +30,7 @@ from app.schemas.user import (
     UserProfilePayload,
     VerifyEmailRequest,
 )
-from app.services import auth_service, pin_service
+from app.services import auth_service, otp_service, pin_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -105,6 +107,31 @@ async def google_login(body: GoogleSignInRequest, db: AsyncSession = Depends(get
 
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
+
+
+@router.post("/otp/request")
+async def request_otp(body: OtpRequestRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    email = body.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email))
+    if result.scalar_one_or_none() is None:
+        raise ApiError("User not found", status_code=404)
+
+    code_length = max(4, min(8, body.code_length or 6))
+    await otp_service.issue_otp(email, code_length=code_length)
+    return {"success": True, "message": "OTP sent successfully."}
+
+
+@router.post("/otp/verify")
+async def verify_otp(body: OtpVerifyRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    email = body.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email))
+    if result.scalar_one_or_none() is None:
+        raise ApiError("User not found", status_code=404)
+
+    valid = await otp_service.verify_otp(email, body.code)
+    if not valid:
+        raise ApiError("Invalid or expired OTP code", status_code=401)
+    return {"success": True, "verified": True}
 
 
 @router.post("/logout")
