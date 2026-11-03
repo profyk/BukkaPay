@@ -6,9 +6,9 @@ import { useTheme } from "../lib/ThemeContext";
 const logoImage = require("../assets/logo.png");
 
 const coreFeatures = [
-  { icon: "qr-code" as const, title: "QR Code Payments", desc: "Fast, simple, and contactless payments that allow merchants and customers to transact instantly \u2014 in person or remotely." },
+  { icon: "qr-code" as const, title: "QR Code Payments", desc: "Fast, simple, and contactless payments that let customers pay instantly in person or remotely." },
   { icon: "globe" as const, title: "Cross-Border Payments", desc: "Secure and cost-effective international transfers that help individuals and businesses move money across countries with minimal friction." },
-  { icon: "analytics" as const, title: "Merchant Dashboard", desc: "A powerful dashboard that gives businesses full visibility into payments, settlements, transaction history, and performance insights." },
+  { icon: "analytics" as const, title: "Spending Insights", desc: "Track payment trends, transaction history, and wallet health with clear, actionable insights." },
   { icon: "home" as const, title: "Rental Payments System", desc: "A structured digital solution that enables transparent and reliable rent payments between tenants and landlords." },
 ];
 
@@ -20,8 +20,8 @@ const values = [
 ];
 
 const audiences = [
-  "Small and medium-sized businesses",
-  "Merchants and service providers",
+  "Individuals and families",
+  "Freelancers and service providers",
   "Landlords and tenants",
   "Consumers and cross-border traders",
   "Developers and partners building on payment infrastructure",

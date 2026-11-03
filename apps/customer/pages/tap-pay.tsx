@@ -260,7 +260,7 @@ export default function TapPay() {
         <Text style={styles.successAmount}>{amount}</Text>
         <View style={[styles.successDivider, { backgroundColor: colors.border }]} />
         <View style={styles.successDetailRow}>
-          <Text style={[styles.successDetailLabel, { color: colors.textMuted }]}>Merchant</Text>
+          <Text style={[styles.successDetailLabel, { color: colors.textMuted }]}>Business</Text>
           <Text style={[styles.successDetailValue, { color: colors.text }]}>{storeName}</Text>
         </View>
         <View style={styles.successDetailRow}>

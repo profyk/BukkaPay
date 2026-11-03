@@ -11,9 +11,6 @@ export interface User {
   phone?: string | null;
   walletId?: string | null;
   loyaltyPoints?: number;
-  isMerchant?: boolean;
-  merchantName?: string | null;
-  merchantType?: string | null;
   avatarColor?: string | null;
   language?: string | null;
   countryCode?: string | null;

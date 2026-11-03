@@ -54,7 +54,7 @@ export default function PurchasesHub() {
   });
 
   const filteredTransactions = transactions.filter((t: any) => {
-    const name = (t.merchantName || t.title || "").toLowerCase();
+    const name = (t.merchantName || t.title || "BukkaPay").toLowerCase();
     return name.includes(searchQuery.toLowerCase());
   });
 
@@ -154,7 +154,7 @@ export default function PurchasesHub() {
                 : (categoryIcons[transaction.category] || "receipt-outline");
               const iconBg = categoryColors[transaction.category] || colors.textMuted;
               const sColors = getStatusColors(transaction.status, darkMode);
-              const displayName = transaction.merchantName || transaction.title || "Purchase";
+              const displayName = transaction.merchantName || transaction.title || "BukkaPay Purchase";
               const routeLine = isTravel && meta.from && meta.to ? `${meta.from} → ${meta.to}` : null;
 
               return (

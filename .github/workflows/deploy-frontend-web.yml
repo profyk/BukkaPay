@@ -1,15 +1,15 @@
-name: Build and Deploy Frontend Web to Vercel
+name: Build and Deploy Customer Web to Vercel
 
 on:
   push:
     branches: [main]
     paths:
-      - "frontend/**"
+      - "apps/customer/**"
       - ".github/workflows/deploy-frontend-web.yml"
 
 defaults:
   run:
-    working-directory: frontend
+    working-directory: apps/customer
 
 jobs:
   deploy:

@@ -60,20 +60,15 @@ export default function Scan() {
     if (scanned) return;
     setScanned(true);
 
-    // Two distinct kinds of scannable BukkaPay QR: a personal "My Code"
-    // wallet QR uses the bukkapay:// custom scheme (below) for instant P2P
-    // transfer; a merchant/payment-link/rent QR is a real https URL (so it
-    // also works when scanned by any phone's default camera, not just
-    // inside this app) and must route to its own payment screen, not qr-pay.
-    const merchantMatch = data.match(/\/merchant-pay\/([^/?#]+)/);
+    // BukkaPay QR codes can either be a direct wallet code or a payment-link
+    // URL. The direct wallet variant works with the bukkapay:// custom scheme
+    // while link-based flows should resolve to the relevant screen.
     const rentMatch = data.match(/\/pay-rent\/([^/?#]+)/);
     const payLinkMatch = data.match(/\/pay\/([^/?#]+)/);
 
     if (data.startsWith("bukkapay://pay/")) {
       const payId = data.replace("bukkapay://pay/", "");
       router.push(`/(screens)/qr-pay?walletId=${payId}` as any);
-    } else if (merchantMatch) {
-      router.push(`/(screens)/merchant-pay?paymentLink=${merchantMatch[1]}` as any);
     } else if (rentMatch) {
       router.push(`/pay-rent/${rentMatch[1]}` as any);
     } else if (payLinkMatch) {

@@ -397,13 +397,6 @@ export default function Profile() {
         {renderNavRow("lock-closed", "Change PIN", "Update your wallet PIN", () => router.push("/(screens)/security-settings"))}
       </View>
 
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>MERCHANT</Text>
-      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {renderNavRow("storefront", "Merchant Dashboard", "Manage your businesses", () => router.push("/(screens)/merchant-dashboard"))}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderNavRow("add-circle", "Become a Merchant", "Create a merchant account", () => router.push("/(screens)/become-merchant"))}
-      </View>
-
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>ACCOUNT</Text>
       <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {renderNavRow("qr-code", "My BKP Code", "View your unique payment QR code", () => router.push("/(screens)/my-id"))}

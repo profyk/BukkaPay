@@ -59,7 +59,7 @@ interface DashboardData {
   tenants: TenantDetail[];
 }
 
-interface Merchant {
+interface BusinessProfile {
   id: string;
   businessName: string;
   businessType: string;
@@ -103,7 +103,7 @@ export default function LandlordDashboard() {
     address: "",
     propertyType: "apartment",
     totalUnits: 1,
-    merchantId: "",
+    businessId: "",
   });
 
   const [newUnit, setNewUnit] = useState({
@@ -123,8 +123,8 @@ export default function LandlordDashboard() {
     queryKey: ["/api/rental/dashboard"],
   });
 
-  const { data: merchants } = useQuery<Merchant[]>({
-    queryKey: ["/api/merchants"],
+  const { data: businessProfiles } = useQuery<BusinessProfile[]>({
+    queryKey: ["/api/business-profiles"],
   });
 
   const { data: units } = useQuery<PropertyUnit[]>({
@@ -132,7 +132,7 @@ export default function LandlordDashboard() {
     enabled: !!selectedProperty,
   });
 
-  const propertyMerchants = merchants?.filter(m => m.businessType.toLowerCase() === "property") || [];
+  const propertyProfiles = businessProfiles?.filter(m => m.businessType.toLowerCase() === "property") || [];
 
   const createPropertyMutation = useMutation({
     mutationFn: async (data: typeof newProperty) => {
@@ -141,7 +141,7 @@ export default function LandlordDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rental/dashboard"] });
       setAddPropertyOpen(false);
-      setNewProperty({ name: "", address: "", propertyType: "apartment", totalUnits: 1, merchantId: "" });
+      setNewProperty({ name: "", address: "", propertyType: "apartment", totalUnits: 1, businessId: "" });
       toast({ title: "Property added successfully" });
     },
     onError: (error: Error) => {

@@ -399,7 +399,7 @@ export default function PayLink() {
           </View>
         </View>
 
-        {/* ── Merchant card ── */}
+        {/* ── Payer card ── */}
         <View style={s.merchantCard}>
           {isBusiness && linkData.businessLogo ? (
             <Image source={{ uri: linkData.businessLogo }} style={s.merchantLogo} />

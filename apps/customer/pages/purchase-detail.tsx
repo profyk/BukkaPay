@@ -63,7 +63,7 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
   const canCancel = !isUsed && !isRefunded && !isPast;
   const passengers: any[] = meta.passengers || [];
 
-  const operatorName = isBus ? (meta.operator || transaction.merchantName) : (meta.airline || transaction.merchantName);
+  const operatorName = isBus ? (meta.operator || transaction.merchantName || transaction.title || "Provider") : (meta.airline || transaction.merchantName || transaction.title || "Provider");
   const fromLabel = isBus ? meta.from : (meta.fromCode || meta.from);
   const toLabel = isBus ? meta.to : (meta.toCode || meta.to);
   const fromFull = meta.from;
@@ -365,7 +365,7 @@ export default function PurchaseDetail() {
 
   const handleShare = async () => {
     if (transaction) {
-      const text = `BukkaPay Transaction\nMerchant: ${transaction.merchantName}\nAmount: R${Number(transaction.amount).toFixed(2)}\nReference: ${transaction.reference}\nDate: ${format(new Date(transaction.createdAt), "MMM d, yyyy 'at' h:mm a")}`;
+      const text = `BukkaPay Transaction\nBusiness: ${transaction.merchantName || transaction.title || "BukkaPay"}\nAmount: R${Number(transaction.amount).toFixed(2)}\nReference: ${transaction.reference}\nDate: ${format(new Date(transaction.createdAt), "MMM d, yyyy 'at' h:mm a")}`;
       try {
         await Share.share({ message: text, title: "BukkaPay Receipt" });
       } catch {
@@ -439,7 +439,7 @@ export default function PurchaseDetail() {
               </View>
               <View>
                 <Text style={styles.heroCategory}>{transaction.category}</Text>
-                <Text style={styles.heroMerchant}>{transaction.merchantName || transaction.title}</Text>
+                <Text style={styles.heroMerchant}>{transaction.merchantName || transaction.title || "BukkaPay"}</Text>
               </View>
             </View>
             <View style={styles.heroDivider} />

@@ -38,7 +38,7 @@ function billTypeInfo(id: string) {
 
 interface BillingLink {
   id: string;
-  merchant_id: string;
+business_id?: string;
   payment_link_id?: string;
   biller_name: string;
   bill_type: string;
@@ -97,17 +97,17 @@ export default function BillingLinksScreen() {
   const text = colors.text;
   const sub = darkMode ? "#9CA3AF" : "#6B7280";
 
-  const { data: merchants = [] } = useQuery<any[]>({
-    queryKey: ["/api/merchants"],
+  const { data: businessProfiles = [] } = useQuery<any[]>({
+    queryKey: ["/api/billing-profiles"],
   });
 
-  const primaryMerchant = Array.isArray(merchants) && merchants.length > 0 ? merchants[0] : null;
-  const merchantPlan = primaryMerchant?.subscriptionPlan || primaryMerchant?.subscription_plan || "starter";
-  const canUseBilling = merchantPlan === "business";
+  const primaryBusiness = Array.isArray(businessProfiles) && businessProfiles.length > 0 ? businessProfiles[0] : null;
+  const businessPlan = primaryBusiness?.subscriptionPlan || primaryBusiness?.subscription_plan || "starter";
+  const canUseBilling = businessPlan === "business";
 
   const { data: billingLinks = [], isLoading } = useQuery<BillingLink[]>({
     queryKey: ["/api/billing-links"],
-    enabled: !!primaryMerchant,
+    enabled: !!primaryBusiness,
   });
 
   const createMutation = useMutation({
@@ -182,8 +182,8 @@ export default function BillingLinksScreen() {
   };
 
   const handleCreate = () => {
-    if (!primaryMerchant) {
-      toast({ title: "No merchant account", description: "Please create a merchant account first." });
+    if (!primaryBusiness) {
+      toast({ title: "No business profile", description: "Please create a profile first." });
       return;
     }
     if (!billerName.trim() || !amount.trim()) {
@@ -191,7 +191,7 @@ export default function BillingLinksScreen() {
       return;
     }
     createMutation.mutate({
-      merchantId: primaryMerchant.id,
+      businessId: primaryBusiness.id,
       billerName: billerName.trim(),
       billType, description: description.trim() || undefined,
       amount: parseFloat(amount), currency: "ZAR",
@@ -204,7 +204,7 @@ export default function BillingLinksScreen() {
   };
 
   // ── Upgrade required screen ──
-  if (primaryMerchant && !canUseBilling) {
+  if (primaryBusiness && !canUseBilling) {
     return (
       <View style={{ flex: 1, backgroundColor: bg }}>
         <View style={[s.header, { backgroundColor: card, borderBottomColor: border }]}>
@@ -242,7 +242,7 @@ export default function BillingLinksScreen() {
           </View>
           <TouchableOpacity
             style={[s.primaryBtn, { backgroundColor: "#F59E0B", width: "100%" }]}
-            onPress={() => router.push("/(screens)/become-merchant" as any)}
+            onPress={() => router.push("/(screens)/profile" as any)}
           >
             <Text style={s.primaryBtnText}>Upgrade to Business</Text>
           </TouchableOpacity>
@@ -264,20 +264,20 @@ export default function BillingLinksScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* No merchant */}
-      {!primaryMerchant && !isLoading && (
+      {/* No business profile */}
+      {!primaryBusiness && !isLoading && (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
-          <Ionicons name="storefront-outline" size={56} color={sub} />
-          <Text style={[s.stepTitle, { color: text, textAlign: "center", marginTop: 16 }]}>No Merchant Account</Text>
-          <Text style={[s.stepSub, { color: sub, textAlign: "center" }]}>Create a merchant account to start sending billing links.</Text>
-          <TouchableOpacity style={[s.primaryBtn, { marginTop: 24, paddingHorizontal: 32 }]} onPress={() => router.push("/(screens)/become-merchant" as any)}>
-            <Text style={s.primaryBtnText}>Become a Merchant</Text>
+          <Ionicons name="briefcase-outline" size={56} color={sub} />
+          <Text style={[s.stepTitle, { color: text, textAlign: "center", marginTop: 16 }]}>No Business Profile</Text>
+          <Text style={[s.stepSub, { color: sub, textAlign: "center" }]}>Create a business profile to start sending billing links.</Text>
+          <TouchableOpacity style={[s.primaryBtn, { marginTop: 24, paddingHorizontal: 32 }]} onPress={() => router.push("/(screens)/profile" as any)}>
+            <Text style={s.primaryBtnText}>Create Profile</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {/* Billing links list */}
-      {primaryMerchant && (
+      {primaryBusiness && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
           {/* Summary row */}
           <View style={[s.summaryRow, { backgroundColor: card, borderColor: border }]}>
@@ -362,7 +362,7 @@ export default function BillingLinksScreen() {
       )}
 
       {/* FAB */}
-      {primaryMerchant && (
+      {primaryBusiness && (
         <TouchableOpacity style={s.fab} onPress={() => { resetForm(); setShowCreate(true); }}>
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>

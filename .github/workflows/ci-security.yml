@@ -69,11 +69,11 @@ jobs:
         working-directory: backend
 
   frontend-checks:
-    name: Frontend build gate
+    name: Customer app build gate
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: apps/customer
     steps:
       - uses: actions/checkout@v4
 
@@ -81,13 +81,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install frontend dependencies
+      - name: Install customer app dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Type-check frontend
+      - name: Type-check customer app
         run: npx tsc --noEmit
 
-      - name: Build frontend web bundle
+      - name: Build customer web bundle
         run: npm run build
         env:
           CI: true

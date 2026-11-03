@@ -3,8 +3,8 @@
 ## Layered architecture
 
 ### 1. Edge and client layer
-- Mobile app in `frontend/` and admin in `admin/` are thin clients.
-- Both call the FastAPI backend for transactional behavior and state.
+- Customer app in `apps/customer/`, admin in `apps/admin/`, and merchant tools in `apps/merchant/` are thin clients.
+- All client surfaces call the FastAPI backend for transactional behavior and state.
 - Client code should never own authoritative payment state or wallet balance logic.
 
 ### 2. API layer

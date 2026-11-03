@@ -62,8 +62,8 @@ const ALL_ITEMS: AppItem[] = [
   },
   {
     id: "scan-pay", category: "Payments",
-    title: "Scan & Pay", description: "Scan merchant QR code and pay at checkout",
-    keywords: ["scan", "pay", "merchant", "checkout", "qr"],
+    title: "Scan & Pay", description: "Scan a QR code and pay instantly at checkout",
+    keywords: ["scan", "pay", "checkout", "qr", "business"],
     icon: "scan-outline", iconBg: "#EFF6FF", iconColor: "#3B82F6",
     route: "/(screens)/scan-pay",
   },
@@ -183,28 +183,6 @@ const ALL_ITEMS: AppItem[] = [
     route: "/(screens)/contacts",
   },
 
-  // ── Business ──────────────────────────────────────────────
-  {
-    id: "merchant-dashboard", category: "Business",
-    title: "Merchant Dashboard", description: "Manage your business, orders and earnings",
-    keywords: ["merchant", "business", "dashboard", "orders", "earnings", "shop"],
-    icon: "business-outline", iconBg: "#EFF6FF", iconColor: "#2563EB",
-    route: "/(screens)/merchant-dashboard",
-  },
-  {
-    id: "become-merchant", category: "Business",
-    title: "Become a Merchant", description: "Apply to accept payments as a BukkaPay business",
-    keywords: ["become", "merchant", "business", "register", "apply"],
-    icon: "briefcase-outline", iconBg: "#F5F3FF", iconColor: "#7C3AED",
-    route: "/(screens)/become-merchant",
-  },
-  {
-    id: "merchant-pay", category: "Business",
-    title: "Merchant Payment", description: "Accept a payment from a customer",
-    keywords: ["merchant", "accept", "payment", "customer", "collect"],
-    icon: "cash-outline", iconBg: "#F0FDF4", iconColor: "#059669",
-    route: "/(screens)/merchant-pay",
-  },
   {
     id: "landlord-dashboard", category: "Business",
     title: "Landlord Dashboard", description: "Manage properties, units, tenants and rent",
@@ -366,7 +344,7 @@ export default function Search() {
             </View>
 
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 24 }]}>ALL SECTIONS</Text>
-            {["Payments", "Cards & Finance", "Shopping", "Community", "Business", "Account"].map((cat) => {
+            {["Payments", "Cards & Finance", "Shopping", "Community", "Account"].map((cat) => {
               const items = ALL_ITEMS.filter((i) => i.category === cat);
               return (
                 <View key={cat} style={styles.categoryBlock}>

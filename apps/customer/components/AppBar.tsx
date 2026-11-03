@@ -51,7 +51,6 @@ export default function AppBar() {
 
   const menuItems = [
     { label: "My BKP Code", icon: "qr-code-outline" as const, action: () => setShowQR(true) },
-    { label: "Merchant Dashboard", icon: "business-outline" as const, action: () => router.push("/(screens)/merchant-dashboard" as any) },
     { label: "Explore Features", icon: "compass-outline" as const, action: () => router.push("/(screens)/features-hub" as any) },
     { label: "Purchases Hub", icon: "bag-handle-outline" as const, action: () => router.push("/(screens)/purchases-hub" as any) },
     { label: "My Payment Links", icon: "link-outline" as const, action: () => router.push("/(screens)/payment-links" as any) },

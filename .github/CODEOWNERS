@@ -7,8 +7,8 @@
 /backend/app/business @BukkaPay/finance-maintainers
 /backend/app/models @BukkaPay/backend-maintainers
 
-/frontend @BukkaPay/mobile-maintainers
-/admin @BukkaPay/admin-maintainers
+/apps/customer @BukkaPay/mobile-maintainers
+/apps/admin @BukkaPay/admin-maintainers
 /apps/website @BukkaPay/product-maintainers
 /apps/merchant @BukkaPay/merchant-maintainers
 
