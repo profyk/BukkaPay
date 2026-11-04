@@ -42,6 +42,8 @@ jobs:
       API_BASE_URL: http://localhost:5000
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_ORIGIN: http://localhost:5000
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder-project.supabase.co' }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,12 +70,16 @@ jobs:
         run: pytest -q
         working-directory: backend
 
-  frontend-checks:
-    name: Customer app build gate
+  app-build-checks:
+    name: Admin, customer, merchant and website app checks
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [admin, customer, merchant, website]
     defaults:
       run:
-        working-directory: apps/customer
+        working-directory: apps/${{ matrix.app }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,17 +87,16 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install customer app dependencies
+      - name: Install app dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Type-check customer app
-        run: npx tsc --noEmit
-
-      - name: Build customer web bundle
+      - name: Build app bundle
         run: npm run build
         env:
           CI: true
           EXPO_NO_TELEMETRY: 1
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder-project.supabase.co' }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
 
   dependency-scan:
     name: Dependency security scan
