@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // conversion) — converting between them only happens through Send Money's
 // Africa/International tiers, priced by the admin-configured corridor rate
 // (see /api/transfer/quote), never client-side.
-export type CurrencyCode = "USD" | "ZAR" | "BWP";
+export type CurrencyCode = string;
 
 export interface Currency {
   code: CurrencyCode;

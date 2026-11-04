@@ -21,7 +21,7 @@ def hash_secret(plain: str) -> str:
 
 def verify_secret(plain: str, hashed: str) -> tuple[bool, bool]:
     """Returns (valid, needs_rehash)."""
-    if hashed.startswith("$2b$") or hashed.startswith("$2a$") or hashed.startswith("$2y$"):
+    if hashed.startswith(("$2b$", "$2a$", "$2y$")):
         valid = bcrypt.checkpw(plain.encode(), hashed.encode())
         return valid, False
 

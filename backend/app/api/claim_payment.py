@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user_id
 from app.core.errors import ApiError
 from app.db.deps import get_db
-from app.services import claim_payment_service as svc
 from app.schemas.claim_payment import (
     ClaimBankRequest,
     ClaimCashResponse,
@@ -17,6 +16,7 @@ from app.schemas.claim_payment import (
     PickupClaimResponse,
     VerifyPinRequest,
 )
+from app.services import claim_payment_service as svc
 
 router = APIRouter(prefix="/api", tags=["claim-payments"])
 

@@ -8,10 +8,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import countries
 from app.core.errors import ApiError
 from app.integrations import stitch
-from app.models.enums import NotificationType, TransactionType, TransferPurpose, TransferZone, WalletCurrency
+from app.models.enums import (
+    NotificationType,
+    TransactionType,
+    TransferPurpose,
+    TransferZone,
+    WalletCurrency,
+)
 from app.models.user import User
 from app.models.wallet import InternationalTransfer, Transaction, WalletCard
-from app.services import admin_platform_service, fx_service, notification_service, platform_wallet_service
+from app.services import (
+    admin_platform_service,
+    fx_service,
+    notification_service,
+    platform_wallet_service,
+)
 
 
 async def get_wallet_cards(db: AsyncSession, user_id: uuid.UUID) -> list[WalletCard]:

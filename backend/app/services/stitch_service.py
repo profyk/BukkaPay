@@ -127,7 +127,7 @@ async def topup_callback_redirect(db: AsyncSession, *, ref: str, card_id: str | 
     try:
         topup_amount = Decimal(amount or "0")
     except InvalidOperation:
-        topup_amount = Decimal("0")
+        topup_amount = Decimal(0)
     if topup_amount <= 0 or not card_id:
         return f"{app_url}/topup?status=error&message=Invalid+amount"
 

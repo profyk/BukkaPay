@@ -9,7 +9,7 @@ Node/Drizzle API exactly:
   depend on that string shape.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
 
@@ -30,7 +30,7 @@ def _to_js_iso(v: datetime) -> str:
     """Match `JSON.stringify(new Date(...))` / Express's res.json() output for
     Date columns: "2024-01-01T00:00:00.000Z" (millisecond precision, Z suffix)
     rather than Pydantic's default "+00:00" offset format."""
-    v = v.astimezone(timezone.utc)
+    v = v.astimezone(UTC)
     return v.strftime("%Y-%m-%dT%H:%M:%S.") + f"{v.microsecond // 1000:03d}Z"
 
 

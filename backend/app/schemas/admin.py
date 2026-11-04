@@ -2,7 +2,14 @@ from uuid import UUID
 
 from pydantic import field_validator
 
-from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalJsDateTime, OptionalMoneyStr, RateStr
+from app.schemas.base import (
+    CamelModel,
+    JsDateTime,
+    MoneyStr,
+    OptionalJsDateTime,
+    OptionalMoneyStr,
+    RateStr,
+)
 from app.schemas.wallet import _mask_card_number
 
 # ─── Pagination ─────────────────────────────────────────────────────────────

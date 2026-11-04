@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import field_validator
 
-from app.schemas.base import CamelModel, JsDateTime, MoneyStr, OptionalMoneyStr
+from app.schemas.base import CamelModel, JsDateTime, MoneyStr
 
 
 def _mask_account_number(v: str | None) -> str | None:

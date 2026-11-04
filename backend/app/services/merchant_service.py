@@ -1,5 +1,4 @@
 import secrets
-import time
 import uuid
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
@@ -24,7 +23,7 @@ from app.models.user import User
 from app.services import notification_service, pin_service
 from app.services.stitch_service import STITCH_BANKS
 
-SUBSCRIPTION_PLANS = {"starter": Decimal("0"), "pro": Decimal("99"), "business": Decimal("299")}
+SUBSCRIPTION_PLANS = {"starter": Decimal(0), "pro": Decimal(99), "business": Decimal(299)}
 
 
 async def get_merchants_by_user(db: AsyncSession, user_id: uuid.UUID) -> list[Merchant]:
@@ -371,15 +370,15 @@ def compute_analytics(transactions: list[MerchantTransaction], daily_limit: Deci
     prev_month_txs = [t for t in transactions if prev_month_start <= tx_at(t) < month_ago]
 
     def total(txs: list[MerchantTransaction]) -> Decimal:
-        return sum((t.amount for t in txs), Decimal("0"))
+        return sum((t.amount for t in txs), Decimal(0))
 
     def avg(txs: list[MerchantTransaction]) -> Decimal:
-        return total(txs) / len(txs) if txs else Decimal("0")
+        return total(txs) / len(txs) if txs else Decimal(0)
 
     unique_customers = {t.payer_id for t in transactions if t.payer_id}
     month_customers = {t.payer_id for t in month_txs if t.payer_id}
 
-    customer_map: dict[str, dict] = defaultdict(lambda: {"name": "Anonymous", "total": Decimal("0"), "count": 0})
+    customer_map: dict[str, dict] = defaultdict(lambda: {"name": "Anonymous", "total": Decimal(0), "count": 0})
     for t in transactions:
         key = str(t.payer_id) if t.payer_id else (t.payer_name or "anonymous")
         entry = customer_map[key]
@@ -425,7 +424,7 @@ def compute_analytics(transactions: list[MerchantTransaction], daily_limit: Deci
         "statusBreakdown": {"completed": len(completed), "pending": len(pending), "failed": len(failed)},
         "dailyLimit": {
             "limit": float(daily_limit), "used": float(daily_used),
-            "remaining": float(max(Decimal("0"), daily_limit - daily_used)),
+            "remaining": float(max(Decimal(0), daily_limit - daily_used)),
             "percentUsed": round(float(daily_used / daily_limit * 100)) if daily_limit > 0 else 0,
         },
     }

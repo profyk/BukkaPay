@@ -23,7 +23,13 @@ from sqlalchemy import select, update
 from app.core.logging import log
 from app.db.base import get_session_factory
 from app.models.claim_payment import ClaimPayment
-from app.models.enums import ClaimPaymentStatus, LinkStatus, NotificationType, PaymentRequestStatus, TransactionType
+from app.models.enums import (
+    ClaimPaymentStatus,
+    LinkStatus,
+    NotificationType,
+    PaymentRequestStatus,
+    TransactionType,
+)
 from app.models.misc import PaymentRequest
 from app.models.rental import RentPaymentLink
 from app.models.wallet import Transaction, WalletCard

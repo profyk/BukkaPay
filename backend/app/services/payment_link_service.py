@@ -8,11 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
 from app.integrations import stitch
-from app.models.enums import NotificationType, PaymentLinkStatus, TransactionType
+from app.models.enums import PaymentLinkStatus, TransactionType
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.user import User
 from app.models.wallet import Transaction, WalletCard
-from app.services import notification_service
 from app.services.stitch_service import STITCH_BANKS
 
 PAYMENT_URL_BASE = "https://app.bukkapay.com/pay"
@@ -74,7 +73,7 @@ async def create_payment_link(
         customer_name = invoice.get("customerName") or invoice.get("customer_name")
         raw_items = invoice.get("items") or []
         items = []
-        total = Decimal("0")
+        total = Decimal(0)
         for item in raw_items:
             qty = int(item.get("quantity") or 1)
             unit_price = Decimal(str(item.get("unitPrice") or item.get("unit_price") or 0))
@@ -235,7 +234,7 @@ async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUI
     new_remaining = link.amount - new_amount_paid
     new_status = PaymentLinkStatus.PAID if new_remaining <= Decimal("0.01") else PaymentLinkStatus.PARTIAL
     link.amount_paid = new_amount_paid
-    link.remaining_balance = max(Decimal("0"), new_remaining)
+    link.remaining_balance = max(Decimal(0), new_remaining)
     link.status = new_status
 
     db.add(Transaction(
@@ -247,7 +246,7 @@ async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUI
     return {
         "success": True,
         "amountPaid": f"{new_amount_paid:.2f}",
-        "remaining": f"{max(Decimal('0'), new_remaining):.2f}",
+        "remaining": f"{max(Decimal(0), new_remaining):.2f}",
         "status": new_status.value,
     }
 

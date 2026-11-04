@@ -1,17 +1,14 @@
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from datetime import UTC, datetime
-
 from app.core.errors import ApiError
 from app.models.enums import KycStatus, NotificationType
-from app.models.merchant import Merchant
-from app.models.misc import PaymentRequest
-from app.models.payment_link import PaymentLink
 from app.models.loyalty import LoyaltyReward
+from app.models.payment_link import PaymentLink
 from app.models.user import User
 from app.models.wallet import Transaction, WalletCard
 from app.services import notification_service
@@ -70,7 +67,7 @@ async def get_user_detail(db: AsyncSession, user: User) -> dict:
     loyalty_result = await db.execute(select(LoyaltyReward).where(LoyaltyReward.user_id == user.id))
     loyalty = loyalty_result.scalar_one_or_none()
 
-    total_balance = sum((c.balance for c in cards), Decimal("0"))
+    total_balance = sum((c.balance for c in cards), Decimal(0))
 
     cards = [_row(c) for c in cards]
     recent_transactions = [_row(t) for t in recent_transactions]

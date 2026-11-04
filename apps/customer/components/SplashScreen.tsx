@@ -1,5 +1,6 @@
 import { View, Text, ActivityIndicator, StyleSheet, Image } from "react-native";
-import appIcon from "../assets/bukkapay-icon.png";
+
+const appIcon = require("../assets/bukkapay-icon.png");
 
 interface SplashScreenProps {
   isVisible: boolean;

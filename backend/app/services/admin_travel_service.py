@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ApiError
 from app.models.travel import TravelDeparture, TravelOperator, TravelRoute
 
-
 # ─── Operators ───────────────────────────────────────────────────────────────
 
 async def list_operators(db: AsyncSession) -> list[TravelOperator]:

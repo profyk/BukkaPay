@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
 
-
 MAX_NOTIFICATIONS_PAGE_SIZE = 100
 
 

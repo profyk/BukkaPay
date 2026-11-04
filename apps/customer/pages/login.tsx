@@ -93,7 +93,11 @@ export default function Login() {
     try {
       const demoGoogleToken = "google-demo-token";
       await signInWithGoogle(demoGoogleToken, formData.email || undefined, "Google user");
-      router.push("/(auth)/otp-confirm" as any);
+      if (!formData.password) {
+        toast({ title: "Password required", description: "Enter your password or PIN before continuing to OTP verification.", variant: "destructive" });
+        return;
+      }
+      router.push({ pathname: "/(auth)/otp-confirm", params: { requireConfirmation: "true" } } as any);
     } catch (error: any) {
       toast({ title: "Google sign-in failed", description: error.message, variant: "destructive" });
     }
@@ -200,14 +204,6 @@ export default function Login() {
         >
           <Ionicons name="logo-google" size={20} color={colors.primary} />
           <Text style={[styles.googleButtonText, { color: colors.text }]}>Continue with Google</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.otpButton, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}
-          onPress={() => router.push("/(auth)/otp-confirm" as any)}
-        >
-          <Ionicons name="keypad-outline" size={18} color={colors.primary} />
-          <Text style={[styles.otpButtonText, { color: colors.primary }]}>Use OTP code</Text>
         </TouchableOpacity>
 
         <View style={styles.dividerContainer}>

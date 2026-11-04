@@ -15,7 +15,6 @@ import os
 import uuid
 
 import fakeredis.aioredis
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
@@ -23,14 +22,14 @@ os.environ.setdefault("DATABASE_URL", "postgresql://bukkapay:bukkapay@localhost:
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("ADMIN_API_KEY", "test-master-key")
 
-import app.core.redis as redis_module  # noqa: E402
+import app.core.redis as redis_module
 
 _fake_redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 redis_module.get_redis = lambda: _fake_redis
 
-from app.core.config import get_settings  # noqa: E402
-from app.db.base import Base, get_engine  # noqa: E402
-import app.models  # noqa: E402,F401 — registers every model on Base.metadata
+import app.models  # noqa: F401 — registers every model on Base.metadata
+from app.core.config import get_settings
+from app.db.base import Base, get_engine
 
 get_settings.cache_clear()
 
@@ -51,6 +50,7 @@ async def _seed_corridors(engine):
     tests build schema from the ORM models directly rather than replaying
     migrations."""
     from sqlalchemy import insert
+
     from app.models.wallet import CurrencyCorridor
 
     usd_rate = {

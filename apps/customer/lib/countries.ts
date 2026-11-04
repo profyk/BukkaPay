@@ -21,8 +21,12 @@ export interface Country {
   region: string;
 }
 
+const VALID_CURRENCY_CODES = ["USD", "ZAR", "BWP", "NGN", "GHS", "KES", "GBP", "EUR"] as const;
+
+type CountryCurrencyCode = (typeof VALID_CURRENCY_CODES)[number];
+
 export const AFRICA_COUNTRIES: Country[] = [
-  { code: "DZ", name: "Algeria", flag: "🇩🇿", currency: "USD", zone: "africa", region: "Africa" },
+  { code: "DZ", name: "Algeria", flag: "🇩🇿", currency: "USD", zone: "africa", region: "Africa" } as const,
   { code: "AO", name: "Angola", flag: "🇦🇴", currency: "USD", zone: "africa", region: "Africa" },
   { code: "BJ", name: "Benin", flag: "🇧🇯", currency: "USD", zone: "africa", region: "Africa" },
   { code: "BW", name: "Botswana", flag: "🇧🇼", currency: "BWP", zone: "africa", region: "Africa" },

@@ -12,7 +12,6 @@ from app.models.enums import NotificationType
 from app.models.misc import PurchaseTransaction
 from app.services import notification_service
 
-
 MAX_PURCHASE_TRANSACTIONS_PAGE_SIZE = 100
 
 

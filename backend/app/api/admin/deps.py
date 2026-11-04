@@ -3,13 +3,11 @@ a master API key via `x-admin-token` (machine-to-machine, e.g. ops
 scripts), or a personal admin session via `Authorization: Bearer <token>`.
 """
 
-import uuid
 from dataclasses import dataclass
 
-from fastapi import Header, Request
+from fastapi import Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
 
 from app.core.config import get_settings
 from app.core.errors import ApiError
@@ -72,6 +70,6 @@ def is_allowed_admin_origin(request: Request) -> bool:
     if not origin:
         return True
     allowed = settings.admin_allowed_origins_list or ["https://admin.bukkapay.com"]
-    if origin.endswith(".vercel.app") or origin.endswith(".netlify.app"):
+    if origin.endswith((".vercel.app", ".netlify.app")):
         return True
     return any(origin.startswith(o) for o in allowed)

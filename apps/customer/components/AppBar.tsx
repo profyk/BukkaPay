@@ -13,9 +13,30 @@ const logoImage = require("../assets/logo.png");
 
 const STATUSBAR_HEIGHT = Platform.OS === "android" ? (StatusBar.currentHeight || 24) : 44;
 
-export default function AppBar() {
+type AppBarProps = {
+  title?: string;
+  showBack?: boolean;
+};
+
+export default function AppBar({ title, showBack = false }: AppBarProps = {}) {
   const router = useRouter();
   const { colors } = useTheme();
+
+  if (title || showBack) {
+    return (
+      <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.navBorder }]}>
+        <View style={styles.content}>
+          {showBack ? (
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={20} color={colors.text} />
+            </TouchableOpacity>
+          ) : <View style={styles.backButtonPlaceholder} />}
+          <Text style={[styles.title, { color: colors.text }]}>{title || "BukkaPay"}</Text>
+          <View style={styles.backButtonPlaceholder} />
+        </View>
+      </View>
+    );
+  }
   const [menuOpen, setMenuOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [walletId, setWalletId] = useState("");
@@ -204,6 +225,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  backButtonPlaceholder: {
+    width: 32,
+    height: 32,
   },
   logoContainer: {
     flexDirection: "row",

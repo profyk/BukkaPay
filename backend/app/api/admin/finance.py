@@ -11,7 +11,6 @@ from app.schemas.admin import (
     CorridorRow,
     CorridorsListResponse,
     FlagTransactionResponse,
-    InternationalTransferRow,
     InternationalTransfersListResponse,
     UpdateCorridorRequest,
     UpdatePaymentLinkStatusRequest,

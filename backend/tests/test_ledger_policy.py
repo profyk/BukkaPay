@@ -1,6 +1,11 @@
 from decimal import Decimal
 
-from app.business.ledger_policy import SUPPORTED_CURRENCIES, compute_ledger_hash, is_supported_currency, validate_ledger_entry
+from app.business.ledger_policy import (
+    SUPPORTED_CURRENCIES,
+    compute_ledger_hash,
+    is_supported_currency,
+    validate_ledger_entry,
+)
 
 
 def test_supported_currencies_are_limited_to_usd_zar_bwp() -> None:

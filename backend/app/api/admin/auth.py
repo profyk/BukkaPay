@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.admin.deps import AdminContext, admin_auth, is_allowed_admin_origin, super_admin_or_master_key
+from app.api.admin.deps import (
+    AdminContext,
+    admin_auth,
+    is_allowed_admin_origin,
+    super_admin_or_master_key,
+)
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.db.deps import get_db

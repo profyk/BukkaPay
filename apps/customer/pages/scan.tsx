@@ -118,7 +118,6 @@ export default function Scan() {
           enableTorch={torchOn}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           autofocus="on"
-          focusDistance={0}
           onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         />
 

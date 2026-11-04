@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from app.integrations.bank_partner import BankPartnerClient, is_bank_partner_configured, verify_webhook_signature
+from app.integrations.bank_partner import (
+    BankPartnerClient,
+    is_bank_partner_configured,
+    verify_webhook_signature,
+)
 
 
 class BankPartnerService:

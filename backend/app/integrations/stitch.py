@@ -4,7 +4,6 @@ Stitch isn't configured, same GraphQL client/token-cache shape.
 """
 
 import random
-import secrets
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime

@@ -62,7 +62,7 @@ async def test_admin_kyc_reject_then_resubmit(client: AsyncClient, admin: dict, 
     }, headers=user["headers"])
 
     r = await client.get("/api/admin/kyc", headers=admin["headers"])
-    row = next(row for row in r.json()["kyc"] if row["userId"] == user["user"]["id"])
+    next(row for row in r.json()["kyc"] if row["userId"] == user["user"]["id"])
 
     r = await client.post(
         f"/api/admin/kyc/{user['user']['id']}/reject", json={"reason": "Document is blurry"},

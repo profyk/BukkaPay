@@ -1,0 +1,136 @@
+:root {
+  --bg: #07111c;
+  --card: #0d1d2d;
+  --card-soft: rgba(255,255,255,0.04);
+  --text: #edf3ff;
+  --muted: #a6b6d4;
+  --primary: #7fd3b2;
+  --primary-strong: #2c9a8a;
+  --border: rgba(255,255,255,0.08);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+a { color: inherit; text-decoration: none; }
+
+.website-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 64px 24px 80px;
+}
+
+.hero {
+  display: grid;
+  gap: 20px;
+  padding: 40px 0 20px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.hero h1 {
+  max-width: 800px;
+  margin: 0;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  line-height: 1.02;
+}
+
+.hero p {
+  max-width: 700px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 1.05rem;
+}
+
+.actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  padding: 0.9rem 1.2rem;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.actions .primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+  color: #071b18;
+}
+
+.actions .secondary {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+  margin: 32px 0 28px;
+}
+
+.metrics > div,
+.plan-card,
+.legal-links {
+  background: rgba(15,28,42,0.9);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px 18px;
+}
+
+.metrics strong {
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.metrics span,
+.plan-card p,
+.legal-links ul {
+  color: var(--muted);
+}
+
+.plans {
+  margin-top: 32px;
+}
+
+.plans h2,
+.legal-links h2 {
+  margin-bottom: 18px;
+  font-size: 1.8rem;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.plan-card h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.price {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+
+.legal-links ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}

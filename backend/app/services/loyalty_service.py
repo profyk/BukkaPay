@@ -62,7 +62,7 @@ async def create_challenge(
 ) -> Challenge:
     challenge = Challenge(
         user_id=user_id, title=title, description=description,
-        target=Decimal(target) if target else None, current=Decimal(current) if current else Decimal("0"),
+        target=Decimal(target) if target else None, current=Decimal(current) if current else Decimal(0),
         reward=reward or 0, completed=bool(completed),
     )
     db.add(challenge)

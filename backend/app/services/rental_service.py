@@ -228,8 +228,8 @@ async def get_dashboard(db: AsyncSession, landlord_id: uuid.UUID) -> dict:
         property_ = await get_property(db, str(tenant.property_id))
         payments = await get_rent_payments_for_month(db, tenant.id, current_month)
 
-        monthly_rent = unit.monthly_rent if unit else Decimal("0")
-        amount_paid = sum((p.amount for p in payments), Decimal("0"))
+        monthly_rent = unit.monthly_rent if unit else Decimal(0)
+        amount_paid = sum((p.amount for p in payments), Decimal(0))
 
         status = "unpaid"
         if amount_paid >= monthly_rent:
@@ -245,10 +245,10 @@ async def get_dashboard(db: AsyncSession, landlord_id: uuid.UUID) -> dict:
             "amountPaid": float(amount_paid), "status": status,
         })
 
-    total_income = Decimal("0")
+    total_income = Decimal(0)
     for prop in properties:
         payments = await get_rent_payments_by_property(db, prop.id)
-        total_income += sum((p.amount for p in payments), Decimal("0"))
+        total_income += sum((p.amount for p in payments), Decimal(0))
 
     unpaid_count = sum(1 for t in tenant_details if t["status"] == "unpaid")
     partial_count = sum(1 for t in tenant_details if t["status"] == "partial")
@@ -340,8 +340,8 @@ async def get_tenant_dashboard(db: AsyncSession, user_id: uuid.UUID) -> dict:
     payments = await get_rent_payments_for_month(db, tenant.id, current_month)
     all_payments = await get_rent_payments_by_tenant(db, tenant.id)
 
-    monthly_rent = unit.monthly_rent if unit else Decimal("0")
-    amount_paid = sum((p.amount for p in payments), Decimal("0"))
+    monthly_rent = unit.monthly_rent if unit else Decimal(0)
+    amount_paid = sum((p.amount for p in payments), Decimal(0))
 
     status = "unpaid"
     if amount_paid >= monthly_rent:

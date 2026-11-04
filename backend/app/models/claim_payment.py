@@ -7,9 +7,8 @@ from app.models.enums import ClaimMethod, ClaimPaymentStatus, PickupStatus
 from app.models.mixins import (
     CurrencyCode,
     Money,
-    OptionalTimestamp,
-    TimestampMixin,
     Timestamp,
+    TimestampMixin,
     UUIDFk,
     UUIDPk,
 )

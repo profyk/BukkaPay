@@ -9,11 +9,12 @@ export default function OtpConfirm() {
   const { colors } = useTheme();
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
+  const [confirmValue, setConfirmValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
   const handleRequestOtp = async () => {
-    if (!email.trim()) {
+    if (!email.trim() || !confirmValue.trim()) {
       return;
     }
     setSending(true);
@@ -25,7 +26,7 @@ export default function OtpConfirm() {
   };
 
   const handleVerify = async () => {
-    if (!email.trim() || otp.trim().length !== 6) {
+    if (!email.trim() || !confirmValue.trim() || otp.trim().length !== 6) {
       return;
     }
 
@@ -57,6 +58,16 @@ export default function OtpConfirm() {
           {sending ? <ActivityIndicator color={colors.primary} /> : <Text style={[styles.secondaryText, { color: colors.primary }]}>Send OTP</Text>}
         </TouchableOpacity>
 
+        <Text style={[styles.subtitle, { color: colors.textMuted, marginBottom: 8 }]}>Enter your password or PIN for confirmation</Text>
+        <TextInput
+          value={confirmValue}
+          onChangeText={setConfirmValue}
+          placeholder="Password or PIN"
+          secureTextEntry
+          autoCapitalize="none"
+          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBg, marginBottom: 12 }]}
+        />
+
         <TextInput
           value={otp}
           onChangeText={setOtp}
@@ -86,5 +97,6 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, letterSpacing: 6, marginBottom: 18 },
   button: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  secondaryButton: { borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   secondaryText: { textAlign: "center", marginTop: 18, fontWeight: "600" },
 });

@@ -17,7 +17,7 @@ def normalize_currency(code: str | None) -> str | None:
     return None
 
 
-def validate_ledger_entry(*, amount: Decimal | str | int | float, currency: str | None, balance_before: Decimal | str | int | float, balance_after: Decimal | str | int | float) -> bool:
+def validate_ledger_entry(*, amount: Decimal | str | float, currency: str | None, balance_before: Decimal | str | float, balance_after: Decimal | str | float) -> bool:
     normalized_currency = normalize_currency(currency)
     if not normalized_currency:
         return False
