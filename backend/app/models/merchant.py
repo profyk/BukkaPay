@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Enum, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, CheckConstraint, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -50,6 +50,19 @@ class Merchant(Base, TimestampMixin):
     qr_code: Mapped[str] = mapped_column(Text, unique=True, index=True)
     payment_link: Mapped[str] = mapped_column(Text, unique=True, index=True)
     wallet_balance: Mapped[Money] = mapped_column(default=0)
+    country_code: Mapped[str] = mapped_column(String(2), ForeignKey("countries.code"), default="ZA")
+    settlement_currency: Mapped[str] = mapped_column(String(3), ForeignKey("currencies.code"), default="ZAR")
+    # KYB gate: a merchant can't take payments or withdraw until approved.
+    kyb_status: Mapped[str] = mapped_column(Text, default="not_submitted")
+    kyb_submitted_at: Mapped[OptionalTimestamp]
+    kyb_reviewed_at: Mapped[OptionalTimestamp]
+    kyb_rejection_reason: Mapped[str | None] = mapped_column(Text)
+    kyb_details: Mapped[dict | None] = mapped_column(JSONB)
+    # "business": full KYB (registration, directors, documents), no cap.
+    # "individual": street vendors, tuck shops, individual landlords —
+    # verified through the owner's own ID check (KYC level 2) instead of
+    # business documents, and capped by the "merchant_individual" limit.
+    verification_tier: Mapped[str] = mapped_column(String(12), default="business", server_default="business")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     daily_limit: Mapped[Money] = mapped_column(default=10000)
     subscription_plan: Mapped[SubscriptionPlan] = mapped_column(

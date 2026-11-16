@@ -1,15 +1,18 @@
-import './globals.css';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from "next"
+import "./globals.css"
 
 export const metadata: Metadata = {
-  title: 'BukkaPay Merchant',
-  description: 'Merchant dashboard and onboarding workflow.',
-};
+  title: "BukkaPay for Business",
+  description: "Accept payments, manage settlements and run your business on the BukkaPay network.",
+  robots: { index: false, follow: false },
+}
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#7C3AED" }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="min-h-screen">{children}</body>
     </html>
-  );
+  )
 }

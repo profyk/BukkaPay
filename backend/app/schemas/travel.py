@@ -41,6 +41,7 @@ class BookTravelRequest(CamelModel):
     from_card_id: str
     seat_class: str = "economy"
     passengers: list[PassengerInput]
+    pin: str | None = None
 
 
 # ─── Admin: operators/routes/departures ─────────────────────────────────────

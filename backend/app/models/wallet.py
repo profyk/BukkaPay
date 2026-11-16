@@ -1,11 +1,12 @@
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Enum, ForeignKey, Numeric, Text
+from sqlalchemy import Boolean, CheckConstraint, Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.crypto import EncryptedText
 from app.db.base import Base
-from app.models.enums import TransactionType, TransferPurpose, TransferZone, WalletCurrency
+from app.models.enums import TransactionType, TransferPurpose, TransferZone
 from app.models.mixins import (
     CreatedOnlyMixin,
     ExchangeRate,
@@ -16,9 +17,12 @@ from app.models.mixins import (
     UUIDPk,
 )
 
-_wallet_currency_enum = Enum(
-    WalletCurrency, name="wallet_currency", native_enum=True, values_callable=lambda x: [e.value for e in x]
-)
+
+def _currency_fk() -> ForeignKey:
+    # Currencies are rows in `currencies`, not a Postgres enum (see 0016).
+    return ForeignKey("currencies.code", ondelete="RESTRICT")
+
+
 _transfer_purpose_enum = Enum(
     TransferPurpose, name="transfer_purpose", native_enum=True, values_callable=lambda x: [e.value for e in x]
 )
@@ -37,12 +41,17 @@ class WalletCard(Base, TimestampMixin):
     )
     title: Mapped[str] = mapped_column(Text)
     balance: Mapped[Money] = mapped_column(default=0)
-    currency: Mapped[WalletCurrency] = mapped_column(_wallet_currency_enum, default=WalletCurrency.ZAR)
+    currency: Mapped[str] = mapped_column(String(3), _currency_fk(), default="ZAR")
     icon: Mapped[str] = mapped_column(Text)
     color: Mapped[str] = mapped_column(Text)
-    card_number: Mapped[str] = mapped_column(Text)
+    # DEPRECATED (migration 0019): these held numbers generated locally,
+    # not issued by any card network, so they could never pay anywhere.
+    # Nothing writes or returns them any more; the real card is an
+    # IssuedCard (app.models.cards). Kept only until a later migration
+    # drops the columns; encrypted at rest meanwhile.
+    card_number: Mapped[str | None] = mapped_column(EncryptedText)
     expiry_date: Mapped[str | None] = mapped_column(Text)
-    cvv: Mapped[str | None] = mapped_column(Text)
+    cvv: Mapped[str | None] = mapped_column(EncryptedText)
     stitch_card_id: Mapped[str | None] = mapped_column(Text)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     frozen: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -91,8 +100,8 @@ class CurrencyCorridor(Base, TimestampMixin):
     )
 
     id: Mapped[UUIDPk]
-    from_currency: Mapped[WalletCurrency] = mapped_column(_wallet_currency_enum)
-    to_currency: Mapped[WalletCurrency] = mapped_column(_wallet_currency_enum)
+    from_currency: Mapped[str] = mapped_column(String(3), _currency_fk())
+    to_currency: Mapped[str] = mapped_column(String(3), _currency_fk())
     exchange_rate: Mapped[ExchangeRate]
     fee_percentage: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0)
     fee_fixed: Mapped[Money] = mapped_column(default=0)
@@ -114,8 +123,8 @@ class InternationalTransfer(Base, CreatedOnlyMixin):
     recipient_id: Mapped[UUIDFk] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    from_currency: Mapped[WalletCurrency] = mapped_column(_wallet_currency_enum)
-    to_currency: Mapped[WalletCurrency] = mapped_column(_wallet_currency_enum)
+    from_currency: Mapped[str] = mapped_column(String(3), _currency_fk())
+    to_currency: Mapped[str] = mapped_column(String(3), _currency_fk())
     source_amount: Mapped[Money]
     exchange_rate_applied: Mapped[ExchangeRate]
     fee_amount: Mapped[Money]

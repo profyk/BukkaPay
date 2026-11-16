@@ -27,6 +27,9 @@ CLAIM_URL_BASE = "https://app.bukkapay.com/claim"
 async def create_claim_payment(
     body: CreateClaimPaymentRequest, sender_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> CreateClaimPaymentResponse:
+    from app.services import pin_service
+
+    await pin_service.verify_pin(db, sender_id, body.transaction_pin)
     claim = await svc.create_claim(
         db, sender_id, recipient_name=body.recipient_name, recipient_contact=body.recipient_contact,
         amount=body.amount, currency=body.currency, note=body.note, pin=body.pin,

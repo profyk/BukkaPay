@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,15 +8,11 @@ import ActionButtons from "../components/ActionButtons";
 import AppBar from "../components/AppBar";
 import { fetchCards, fetchTransactions } from "../lib/api";
 import { mapCardFromAPI, mapTransactionFromAPI } from "../lib/mappers";
-import { useToast } from "../hooks/use-toast";
 import { getCurrentUser } from "../lib/auth";
-import { API_BASE } from "../lib/config";
-import { getAuthHeader } from "../lib/auth";
+import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 
 export default function Home() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
   const { colors } = useTheme();
   const [userName, setUserName] = useState("");
 
@@ -27,7 +23,7 @@ export default function Home() {
     })();
   }, []);
 
-  const { data: cards, isLoading: cardsLoading } = useQuery({
+  const { data: cards, isLoading: cardsLoading, refetch: refetchCards } = useQuery({
     queryKey: ["cards"],
     queryFn: fetchCards,
   });
@@ -37,24 +33,8 @@ export default function Home() {
     queryFn: () => fetchTransactions(3),
   });
 
-  const seedMutation = useMutation({
-    mutationFn: async () => {
-      const headers = await getAuthHeader();
-      const res = await fetch(API_BASE + "/api/seed", { method: "POST", headers });
-      if (!res.ok) throw new Error("Failed to seed");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cards"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      toast({ title: "Success", description: "Sample data added!" });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to add sample data", variant: "destructive" });
-    },
-  });
-
-  const mainCard = cards && cards.length > 0 ? mapCardFromAPI(cards[0]) : null;
+  const defaultWallet = (cards || []).find((c: any) => c.isDefault) || (cards || [])[0];
+  const mainCard = defaultWallet ? mapCardFromAPI(defaultWallet) : null;
   const mappedTransactions = transactions?.map(mapTransactionFromAPI) || [];
 
   return (
@@ -67,21 +47,15 @@ export default function Home() {
           <WalletCard
             {...mainCard}
             balance={mainCard.balance}
-            currency="R"
+            currency={getCurrency(mainCard.currency).symbol}
           />
         )}
         {!cardsLoading && !mainCard && (
           <View style={styles.emptyState}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No cards yet. Add sample data to get started!</Text>
-            <TouchableOpacity
-              style={[styles.seedButton, seedMutation.isPending && styles.disabledButton]}
-              onPress={() => seedMutation.mutate()}
-              disabled={seedMutation.isPending}
-            >
-              <Ionicons name="server-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.seedButtonText}>
-                {seedMutation.isPending ? "Adding..." : "Add Sample Data"}
-              </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>We couldn't load your wallet.</Text>
+            <TouchableOpacity style={styles.seedButton} onPress={() => refetchCards()}>
+              <Ionicons name="refresh" size={18} color="#FFFFFF" />
+              <Text style={styles.seedButtonText}>Try again</Text>
             </TouchableOpacity>
           </View>
         )}

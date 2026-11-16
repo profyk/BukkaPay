@@ -3,21 +3,22 @@ import { api } from "@/lib/api";
 
 export interface AuditLog {
   id: string;
-  admin_email: string;
+  actorType: string;
+  actorEmail?: string | null;
   action: string;
-  target_type: "user" | "transaction" | "kyc" | "system" | string;
-  target_id?: string;
-  details?: string;
-  ip_address?: string;
-  created_at: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  details?: Record<string, any>;
+  ip?: string | null;
+  createdAt: string;
 }
 
-export function useAuditLogs() {
+export function useAuditLogs(action?: string) {
   return useQuery({
-    queryKey: ["audit-logs"],
+    queryKey: ["audit-logs", action],
     queryFn: async () => {
-      const { data } = await api.get("/admin/audit-logs");
-      return ((data as any).logs ?? data) as AuditLog[];
+      const { data } = await api.get("/admin/audit", { params: action ? { action } : undefined });
+      return data as AuditLog[];
     },
     refetchInterval: 30_000,
   });

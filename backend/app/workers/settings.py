@@ -14,6 +14,13 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, log
 from app.workers.tasks import (
     charge_monthly_card_maintenance_fees,
+    collect_card_overdrafts,
+    daily_reconciliation,
+    encrypt_legacy_card_data,
+    expire_card_holds,
+    expire_fx_quotes,
+    issue_pending_cards,
+    process_outbox,
     sweep_expired_claim_payments,
     sweep_expired_payment_requests,
     sweep_expired_rent_payment_links,
@@ -23,6 +30,7 @@ from app.workers.tasks import (
 async def on_startup(ctx: dict) -> None:
     configure_logging(get_settings().env)
     log.info("worker_startup")
+    await encrypt_legacy_card_data(ctx)
 
 
 async def on_shutdown(ctx: dict) -> None:
@@ -39,7 +47,15 @@ class WorkerSettings:
         cron(sweep_expired_claim_payments, minute=set(range(0, 60, 5))),
         cron(sweep_expired_payment_requests, minute=set(range(0, 60, 5))),
         cron(sweep_expired_rent_payment_links, minute=set(range(0, 60, 5))),
-        cron(charge_monthly_card_maintenance_fees, hour=3, minute=0),
+        # hourly in bounded batches; idempotent per card per 30 days
+        cron(charge_monthly_card_maintenance_fees, minute=0),
+        cron(issue_pending_cards, minute=set(range(0, 60, 2))),
+        cron(expire_card_holds, minute=15),
+        cron(collect_card_overdrafts, minute=set(range(0, 60, 5))),
+        # every 10 seconds: outbox delivery (sandbox settlements, merchant webhooks)
+        cron(process_outbox, second=set(range(0, 60, 10))),
+        cron(expire_fx_quotes, minute=set(range(0, 60, 5))),
+        cron(daily_reconciliation, hour=2, minute=30),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

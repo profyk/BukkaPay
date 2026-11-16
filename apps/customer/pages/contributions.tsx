@@ -24,13 +24,14 @@ interface ContributionGroup {
   createdAt: string;
 }
 
+// Must match the API's contribution categories.
 const CATEGORIES = [
-  { id: "funeral",     label: "Funeral",     icon: "heart"      as const, color: "#475569" },
-  { id: "church",      label: "Church",      icon: "home"       as const, color: "#7C3AED" },
-  { id: "fundraising", label: "Fundraising", icon: "business"   as const, color: "#059669" },
-  { id: "celebration", label: "Celebration", icon: "happy"      as const, color: "#D97706" },
-  { id: "charity",     label: "Charity",     icon: "hand-left"  as const, color: "#EC4899" },
-  { id: "other",       label: "Other",       icon: "flag"       as const, color: "#2563EB" },
+  { id: "community",  label: "Community",  icon: "people"     as const, color: "#7C3AED" },
+  { id: "event",      label: "Family event", icon: "happy"    as const, color: "#D97706" },
+  { id: "education",  label: "School",     icon: "school"     as const, color: "#2563EB" },
+  { id: "medical",    label: "Medical",    icon: "medkit"     as const, color: "#EC4899" },
+  { id: "emergency",  label: "Emergency",  icon: "alert-circle" as const, color: "#DC2626" },
+  { id: "other",      label: "Other",      icon: "flag"       as const, color: "#475569" },
 ];
 
 // ─── Create Group Modal ────────────────────────────────────────────────────────

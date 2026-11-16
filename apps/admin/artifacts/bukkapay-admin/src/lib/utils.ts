@@ -9,7 +9,7 @@ const SYMBOL_TO_CODE: Record<string, string> = {
   "$": "USD", "R": "ZAR", "€": "EUR", "£": "GBP", "¥": "JPY",
 }
 
-export function formatCurrency(amount: number, currency = "ZAR") {
+export function formatCurrency(amount: number | string, currency = "ZAR") {
   const code = SYMBOL_TO_CODE[currency] ?? (currency?.length === 3 ? currency : "ZAR")
   try {
     return new Intl.NumberFormat("en-ZA", {

@@ -8,20 +8,25 @@ from enum import StrEnum
 
 
 class AdminRole(StrEnum):
+    """Least-privilege admin roles; permissions per role live in
+    app.governance.permissions. `admin` is the legacy general role."""
+
     ADMIN = "admin"
     SUPER_ADMIN = "super_admin"
+    CEO = "ceo"
+    FINANCE_ADMIN = "finance_admin"
+    COMPLIANCE_OFFICER = "compliance_officer"
+    OPERATIONS_ADMIN = "operations_admin"
+    CUSTOMER_SUPPORT = "customer_support"
+    MERCHANT_SUPPORT = "merchant_support"
+    TECHNICAL_ADMIN = "technical_admin"
+    AUDITOR = "auditor"
 
 
 class TransactionType(StrEnum):
     CREDIT = "credit"
     DEBIT = "debit"
     TRANSFER = "transfer"
-
-
-class WalletCurrency(StrEnum):
-    USD = "USD"
-    ZAR = "ZAR"
-    BWP = "BWP"
 
 
 class KycStatus(StrEnum):
@@ -61,8 +66,14 @@ class MerchantBusinessType(StrEnum):
 
 
 class MerchantStaffRole(StrEnum):
+    """The owner is merchants.user_id; staff roles below. `manager` is the
+    legacy name for administrator and keeps the same rights."""
+
     MANAGER = "manager"
+    ADMIN = "admin"
+    FINANCE = "finance"
     CASHIER = "cashier"
+    VIEWER = "viewer"
 
 
 class MerchantStaffStatus(StrEnum):

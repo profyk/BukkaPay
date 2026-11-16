@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.admin.deps import AdminContext, admin_auth
+from app.api.admin.deps import AdminContext, require
 from app.core.errors import ApiError
 from app.db.deps import get_db
 from app.schemas.admin import (
@@ -32,7 +32,7 @@ def _user_row(user, status: str | None = None) -> AdminUserRow:
 async def list_users(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=100),
     q: str | None = Query(default=None), frozen: bool | None = Query(default=None),
-    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    _ctx: AdminContext = Depends(require("users.view")), db: AsyncSession = Depends(get_db),
 ) -> UsersListResponse:
     users, total = await svc.list_users(db, page=page, limit=limit, q=q, frozen=frozen)
     return UsersListResponse.model_validate({
@@ -43,7 +43,7 @@ async def list_users(
 
 @router.get("/users/{user_id}")
 async def get_user(
-    user_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, _ctx: AdminContext = Depends(require("users.view")), db: AsyncSession = Depends(get_db)
 ) -> AdminUserDetailResponse:
     user = await svc.get_user(db, user_id)
     if user is None:
@@ -55,7 +55,7 @@ async def get_user(
 
 @router.patch("/users/{user_id}")
 async def update_user(
-    user_id: str, body: UpdateUserRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, body: UpdateUserRequest, _ctx: AdminContext = Depends(require("users.manage")), db: AsyncSession = Depends(get_db)
 ) -> AdminUserRow:
     user = await svc.get_user(db, user_id)
     if user is None:
@@ -66,19 +66,27 @@ async def update_user(
 
 @router.patch("/users/{user_id}/freeze")
 async def freeze_user(
-    user_id: str, body: FreezeUserRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, body: FreezeUserRequest, ctx: AdminContext = Depends(require("users.freeze")),
+    db: AsyncSession = Depends(get_db)
 ) -> dict:
+    """Freezing is immediate; unfreezing is maker-checker (approval request)."""
     user = await svc.get_user(db, user_id)
     if user is None:
         raise ApiError("User not found", status_code=404)
     frozen = body.frozen is not False
+    if not frozen and user.frozen:
+        from app.governance import approvals
+
+        req = await approvals.request(db, ctx, action="user.unfreeze", payload={"user_id": str(user.id)},
+                                      reason="Unfreeze requested from the users screen")
+        return {"success": True, "pendingApproval": True, "approvalId": str(req.id), "frozen": True}
     updated = await svc.set_frozen(db, user, frozen)
     return {"success": True, "frozen": frozen, "user": _user_row(updated).model_dump(by_alias=True, mode="json")}
 
 
 @router.patch("/users/{user_id}/verify")
 async def verify_user(
-    user_id: str, body: VerifyUserRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, body: VerifyUserRequest, _ctx: AdminContext = Depends(require("users.manage")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     user = await svc.get_user(db, user_id)
     if user is None:
@@ -90,7 +98,7 @@ async def verify_user(
 
 @router.delete("/users/{user_id}")
 async def delete_user(
-    user_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, _ctx: AdminContext = Depends(require("users.manage")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     user = await svc.get_user(db, user_id)
     if user is None:
@@ -102,7 +110,7 @@ async def delete_user(
 
 @router.post("/users/{user_id}/notify", status_code=201)
 async def notify_user(
-    user_id: str, body: NotifyUserRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, body: NotifyUserRequest, _ctx: AdminContext = Depends(require("support.manage")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     user = await svc.get_user(db, user_id)
     if user is None:
@@ -113,7 +121,7 @@ async def notify_user(
 
 @router.post("/broadcast")
 async def broadcast(
-    body: BroadcastRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    body: BroadcastRequest, _ctx: AdminContext = Depends(require("broadcast.send")), db: AsyncSession = Depends(get_db)
 ) -> BroadcastResponse:
     sent = await svc.broadcast(db, type=body.type, title=body.title, message=body.message)
     return BroadcastResponse.model_validate({"success": True, "sent": sent})
@@ -122,7 +130,7 @@ async def broadcast(
 @router.get("/kyc")
 async def list_kyc(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=100),
-    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    _ctx: AdminContext = Depends(require("kyc.view")), db: AsyncSession = Depends(get_db),
 ) -> KycListResponse:
     rows, total = await svc.list_kyc(db, page=page, limit=limit)
     return KycListResponse.model_validate({
@@ -132,7 +140,7 @@ async def list_kyc(
 
 @router.post("/kyc/{user_id}/approve")
 async def approve_kyc(
-    user_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, _ctx: AdminContext = Depends(require("kyc.review")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     user = await svc.get_user(db, user_id)
     if user is None:
@@ -143,7 +151,7 @@ async def approve_kyc(
 
 @router.post("/kyc/{user_id}/reject")
 async def reject_kyc(
-    user_id: str, body: KycRejectRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, body: KycRejectRequest, _ctx: AdminContext = Depends(require("kyc.review")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     user = await svc.get_user(db, user_id)
     if user is None:

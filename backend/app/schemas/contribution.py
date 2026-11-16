@@ -10,7 +10,8 @@ class ContributionGroupResponse(CamelModel):
     description: str | None
     category: str
     target_amount: OptionalMoneyStr
-    current_amount: MoneyStr
+    current_amount: MoneyStr  # collected and still held in the campaign
+    paid_out_amount: MoneyStr = 0  # already moved to the creator
     currency: str
     share_code: str
     is_active: bool
@@ -28,6 +29,7 @@ class ContributionResponse(CamelModel):
     amount: MoneyStr
     message: str | None
     is_anonymous: bool
+    status: str = "paid"
     created_at: JsDateTime
 
 
@@ -52,3 +54,15 @@ class CreateContributionRequest(CamelModel):
     amount: str
     message: str | None = None
     is_anonymous: bool | None = None
+    pin: str | None = None
+
+
+class GuestContributionRequest(CamelModel):
+    payer_name: str
+    payer_email: str | None = None
+    amount: str
+
+
+class ContributionPayoutRequest(CamelModel):
+    amount: str | None = None
+    pin: str | None = None

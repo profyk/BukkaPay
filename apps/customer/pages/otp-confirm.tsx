@@ -1,39 +1,43 @@
 import { useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "../lib/ThemeContext";
 import { requestOtp, verifyOtp } from "../lib/auth";
 
 export default function OtpConfirm() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ email?: string }>();
   const { colors } = useTheme();
   const [otp, setOtp] = useState("");
-  const [email, setEmail] = useState("");
-  const [confirmValue, setConfirmValue] = useState("");
+  const [email, setEmail] = useState(params.email || "");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
 
   const handleRequestOtp = async () => {
-    if (!email.trim() || !confirmValue.trim()) {
-      return;
-    }
+    if (!email.trim()) return setError("Enter your email address");
+    setError("");
     setSending(true);
     try {
       await requestOtp(email.trim());
+      setSent(true);
+    } catch (e: any) {
+      setError(e.message || "Couldn't send the code");
     } finally {
       setSending(false);
     }
   };
 
   const handleVerify = async () => {
-    if (!email.trim() || !confirmValue.trim() || otp.trim().length !== 6) {
-      return;
-    }
-
+    if (!email.trim() || otp.trim().length !== 6) return setError("Enter the 6-digit code from the email");
+    setError("");
     setLoading(true);
     try {
       await verifyOtp(email.trim(), otp.trim());
       router.replace("/(tabs)" as any);
+    } catch (e: any) {
+      setError(e.message || "That code didn't work");
     } finally {
       setLoading(false);
     }
@@ -42,8 +46,10 @@ export default function OtpConfirm() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Verify your login</Text>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>Enter the 6-digit code sent to your email or phone.</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Sign in with a code</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+          {sent ? `We emailed a 6-digit code to ${email.trim()}.` : "We'll email you a 6-digit code."}
+        </Text>
 
         <TextInput
           value={email}
@@ -51,34 +57,29 @@ export default function OtpConfirm() {
           placeholder="you@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoComplete="email"
           style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBg, marginBottom: 12 }]}
         />
 
         <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: colors.primaryLight }]} onPress={handleRequestOtp} disabled={sending}>
-          {sending ? <ActivityIndicator color={colors.primary} /> : <Text style={[styles.secondaryText, { color: colors.primary }]}>Send OTP</Text>}
+          {sending ? <ActivityIndicator color={colors.primary} /> : <Text style={[styles.secondaryText, { color: colors.primary }]}>{sent ? "Send a new code" : "Email me a code"}</Text>}
         </TouchableOpacity>
-
-        <Text style={[styles.subtitle, { color: colors.textMuted, marginBottom: 8 }]}>Enter your password or PIN for confirmation</Text>
-        <TextInput
-          value={confirmValue}
-          onChangeText={setConfirmValue}
-          placeholder="Password or PIN"
-          secureTextEntry
-          autoCapitalize="none"
-          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBg, marginBottom: 12 }]}
-        />
 
         <TextInput
           value={otp}
           onChangeText={setOtp}
           placeholder="123456"
           keyboardType="number-pad"
+          autoComplete="one-time-code"
+          textContentType="oneTimeCode"
           maxLength={6}
           style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBg }]}
         />
 
+        {!!error && <Text style={{ color: "#DC2626", marginTop: 10 }}>{error}</Text>}
+
         <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleVerify} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify OTP</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify and sign in</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()}>

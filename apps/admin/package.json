@@ -1,22 +1,11 @@
 {
-  "name": "bukkapay-admin",
+  "name": "bukkapay-admin-workspace",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "next": "14.2.15",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
-  "devDependencies": {
-    "@types/node": "20.14.15",
-    "@types/react": "18.3.3",
-    "@types/react-dom": "18.3.0",
-    "typescript": "5.5.4"
+    "dev": "pnpm --filter @workspace/bukkapay-admin run dev",
+    "build": "pnpm --filter @workspace/bukkapay-admin run build",
+    "typecheck": "pnpm --filter @workspace/bukkapay-admin run typecheck"
   }
 }

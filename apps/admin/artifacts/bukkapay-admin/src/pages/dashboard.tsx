@@ -14,6 +14,7 @@ import { useDashboard } from "@/hooks/use-dashboard"
 import { formatCurrency } from "@/lib/utils"
 import { Link } from "wouter"
 import { Button } from "@/components/ui/button"
+import { NetworkOverview } from "@/components/network/NetworkOverview"
 
 const CARD_VARIANTS = {
   hidden: { opacity: 0, y: 16 },
@@ -66,6 +67,8 @@ export default function DashboardPage() {
             Refresh
           </Button>
         </div>
+
+        <NetworkOverview />
 
         {isLoading ? (
           <div className="flex items-center justify-center h-64 bg-card rounded-2xl border border-border">

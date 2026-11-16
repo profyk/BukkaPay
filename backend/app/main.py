@@ -45,6 +45,24 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("shutdown")
 
 
+class ApiVersionMiddleware:
+    """Serve /api/v1/<path> from the /api/<path> routes."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            path = scope.get("path", "")
+            if path == "/api/v1" or path.startswith("/api/v1/"):
+                scope = dict(scope)
+                scope["path"] = "/api" + path[len("/api/v1"):]
+                raw = scope.get("raw_path")
+                if raw:
+                    scope["raw_path"] = b"/api" + raw[len(b"/api/v1"):]
+        await self.app(scope, receive, send)
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -69,12 +87,15 @@ def create_app() -> FastAPI:
         allow_origins=settings.allowed_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "x-admin-token", "x-api-key"],
+        allow_headers=["Content-Type", "Authorization", "x-admin-token", "x-api-key", "Idempotency-Key"],
         max_age=86400,
     )
 
     app.include_router(api_router)
     app.include_router(admin_router)
+    # Versioned API: /api/v1/... is the canonical path; /api/... remains as an
+    # alias of v1 (outermost middleware so CORS/auth see the rewritten path).
+    app.add_middleware(ApiVersionMiddleware)
 
     @app.get("/", response_class=HTMLResponse)
     async def root() -> str:

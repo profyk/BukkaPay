@@ -23,6 +23,21 @@ class Settings(BaseSettings):
     # Database
     database_url: str = Field(alias="DATABASE_URL")
     external_database_url: str | None = Field(default=None, alias="EXTERNAL_DATABASE_URL")
+    # Per process. Total connections = (pool + overflow) × WEB_CONCURRENCY ×
+    # instances (+ workers) — keep it under the database/pooler limit.
+    db_pool_size: int = Field(default=10, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=10, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout_seconds: int = Field(default=10, alias="DB_POOL_TIMEOUT_SECONDS")
+    db_pool_recycle_seconds: int = Field(default=1800, alias="DB_POOL_RECYCLE_SECONDS")
+    # Guards: a slow query or a transaction left open can't hold row locks
+    # on wallets indefinitely (card authorizations must answer in ~2 s).
+    db_statement_timeout_ms: int = Field(default=15000, alias="DB_STATEMENT_TIMEOUT_MS")
+    db_lock_timeout_ms: int = Field(default=5000, alias="DB_LOCK_TIMEOUT_MS")
+    db_idle_in_transaction_timeout_ms: int = Field(default=30000, alias="DB_IDLE_IN_TRANSACTION_TIMEOUT_MS")
+    # Set when connecting through a transaction-mode pooler (PgBouncer,
+    # Supabase Supavisor :6543): disables prepared-statement caching and
+    # applies the timeouts per transaction instead of per connection.
+    db_pgbouncer: bool = Field(default=False, alias="DB_PGBOUNCER")
 
     # Redis (new — powers sessions cache, rate limiting, ARQ queue)
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
@@ -34,7 +49,16 @@ class Settings(BaseSettings):
     # Stitch (South African instant EFT)
     stitch_client_id: str | None = Field(default=None, alias="STITCH_CLIENT_ID")
     stitch_client_secret: str | None = Field(default=None, alias="STITCH_CLIENT_SECRET")
-    stitch_card_program_id: str | None = Field(default=None, alias="STITCH_CARD_PROGRAM_ID")
+
+    # Card issuing (Visa, via a licensed issuer-processor). "sandbox" in
+    # development; "none" until an issuer is contracted. See app/cards/issuers.py.
+    card_issuer: str = Field(default="sandbox", alias="CARD_ISSUER")
+    card_issuer_webhook_secret: str | None = Field(default=None, alias="CARD_ISSUER_WEBHOOK_SECRET")
+
+    # Public website (apps/website): after an admin edits content, the API
+    # calls this endpoint so the site refreshes immediately.
+    website_revalidate_url: str | None = Field(default=None, alias="WEBSITE_REVALIDATE_URL")
+    website_revalidate_secret: str | None = Field(default=None, alias="WEBSITE_REVALIDATE_SECRET")
     bukkapay_account_name: str = Field(default="BukkaPay (Pty) Ltd", alias="BUKKAPAY_ACCOUNT_NAME")
     bukkapay_bank_id: str = Field(default="fnb", alias="BUKKAPAY_BANK_ID")
     bukkapay_account_number: str | None = Field(default=None, alias="BUKKAPAY_ACCOUNT_NUMBER")
@@ -51,6 +75,7 @@ class Settings(BaseSettings):
     # Third-party platform integrations
     supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
     supabase_anon_key: str | None = Field(default=None, alias="SUPABASE_ANON_KEY")
+    supabase_service_role_key: str | None = Field(default=None, alias="SUPABASE_SERVICE_ROLE_KEY")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
     resend_from_email: str | None = Field(default="noreply@bukkapay.com", alias="RESEND_FROM_EMAIL")
     bank_partner_api_url: str | None = Field(default=None, alias="BANK_PARTNER_API_URL")
@@ -59,6 +84,14 @@ class Settings(BaseSettings):
     bank_partner_webhook_secret: str | None = Field(default=None, alias="BANK_PARTNER_WEBHOOK_SECRET")
     google_client_id: str | None = Field(default=None, alias="GOOGLE_CLIENT_ID")
     google_client_secret: str | None = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
+
+    # Encryption / signing
+    card_data_key: str | None = Field(default=None, alias="CARD_DATA_KEY")  # Fernet key
+    sandbox_webhook_secret: str = Field(default="sandbox-dev-secret", alias="SANDBOX_WEBHOOK_SECRET")
+    # Seconds before the sandbox rail auto-confirms settlement (0 = immediately via worker).
+    sandbox_settlement_delay_seconds: int = Field(default=5, alias="SANDBOX_SETTLEMENT_DELAY_SECONDS")
+    public_web_url: str = Field(default="http://localhost:3000", alias="PUBLIC_WEB_URL")
+    merchant_web_url: str = Field(default="http://localhost:3001", alias="MERCHANT_WEB_URL")
 
     # CORS
     allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")
@@ -119,6 +152,7 @@ class Settings(BaseSettings):
                 "redis_url",
                 "admin_api_key",
                 "allowed_origins",
+                "card_data_key",
             ]
             missing = [name for name in required if not getattr(self, name)]
             if missing:

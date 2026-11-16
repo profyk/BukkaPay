@@ -28,8 +28,10 @@ class TopupInitiateResponse(CamelModel):
 
 class TopupVerifyRequest(CamelModel):
     payment_request_id: str
-    wallet_card_id: str
-    amount: str
+    # Accepted for compatibility with older app builds but ignored: the
+    # wallet and amount come from the server-side funding request.
+    wallet_card_id: str | None = None
+    amount: str | None = None
     currency: str | None = None
 
 
@@ -48,15 +50,18 @@ class WithdrawRequest(CamelModel):
     account_number: str
     account_type: str | None = None
     account_name: str
+    pin: str | None = None
 
 
 class WithdrawResponse(CamelModel):
     success: bool
-    disbursement_id: str
+    # None while the provider outcome is still being confirmed ("processing").
+    disbursement_id: str | None = None
     status: str
     new_balance: str
     reference: str
     message: str
+    fee: str | None = None
 
 
 class PayStitchRequest(CamelModel):

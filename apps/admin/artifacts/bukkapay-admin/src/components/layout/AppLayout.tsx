@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from "react"
 import { useLocation } from "wouter"
 import { Sidebar } from "./Sidebar"
 import { useAuth } from "@/hooks/use-auth"
+import { MfaBanner } from "@/components/network/MfaBanner"
 
 interface AppLayoutProps {
   children: ReactNode
@@ -24,6 +25,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-y-auto">
         <div className="flex-1 p-8 md:p-10 lg:p-12 max-w-7xl mx-auto w-full">
+          <MfaBanner />
           {children}
         </div>
       </main>

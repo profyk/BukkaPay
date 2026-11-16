@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, Modal } from "react-native";
-import * as Clipboard from "expo-clipboard";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from "react-native";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import PremiumCard from "../components/PremiumCard";
 import AddCardDialog from "../components/AddCardDialog";
-import PinPrompt from "../components/PinPrompt";
-import { fetchCards, setDefaultCard, revealCardDetails } from "../lib/api";
+import { fetchCards, setDefaultCard } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
 import { getCurrentUser } from "../lib/auth";
 import { getCurrency } from "../lib/currency";
@@ -22,21 +20,6 @@ export default function Wallet() {
   const { colors, darkMode } = useTheme();
   const { toast } = useToast();
   const [userName, setUserName] = useState("Card Holder");
-  const [revealCardId, setRevealCardId] = useState<string | null>(null);
-  const [revealedDetails, setRevealedDetails] = useState<{ cardNumber: string; expiryDate: string | null; cvv: string | null } | null>(null);
-
-  const handleRevealSubmit = async (pin: string) => {
-    if (!revealCardId) return;
-    const details = await revealCardDetails(revealCardId, pin);
-    setRevealCardId(null);
-    setRevealedDetails(details);
-  };
-
-  const handleCopyCardNumber = async () => {
-    if (!revealedDetails) return;
-    await Clipboard.setStringAsync(revealedDetails.cardNumber.replace(/\s/g, ""));
-    toast({ title: "Copied", description: "Card number copied to clipboard." });
-  };
 
   useEffect(() => {
     (async () => {
@@ -60,7 +43,13 @@ export default function Wallet() {
   });
 
   const mappedCards = cards?.map(mapCardFromAPI) || [];
-  const totalBalance = mappedCards.reduce((sum: number, card: any) => sum + Number(card.balance), 0);
+  // Balances in different currencies can't be added together.
+  const totals = Object.entries(
+    mappedCards.reduce((acc: Record<string, number>, card: any) => {
+      acc[card.currency] = (acc[card.currency] || 0) + Number(card.balance);
+      return acc;
+    }, {}),
+  ) as [string, number][];
 
   return (
     <ScrollView
@@ -76,9 +65,11 @@ export default function Wallet() {
 
       <View style={[styles.balanceBanner, { backgroundColor: colors.primary }]}>
         <Text style={styles.balanceLabel}>Your Balance</Text>
-        <Text style={styles.totalBalanceAmount}>
-          {getCurrency("ZAR").symbol}{totalBalance.toFixed(2)}
-        </Text>
+        {(totals.length ? totals : [["ZAR", 0] as [string, number]]).map(([ccy, amount]) => (
+          <Text key={ccy} style={totals.length > 1 ? styles.subBalanceAmount : styles.totalBalanceAmount}>
+            {getCurrency(ccy).symbol}{amount.toFixed(2)} {totals.length > 1 ? ccy : ""}
+          </Text>
+        ))}
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
@@ -124,6 +115,7 @@ export default function Wallet() {
         <View key={card.id} style={[styles.cardContainer, { backgroundColor: colors.card, borderColor: card.isDefault ? colors.primary : colors.cardBorder, borderWidth: card.isDefault ? 2 : 1 }]}>
           <PremiumCard
             cardNumber={card.cardNumber}
+            expiryDate={card.expiryDate || "—"}
             holderName={userName}
             balance={Number(card.balance)}
             currency={getCurrency(card.currency).symbol}
@@ -168,13 +160,21 @@ export default function Wallet() {
               <Text style={[styles.setDefaultText, { color: colors.primary }]}>Set as Default</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.setDefaultBtn} onPress={() => setRevealCardId(card.id)}>
-            <Ionicons name="eye-outline" size={14} color={colors.primary} />
-            <Text style={[styles.setDefaultText, { color: colors.primary }]}>Show Card Details</Text>
+          <TouchableOpacity
+            style={styles.setDefaultBtn}
+            onPress={() => router.push({ pathname: "/(screens)/card", params: { walletId: card.id } } as any)}
+          >
+            <Ionicons name="card-outline" size={14} color={colors.primary} />
+            <Text style={[styles.setDefaultText, { color: colors.primary }]}>
+              {card.issuedCard?.status === "active" ? "Card details, controls & tap to pay"
+                : card.issuedCard?.status === "frozen" ? "Card frozen · manage"
+                : card.issuedCard?.status === "pending_kyc" ? "Verify your ID to activate your card"
+                : "Get your Visa card"}
+            </Text>
           </TouchableOpacity>
           <View style={styles.stitchRow}>
             <Ionicons name="shield-checkmark" size={11} color={colors.textMuted} />
-            <Text style={[styles.stitchText, { color: colors.textMuted }]}>Issued by Stitch · Mastercard</Text>
+            <Text style={[styles.stitchText, { color: colors.textMuted }]}>Visa virtual card · online & tap to pay worldwide</Text>
           </View>
         </View>
       ))}
@@ -189,42 +189,6 @@ export default function Wallet() {
 
       <AddCardDialog />
 
-      <PinPrompt
-        visible={revealCardId !== null}
-        title="Confirm PIN"
-        subtitle="Enter your transaction PIN to view the full card details."
-        onCancel={() => setRevealCardId(null)}
-        onSubmit={handleRevealSubmit}
-      />
-
-      <Modal visible={revealedDetails !== null} transparent animationType="fade" onRequestClose={() => setRevealedDetails(null)}>
-        <View style={styles.revealOverlay}>
-          <View style={[styles.revealSheet, { backgroundColor: colors.card }]}>
-            <Text style={[styles.revealTitle, { color: colors.text }]}>Card Details</Text>
-            {revealedDetails && (
-              <>
-                <TouchableOpacity onPress={handleCopyCardNumber} style={styles.revealRow}>
-                  <Text style={[styles.revealNumber, { color: colors.text }]}>{revealedDetails.cardNumber}</Text>
-                  <Ionicons name="copy-outline" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <View style={styles.revealMetaRow}>
-                  <View>
-                    <Text style={[styles.revealLabel, { color: colors.textMuted }]}>Expiry</Text>
-                    <Text style={[styles.revealValue, { color: colors.text }]}>{revealedDetails.expiryDate || "—"}</Text>
-                  </View>
-                  <View>
-                    <Text style={[styles.revealLabel, { color: colors.textMuted }]}>CVV</Text>
-                    <Text style={[styles.revealValue, { color: colors.text }]}>{revealedDetails.cvv || "—"}</Text>
-                  </View>
-                </View>
-              </>
-            )}
-            <TouchableOpacity style={[styles.revealCloseBtn, { backgroundColor: colors.primary }]} onPress={() => setRevealedDetails(null)}>
-              <Text style={styles.revealCloseText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
@@ -232,16 +196,6 @@ export default function Wallet() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingHorizontal: 24, paddingBottom: 120 },
-  revealOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
-  revealSheet: { width: "100%", borderRadius: 20, padding: 24 },
-  revealTitle: { fontSize: 16, fontWeight: "700", marginBottom: 16 },
-  revealRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
-  revealNumber: { fontFamily: "monospace", fontSize: 18, letterSpacing: 1.5, fontWeight: "600" },
-  revealMetaRow: { flexDirection: "row", gap: 32, marginTop: 16, marginBottom: 20 },
-  revealLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
-  revealValue: { fontSize: 16, fontWeight: "600" },
-  revealCloseBtn: { borderRadius: 12, paddingVertical: 12, alignItems: "center" },
-  revealCloseText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
   header: {
     paddingTop: Platform.OS === "ios" ? 56 : 44,
     paddingBottom: 16,
@@ -260,6 +214,7 @@ const styles = StyleSheet.create({
   },
   balanceLabel: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 10 },
   totalBalanceAmount: { fontSize: 32, fontWeight: "800", color: "#FFFFFF", marginBottom: 24 },
+  subBalanceAmount: { fontSize: 22, fontWeight: "800", color: "#FFFFFF", marginBottom: 6 },
   quickActions: { flexDirection: "row", justifyContent: "space-between" },
   actionBtn: { alignItems: "center", gap: 6 },
   actionIcon: {

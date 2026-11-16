@@ -1,12 +1,9 @@
-"""South African instant-EFT (Stitch) integration — httpx port of the old
-stitch.ts. Behavior-identical: same Luhn-valid local-card fallback when
-Stitch isn't configured, same GraphQL client/token-cache shape.
-"""
+"""South African instant-EFT (Stitch) integration: pay-by-bank top-ups and
+payouts. Stitch does not issue cards; cards come from the issuer-processor
+(app.cards.issuers)."""
 
-import random
 import time
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from decimal import Decimal
 
 import httpx
 
@@ -16,48 +13,8 @@ STITCH_TOKEN_URL = "https://secure.stitch.money/connect/token"
 STITCH_API_URL = "https://api.stitch.money/graphql"
 
 
-def _luhn_check_digit(partial: str) -> str:
-    digits = [int(d) for d in partial]
-    total = 0
-    double_it = True
-    for d in reversed(digits):
-        if double_it:
-            d *= 2
-            if d > 9:
-                d -= 9
-        total += d
-        double_it = not double_it
-    return str((10 - (total % 10)) % 10)
-
-
-@dataclass
-class LocalCardDetails:
-    card_number: str
-    expiry_date: str
-    cvv: str
-
-
-def generate_local_card_details() -> LocalCardDetails:
-    bin_prefix = "5399"  # Mastercard prepaid BIN (ZA)
-    mid = "".join(str(random.randint(0, 9)) for _ in range(11))
-    partial = bin_prefix + mid
-    raw = partial + _luhn_check_digit(partial)
-    card_number = f"{raw[0:4]} {raw[4:8]} {raw[8:12]} {raw[12:16]}"
-    now = datetime.now(UTC)
-    expiry_date = f"{now.month:02d}/{str(now.year + 3)[-2:]}"
-    cvv = str(random.randint(100, 999))
-    return LocalCardDetails(card_number=card_number, expiry_date=expiry_date, cvv=cvv)
-
-
-def is_stitch_card_configured() -> bool:
-    settings = get_settings()
-    return bool(
-        settings.stitch_client_id and settings.stitch_client_secret and settings.stitch_card_program_id
-    )
-
-
 def is_stitch_payments_configured() -> bool:
-    """Distinct from is_stitch_card_configured() — instant-EFT top-ups and
+    """Instant-EFT top-ups and
     withdrawals only need the client credentials + a receiving account
     number, not a card program id."""
     settings = get_settings()
@@ -98,6 +55,12 @@ async def _get_access_token() -> str:
     return _token_cache["token"]
 
 
+class StitchRejected(RuntimeError):
+    """Stitch definitively refused the request (4xx or a GraphQL error), so
+    nothing was executed. Network errors, timeouts and 5xx responses are
+    *not* this: their outcome is unknown and must be confirmed later."""
+
+
 async def _gql(query: str, variables: dict) -> dict:
     token = await _get_access_token()
     async with httpx.AsyncClient(timeout=15) as client:
@@ -106,64 +69,15 @@ async def _gql(query: str, variables: dict) -> dict:
             json={"query": query, "variables": variables},
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
         )
-    if response.status_code >= 400:
-        raise RuntimeError(f"Stitch API {response.status_code}: {response.text}")
+    if 400 <= response.status_code < 500:
+        raise StitchRejected(f"Stitch API {response.status_code}: {response.text[:300]}")
+    if response.status_code >= 500:
+        raise RuntimeError(f"Stitch API {response.status_code}: {response.text[:300]}")
 
     body = response.json()
     if body.get("errors"):
-        raise RuntimeError(body["errors"][0].get("message", "Stitch GraphQL error"))
+        raise StitchRejected(body["errors"][0].get("message", "Stitch GraphQL error"))
     return body["data"]
-
-
-@dataclass
-class IssuedCard:
-    stitch_card_id: str
-    card_number: str
-    expiry_date: str
-    cvv: str
-
-
-async def issue_virtual_card(holder_name: str, reference: str) -> IssuedCard:
-    if not is_stitch_card_configured():
-        local = generate_local_card_details()
-        return IssuedCard(
-            stitch_card_id=f"LOCAL-{reference}",
-            card_number=local.card_number,
-            expiry_date=local.expiry_date,
-            cvv=local.cvv,
-        )
-
-    settings = get_settings()
-    try:
-        data = await _gql(
-            """mutation IssueVirtualCard($input: VirtualCardCreateInput!) {
-                virtualCardCreate(input: $input) {
-                    virtualCard { id pan cvv expiryMonth expiryYear }
-                }
-            }""",
-            {
-                "input": {
-                    "programId": settings.stitch_card_program_id,
-                    "holderName": holder_name,
-                    "externalReference": reference,
-                }
-            },
-        )
-        vc = data["virtualCardCreate"]["virtualCard"]
-        pan = vc["pan"]
-        card_number = f"{pan[0:4]} {pan[4:8]} {pan[8:12]} {pan[12:16]}"
-        expiry_date = f"{int(vc['expiryMonth']):02d}/{str(vc['expiryYear'])[-2:]}"
-        return IssuedCard(
-            stitch_card_id=vc["id"], card_number=card_number, expiry_date=expiry_date, cvv=vc["cvv"]
-        )
-    except Exception:
-        local = generate_local_card_details()
-        return IssuedCard(
-            stitch_card_id=f"LOCAL-{reference}",
-            card_number=local.card_number,
-            expiry_date=local.expiry_date,
-            cvv=local.cvv,
-        )
 
 
 async def create_payment_request(
@@ -196,6 +110,32 @@ async def create_payment_request(
         },
     )
     return data["clientPaymentInitiationRequestCreate"]["paymentInitiationRequest"]
+
+
+async def get_payment_result(payment_request_id: str) -> tuple[str, Decimal | None]:
+    """("completed" | "failed" | "pending", amount actually paid or None)."""
+    data = await _gql(
+        """query PaymentStatus($id: ID!) {
+            node(id: $id) {
+                ... on PaymentInitiationRequest {
+                    status {
+                        __typename
+                        ... on PaymentInitiationRequestComplete { amount { quantity currency } }
+                        ... on PaymentInitiationRequestFailed { reason }
+                    }
+                }
+            }
+        }""",
+        {"id": payment_request_id},
+    )
+    status = (data.get("node") or {}).get("status") or {}
+    typename = status.get("__typename")
+    if typename == "PaymentInitiationRequestComplete":
+        quantity = (status.get("amount") or {}).get("quantity")
+        return "completed", Decimal(str(quantity)) if quantity is not None else None
+    if typename == "PaymentInitiationRequestFailed":
+        return "failed", None
+    return "pending", None
 
 
 async def get_payment_status(payment_request_id: str) -> str:

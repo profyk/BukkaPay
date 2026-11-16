@@ -7,7 +7,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
-import { sendMoney, getTransferQuote, fetchCards, fetchContacts } from "../lib/api";
+import {
+  sendMoney, quoteTransfer, sendCrossBorder, fetchCards, fetchContacts, fetchPublicCountries, newIdempotencyKey,
+  type TransferQuote,
+} from "../lib/api";
+import { API_BASE } from "../lib/config";
+import { getAuthHeader } from "../lib/auth";
+import PinPrompt from "../components/PinPrompt";
 import { TRANSFER_CATEGORIES, getCategory } from "../lib/categories";
 import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
@@ -38,9 +44,31 @@ export default function SendMoney() {
 
   const [amount, setAmount] = useState("0");
   const [selectedCardId, setSelectedCardId] = useState("");
-  const [quote, setQuote] = useState<any>(null);
+  const [quote, setQuote] = useState<TransferQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [sending, setSending] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [result, setResult] = useState<{ status: string; reference?: string } | null>(null);
+  // One key per confirmation, so a retried tap can never send twice.
+  const [sendKey, setSendKey] = useState(newIdempotencyKey());
+
+  // Destination: your own country (domestic) or a country reachable through
+  // an approved corridor — straight from the API, never a hard-coded list.
+  const { data: me } = useQuery({
+    queryKey: ["me"],
+    queryFn: async () => (await fetch(`${API_BASE}/api/auth/me`, { headers: await getAuthHeader() })).json(),
+  });
+  const { data: corridors = [] } = useQuery({
+    queryKey: ["public-corridors"],
+    queryFn: async () => (await fetch(`${API_BASE}/api/public/corridors`)).json(),
+  });
+  const { data: allCountries = [] } = useQuery({ queryKey: ["public-countries"], queryFn: fetchPublicCountries });
+  const home: string | undefined = me?.residenceCountry;
+  const destinations = [home, ...(corridors as any[]).filter((c) => c.from === home).map((c) => c.to)]
+    .filter((v, i, a): v is string => !!v && a.indexOf(v) === i);
+  const [destCountry, setDestCountry] = useState<string | undefined>(undefined);
+  const destination = destCountry ?? home;
+  const countryName = (code?: string) => (allCountries as any[]).find((c) => c.code === code)?.name ?? code;
 
   const { data: contacts = [], isLoading: contactsLoading } = useQuery({
     queryKey: ["contacts"],
@@ -101,8 +129,9 @@ export default function SendMoney() {
     }
     setQuoting(true);
     try {
-      const q = await getTransferQuote(selectedCard.currency, selectedCard.currency, amount);
+      const q = await quoteTransfer(selectedCard.id, amount, destination);
       setQuote(q);
+      setSendKey(newIdempotencyKey());
       setStage("confirm");
     } catch (e: any) {
       toast({ title: "Could not get a quote", description: e.message, variant: "destructive" });
@@ -111,17 +140,30 @@ export default function SendMoney() {
     }
   };
 
-  const handleSend = async () => {
-    if (!recipient || !selectedCardId) return;
+  const handleSend = () => {
+    if (!recipient || !selectedCardId || !quote) return;
+    if (quote.kind === "cross_border" && quote.expiresAt && new Date(quote.expiresAt) <= new Date()) {
+      toast({ title: "Quote expired", description: "Get a fresh quote — rates can change.", variant: "destructive" });
+      setStage("amount");
+      return;
+    }
+    setPinOpen(true);
+  };
+
+  const confirmWithPin = async (pin: string) => {
+    if (!recipient || !quote) return;
     setSending(true);
+    const purpose = { purposeCategory: categoryId || undefined, purposeSubcategory: subcategory || undefined };
     try {
-      await sendMoney(selectedCardId, recipient.username, amount, {
-        purposeCategory: categoryId || undefined,
-        purposeSubcategory: subcategory || undefined,
-      });
+      if (quote.kind === "cross_border" && quote.quoteId) {
+        const t = await sendCrossBorder(quote.quoteId, selectedCardId, recipient.username, pin, purpose, sendKey);
+        setResult({ status: t.status, reference: t.reference });
+      } else {
+        const r = await sendMoney(selectedCardId, recipient.username, amount, { ...purpose, pin, idempotencyKey: sendKey });
+        setResult({ status: r.status ?? "completed", reference: r.reference });
+      }
+      setPinOpen(false);
       setStage("success");
-    } catch (e: any) {
-      toast({ title: "Transfer failed", description: e.message, variant: "destructive" });
     } finally {
       setSending(false);
     }
@@ -324,10 +366,28 @@ export default function SendMoney() {
           <View style={{ flex: 1 }}>
             <Text style={[s.pillName, { color: colors.text }]}>{recipient?.name}</Text>
             <Text style={[s.pillUsername, { color: colors.textMuted }]}>
-              Local · {selectedCard?.currency}
+              {destination === home ? "Local" : countryName(destination)} · from {selectedCard?.currency}
             </Text>
           </View>
         </View>
+
+        {destinations.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.cardScroll} contentContainerStyle={s.cardScrollInner}>
+            {destinations.map((code) => (
+              <TouchableOpacity
+                key={code}
+                style={[s.cardChip, { borderColor: colors.border, backgroundColor: colors.surface },
+                  destination === code && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
+                onPress={() => setDestCountry(code)}
+              >
+                <Ionicons name="globe-outline" size={13} color={destination === code ? "#fff" : colors.textMuted} />
+                <Text style={[s.cardChipText, { color: destination === code ? "#fff" : colors.textSecondary }]}>
+                  {code === home ? "Local" : `To ${countryName(code)}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {cardsLoading ? (
           <ActivityIndicator color={PRIMARY} style={{ marginTop: 12 }} />
@@ -448,22 +508,40 @@ export default function SendMoney() {
               <View style={s.confirmRow}>
                 <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Exchange rate</Text>
                 <Text style={[s.confirmValue, { color: colors.text }]}>
-                  1 {quote.sourceCurrency} = {parseFloat(quote.exchangeRate).toFixed(4)} {quote.destinationCurrency}
+                  1 {quote.sourceCurrency} = {quote.exchangeRate ? parseFloat(quote.exchangeRate).toFixed(4) : "—"} {quote.destinationCurrency}
                 </Text>
               </View>
             )}
             <View style={s.confirmRow}>
               <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Arrives</Text>
-              <Text style={[s.confirmValue, { color: GREEN }]}>Instantly</Text>
+              <Text style={[s.confirmValue, { color: GREEN }]}>
+                {quote.kind === "cross_border" ? "When settlement is confirmed" : "Instantly"}
+              </Text>
             </View>
+            {quote.kind === "cross_border" && quote.expiresAt && (
+              <View style={s.confirmRow}>
+                <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Quote valid until</Text>
+                <Text style={[s.confirmValue, { color: colors.text }]}>{new Date(quote.expiresAt).toLocaleTimeString()}</Text>
+              </View>
+            )}
           </View>
 
           <View style={[s.securityRow, { backgroundColor: darkMode ? "#1F2937" : "#F0FDF4", marginTop: 0 }]}>
             <Ionicons name="lock-closed" size={14} color={GREEN} />
             <Text style={[s.securityText, { color: darkMode ? "#6EE7B7" : "#065F46" }]}>
-              End-to-end encrypted · Instant settlement
+              {quote.kind === "cross_border"
+                ? "Exact amounts locked by this quote · full refund if delivery fails"
+                : "Confirmed with your PIN · arrives instantly"}
             </Text>
           </View>
+
+          <PinPrompt
+            visible={pinOpen}
+            title="Confirm transfer"
+            subtitle={`Send ${quote.sourceCurrency} ${quote.totalDebit ?? quote.sourceAmount}`}
+            onCancel={() => setPinOpen(false)}
+            onSubmit={confirmWithPin}
+          />
 
           <TouchableOpacity
             style={[s.sendBtn, sending && { opacity: 0.65 }]}
@@ -493,11 +571,18 @@ export default function SendMoney() {
         <View style={s.successCircle}>
           <Ionicons name="checkmark" size={52} color="#fff" />
         </View>
-        <Text style={[s.successTitle, { color: colors.text }]}>Sent!</Text>
+        <Text style={[s.successTitle, { color: colors.text }]}>
+          {result && result.status !== "completed" && result.status !== "credited" ? "On its way" : "Sent!"}
+        </Text>
         <Text style={[s.successAmount, { color: PRIMARY }]}>
           {quote ? `${getCurrency(quote.sourceCurrency).symbol}${quote.sourceAmount}` : ""}
         </Text>
-        <Text style={[s.successTo, { color: colors.textMuted }]}>sent to {recipient?.name}</Text>
+        <Text style={[s.successTo, { color: colors.textMuted }]}>
+          {result && result.status !== "completed" && result.status !== "credited"
+            ? `to ${recipient?.name}. They'll be credited ${quote?.destinationCurrency} ${quote?.destinationAmount} once settlement is confirmed — we'll notify you.`
+            : `sent to ${recipient?.name}`}
+        </Text>
+        {result?.reference && <Text style={[s.successTo, { color: colors.textMuted }]}>Ref {result.reference}</Text>}
 
         <TouchableOpacity style={s.doneBtn} onPress={() => router.push("/(tabs)" as any)}>
           <Text style={s.doneBtnText}>Back to Home</Text>

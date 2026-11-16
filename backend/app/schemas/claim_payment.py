@@ -9,7 +9,8 @@ class CreateClaimPaymentRequest(CamelModel):
     amount: str
     currency: str | None = None
     note: str | None = None
-    pin: str
+    pin: str  # the PIN the recipient will use to claim
+    transaction_pin: str | None = None  # the sender's own transaction PIN
 
 
 class CreateClaimPaymentResponse(CamelModel):

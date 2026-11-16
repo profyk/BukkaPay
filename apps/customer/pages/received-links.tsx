@@ -282,7 +282,7 @@ export default function ReceivedLinks() {
           {links.length === 0 ? (
             <View style={s.emptyState}>
               <View style={s.emptyIconWrap}>
-                <Ionicons name="inbox-outline" size={40} color="#C4B5FD" />
+                <Ionicons name="file-tray-outline" size={40} color="#C4B5FD" />
               </View>
               <Text style={s.emptyTitle}>No received links yet</Text>
               <Text style={s.emptySubtitle}>

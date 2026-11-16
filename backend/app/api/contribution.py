@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id, get_optional_user_id
+from app.api.deps import get_current_user_id
 from app.core.errors import ApiError
 from app.db.deps import get_db
 from app.schemas.contribution import (
@@ -9,7 +9,9 @@ from app.schemas.contribution import (
     ContributionGroupResponse,
     ContributionResponse,
     CreateContributionGroupRequest,
+    ContributionPayoutRequest,
     CreateContributionRequest,
+    GuestContributionRequest,
 )
 from app.services import contribution_service as svc
 
@@ -72,14 +74,55 @@ async def get_contribution_group_by_code(
 
 @router.post("/{group_id}/contribute", status_code=201)
 async def contribute(
-    group_id: str, body: CreateContributionRequest, user_id=Depends(get_optional_user_id),
+    group_id: str, body: CreateContributionRequest, user_id=Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> ContributionResponse:
+    """Contribute from your BukkaPay wallet (guests use /contribute/eft)."""
+    from app.services import pin_service
+
+    await pin_service.verify_pin(db, user_id, body.pin)
     group = await svc.get_group(db, group_id)
     if group is None:
         raise ApiError("Contribution group not found", status_code=404)
-    contribution = await svc.create_contribution(
+    contribution = await svc.contribute_from_wallet(
         db, group, user_id, contributor_name=body.contributor_name, contributor_phone=body.contributor_phone,
         amount=body.amount, message=body.message, is_anonymous=body.is_anonymous,
     )
     return ContributionResponse.model_validate(contribution)
+
+
+@router.post("/{group_id}/contribute/eft")
+async def contribute_eft(group_id: str, body: GuestContributionRequest, db: AsyncSession = Depends(get_db)):
+    """Guest contribution by instant EFT; recorded only when Stitch confirms."""
+    from app.services import stitch_service
+
+    group = await svc.get_group(db, group_id)
+    if group is None:
+        raise ApiError("Contribution group not found", status_code=404)
+    svc.ensure_open(group)
+    return await stitch_service.initiate_contribution_eft(
+        db, group, payer_name=body.payer_name, payer_email=body.payer_email, amount=body.amount)
+
+
+@router.post("/{group_id}/payout")
+async def payout(group_id: str, body: ContributionPayoutRequest, user_id=Depends(get_current_user_id),
+                 db: AsyncSession = Depends(get_db)):
+    from app.services import pin_service
+
+    await pin_service.verify_pin(db, user_id, body.pin)
+    group = await svc.get_group(db, group_id)
+    if group is None:
+        raise ApiError("Contribution group not found", status_code=404)
+    return await svc.payout(db, group, user_id, body.amount)
+
+
+@router.post("/{group_id}/close")
+async def close(group_id: str, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    group = await svc.get_group(db, group_id)
+    if group is None:
+        raise ApiError("Contribution group not found", status_code=404)
+    if group.creator_id != user_id:
+        raise ApiError("Only the creator can close this campaign", status_code=403)
+    group.is_active = False
+    await db.flush()
+    return _with_status(group)

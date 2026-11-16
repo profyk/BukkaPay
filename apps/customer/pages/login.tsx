@@ -10,7 +10,6 @@ import {
   getBiometricType,
   biometricLogin,
   enableBiometricLogin,
-  signInWithGoogle,
 } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -87,20 +86,6 @@ export default function Login() {
 
     setLoading(false);
     router.replace((returnTo || "/(tabs)") as any);
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      const demoGoogleToken = "google-demo-token";
-      await signInWithGoogle(demoGoogleToken, formData.email || undefined, "Google user");
-      if (!formData.password) {
-        toast({ title: "Password required", description: "Enter your password or PIN before continuing to OTP verification.", variant: "destructive" });
-        return;
-      }
-      router.push({ pathname: "/(auth)/otp-confirm", params: { requireConfirmation: "true" } } as any);
-    } catch (error: any) {
-      toast({ title: "Google sign-in failed", description: error.message, variant: "destructive" });
-    }
   };
 
   const biometricIconName = biometricLabel === "Face ID" ? "scan-outline" : "finger-print-outline";
@@ -200,10 +185,10 @@ export default function Login() {
 
         <TouchableOpacity
           style={[styles.googleButton, { borderColor: colors.border, backgroundColor: colors.card }]}
-          onPress={handleGoogleSignIn}
+          onPress={() => router.push({ pathname: "/(auth)/otp-confirm", params: { email: formData.email } } as any)}
         >
-          <Ionicons name="logo-google" size={20} color={colors.primary} />
-          <Text style={[styles.googleButtonText, { color: colors.text }]}>Continue with Google</Text>
+          <Ionicons name="mail-outline" size={20} color={colors.primary} />
+          <Text style={[styles.googleButtonText, { color: colors.text }]}>Email me a sign-in code</Text>
         </TouchableOpacity>
 
         <View style={styles.dividerContainer}>

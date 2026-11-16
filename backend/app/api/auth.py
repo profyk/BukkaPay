@@ -30,7 +30,8 @@ from app.schemas.user import (
     UserProfilePayload,
     VerifyEmailRequest,
 )
-from app.services import auth_service, otp_service, pin_service
+from app.integrations import supabase_auth
+from app.services import auth_service, pin_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -45,6 +46,9 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)) -> Aut
         password=body.password,
         phone=body.phone,
         country_code=body.country_code,
+        residence_country=body.residence_country,
+        accept_terms=body.accept_terms,
+        preferred_language=body.preferred_language,
     )
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate({"token": token, "user": user})
@@ -74,13 +78,22 @@ async def google_login(body: GoogleSignInRequest, db: AsyncSession = Depends(get
     except ValueError as exc:
         raise ApiError("Invalid Google token", status_code=401) from exc
 
-    email = (payload.get("email") or body.email or "").strip().lower()
-    if not email:
-        raise ApiError("Google account email is required", status_code=400)
+    # Only Google's own, verified email identifies the account — never a
+    # client-supplied one.
+    email = (payload.get("email") or "").strip().lower()
+    if not email or payload.get("email_verified") is not True:
+        raise ApiError("Your Google account email is not verified", status_code=401)
 
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user is None:
+        from datetime import UTC, datetime
+
+        from app.network import countries as country_service
+
+        if not body.residence_country or not body.accept_terms:
+            raise ApiError("New accounts must choose a country and accept the terms", status_code=422)
+        country = await country_service.require_operating(db, body.residence_country)
         username = email.split("@")[0]
         safe_username = username
         suffix = 1
@@ -97,41 +110,44 @@ async def google_login(body: GoogleSignInRequest, db: AsyncSession = Depends(get
             username=safe_username,
             password=hash_secret(secrets.token_urlsafe(32)),
             phone=None,
-            country_code=None,
+            country_code=country.dial_code,
+            residence_country=country.code,
+            terms_accepted_at=datetime.now(UTC),
+            kyc_level=1,
             wallet_id=generate_wallet_id(),
             verified=True,
         )
         db.add(user)
         await db.flush()
-        await auth_service._issue_default_card(db, user)
+        await auth_service._issue_default_card(db, user, currency=country.default_currency)
 
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
 
 
-@router.post("/otp/request")
+@router.post("/otp/request", dependencies=[Depends(rate_limit("auth-otp-request", 5, 600))])
 async def request_otp(body: OtpRequestRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    """Email a one-time code (Supabase Auth, delivered by Resend)."""
+    if not supabase_auth.is_configured():
+        raise ApiError("Email codes are not configured on this environment", status_code=503)
     email = body.email.strip().lower()
-    result = await db.execute(select(User).where(User.email == email))
-    if result.scalar_one_or_none() is None:
-        raise ApiError("User not found", status_code=404)
+    result = await db.execute(select(User).where(User.email == email, User.deleted_at.is_(None)))
+    # Same answer whether or not the account exists (no account enumeration);
+    # a code is only sent for real accounts.
+    if result.scalar_one_or_none() is not None:
+        await auth_service.send_email_code(email)
+    return {"success": True, "message": "If an account exists for this email, a code has been sent."}
 
-    code_length = max(4, min(8, body.code_length or 6))
-    await otp_service.issue_otp(email, code_length=code_length)
-    return {"success": True, "message": "OTP sent successfully."}
 
-
-@router.post("/otp/verify")
-async def verify_otp(body: OtpVerifyRequest, db: AsyncSession = Depends(get_db)) -> dict:
-    email = body.email.strip().lower()
-    result = await db.execute(select(User).where(User.email == email))
-    if result.scalar_one_or_none() is None:
-        raise ApiError("User not found", status_code=404)
-
-    valid = await otp_service.verify_otp(email, body.code)
-    if not valid:
-        raise ApiError("Invalid or expired OTP code", status_code=401)
-    return {"success": True, "verified": True}
+@router.post("/otp/verify", dependencies=[Depends(rate_limit("auth-otp-verify", 10, 600))])
+async def verify_otp(body: OtpVerifyRequest, db: AsyncSession = Depends(get_db)) -> AuthTokenResponse:
+    """Verify the emailed code. Confirms the email (KYC level 1) and signs the
+    customer in, like a magic link."""
+    user = await auth_service.verify_email(db, email=body.email, token=body.code)
+    if user.frozen:
+        raise ApiError("Your account is restricted", status_code=403)
+    token, _ = await auth_service.create_session_for_user(db, user.id)
+    return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
 
 
 @router.post("/logout")
@@ -161,7 +177,7 @@ async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(
     return {"success": True, "message": "Password reset successful. Please log in again."}
 
 
-@router.post("/email/verify")
+@router.post("/email/verify", dependencies=[Depends(rate_limit("auth-otp-verify", 10, 600))])
 async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_db)) -> dict:
     user = await auth_service.verify_email(db, email=body.email, token=body.token)
     return {"success": True, "message": "Email verified successfully.", "user": UserMePayload.model_validate(user)}

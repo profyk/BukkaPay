@@ -12,7 +12,7 @@ from app.schemas.misc import (
     CreatePaymentRequestRequest,
     PaymentRequestResponse,
     PublicUser,
-    UpdatePaymentRequestStatusRequest,
+    PayPaymentRequestRequest,
 )
 from app.services import misc_service
 
@@ -52,16 +52,49 @@ async def create_payment_request(
     db: AsyncSession = Depends(get_db),
 ) -> PaymentRequestResponse:
     request = await misc_service.create_payment_request(
-        db,
-        user_id,
-        amount=body.amount,
-        currency=body.currency,
-        recipient_name=body.recipient_name,
-        recipient_phone=body.recipient_phone,
-        status=body.status,
-        expires_at=body.expires_at,
+        db, user_id, amount=body.amount, currency=body.currency, recipient_name=body.recipient_name,
+        recipient_phone=body.recipient_phone, payer=body.payer, description=body.description,
+        expires_in_hours=body.expires_in_hours,
     )
     return await _with_requester(db, request)
+
+
+@router.post("/payment-requests/{request_id}/pay")
+async def pay_payment_request(
+    request_id: str, body: PayPaymentRequestRequest, user_id=Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.services import pin_service
+
+    await pin_service.verify_pin(db, user_id, body.pin)
+    return await misc_service.pay_payment_request(db, request_id, user_id, from_card_id=body.from_card_id)
+
+
+@router.post("/payment-requests/{request_id}/cancel")
+async def cancel_payment_request(
+    request_id: str, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db),
+) -> PaymentRequestResponse:
+    return PaymentRequestResponse.model_validate(await misc_service.cancel_payment_request(db, request_id, user_id))
+
+
+@router.post("/payment-requests/{request_id}/decline")
+async def decline_payment_request(
+    request_id: str, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db),
+) -> PaymentRequestResponse:
+    return PaymentRequestResponse.model_validate(await misc_service.decline_payment_request(db, request_id, user_id))
+
+
+@router.get("/payment-requests/incoming")
+async def incoming_payment_requests(
+    user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db),
+) -> list[PaymentRequestResponse]:
+    from sqlalchemy import select
+
+    from app.models.misc import PaymentRequest
+
+    rows = (await db.execute(select(PaymentRequest).where(PaymentRequest.payer_user_id == user_id)
+                             .order_by(PaymentRequest.created_at.desc()))).scalars()
+    return [await _with_requester(db, r) for r in rows]
 
 
 @router.get("/payment-requests/{request_id}")
@@ -78,16 +111,3 @@ async def list_payment_requests(
 ) -> list[PaymentRequestResponse]:
     requests = await misc_service.get_payment_requests_by_user(db, user_id)
     return [PaymentRequestResponse.model_validate(r) for r in requests]
-
-
-@router.patch("/payment-requests/{request_id}/status")
-async def update_payment_request_status(
-    request_id: str,
-    body: UpdatePaymentRequestStatusRequest,
-    user_id=Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-) -> PaymentRequestResponse:
-    request = await misc_service.update_payment_request_status(db, request_id, body.status)
-    if request is None:
-        raise ApiError("Payment request not found", status_code=404)
-    return PaymentRequestResponse.model_validate(request)

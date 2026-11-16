@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient
 
+from tests.conftest import TEST_PIN
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -33,7 +35,7 @@ async def test_freeze_and_unfreeze_user_wallet(client: AsyncClient, admin: dict,
     assert r.status_code == 200
     assert r.json()["frozen"] is True
 
-    r = await client.post("/api/transfer", json={
+    r = await client.post("/api/transfer", json={"pin": TEST_PIN, 
         "fromCardId": funded_user["card_id"], "toUserId": other_user["user"]["walletId"], "amount": "10.00",
     }, headers=funded_user["headers"])
     assert r.status_code == 403
@@ -44,17 +46,6 @@ async def test_freeze_and_unfreeze_user_wallet(client: AsyncClient, admin: dict,
     )
     assert r.status_code == 200
     assert r.json()["frozen"] is False
-
-
-async def test_set_wallet_balance(client: AsyncClient, admin: dict, user: dict):
-    r = await client.get("/api/cards", headers=user["headers"])
-    card_id = r.json()[0]["id"]
-
-    r = await client.patch(
-        f"/api/admin/wallets/{card_id}/balance", json={"balance": "555.55"}, headers=admin["master_headers"]
-    )
-    assert r.status_code == 200
-    assert r.json()["card"]["balance"] == "555.55"
 
 
 async def test_freeze_user_account(client: AsyncClient, admin: dict, user: dict):

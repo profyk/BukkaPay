@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { isDemoMode, DEMO_TRANSACTIONS } from "@/lib/demo";
 
 export interface Transaction {
   id: string;
@@ -20,7 +19,6 @@ export function useTransactions(page = 1) {
   return useQuery({
     queryKey: [...TRANSACTIONS_QUERY_KEY, page],
     queryFn: async () => {
-      if (isDemoMode()) return { transactions: DEMO_TRANSACTIONS as Transaction[], pagination: { page: 1, limit: 50, total: DEMO_TRANSACTIONS.length, pages: 1 } };
       const { data } = await api.get(`/admin/transactions?page=${page}&limit=50`);
       return data as { transactions: Transaction[]; pagination: { page: number; limit: number; total: number; pages: number } };
     },
@@ -33,7 +31,6 @@ export function useTransactionActions() {
 
   const flagTransaction = useMutation({
     mutationFn: async (id: string) => {
-      if (isDemoMode()) return;
       await api.post(`/admin/transactions/flag/${id}`);
     },
     onSuccess: invalidate,
@@ -41,7 +38,6 @@ export function useTransactionActions() {
 
   const deleteTransaction = useMutation({
     mutationFn: async (id: string) => {
-      if (isDemoMode()) return;
       await api.delete(`/admin/transactions/${id}`);
     },
     onSuccess: invalidate,

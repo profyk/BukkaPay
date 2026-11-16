@@ -45,11 +45,12 @@ async def topup_initiate(
 
 @router.get("/api/stitch/topup/callback")
 async def topup_callback(
-    ref: str = Query(default=""), cardId: str | None = Query(default=None),
-    id: str | None = Query(default=None), amount: str | None = Query(default=None),
+    ref: str = Query(default=""), id: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
-    url = await svc.topup_callback_redirect(db, ref=ref, card_id=cardId, payment_request_id=id, amount=amount)
+    # Only `ref` and the payment id are read from the redirect; the wallet
+    # and amount come from the funding request recorded at initiation.
+    url = await svc.topup_callback_redirect(db, ref=ref, payment_request_id=id)
     return RedirectResponse(url)
 
 
@@ -57,10 +58,7 @@ async def topup_callback(
 async def topup_verify(
     body: TopupVerifyRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> TopupVerifyResponse:
-    result = await svc.verify_topup(
-        db, user_id, payment_request_id=body.payment_request_id, wallet_card_id=body.wallet_card_id,
-        amount=body.amount,
-    )
+    result = await svc.verify_topup(db, user_id, payment_request_id=body.payment_request_id)
     return TopupVerifyResponse.model_validate(result)
 
 
@@ -68,6 +66,9 @@ async def topup_verify(
 async def withdraw(
     body: WithdrawRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> WithdrawResponse:
+    from app.services import pin_service
+
+    await pin_service.verify_pin(db, user_id, body.pin)
     result = await svc.withdraw(
         db, user_id, wallet_card_id=body.wallet_card_id, amount=body.amount, currency=body.currency,
         bank_id=body.bank_id, account_number=body.account_number, account_type=body.account_type,
@@ -89,12 +90,22 @@ async def pay_stitch(
 @router.get("/api/stitch/payment-link/callback")
 async def payment_link_callback(
     linkId: str = Query(default=""), ref: str = Query(default=""), id: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
-    url = await svc.payment_link_callback_redirect(link_id=linkId, ref=ref, payment_request_id=id)
+    url = await svc.payment_link_callback_redirect(db, link_id=linkId, ref=ref, payment_request_id=id)
     return RedirectResponse(url)
 
 
 @router.post("/api/payment-links/{link_id}/pay-stitch/verify")
-async def pay_stitch_verify(link_id: str, body: PayStitchVerifyRequest) -> PayStitchVerifyResponse:
-    status = await svc.verify_payment_link_stitch(body.payment_request_id)
+async def pay_stitch_verify(
+    link_id: str, body: PayStitchVerifyRequest, db: AsyncSession = Depends(get_db)
+) -> PayStitchVerifyResponse:
+    status = await svc.verify_payment_link_stitch(db, link_id, body.payment_request_id)
     return PayStitchVerifyResponse.model_validate({"status": status})
+
+
+@router.get("/api/stitch/contribution/callback")
+async def contribution_callback(
+    ref: str = Query(default=""), id: str | None = Query(default=None), db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    return RedirectResponse(await svc.contribution_callback_redirect(db, ref=ref, payment_request_id=id))

@@ -26,37 +26,12 @@ export async function getCardPricing(): Promise<{ issuanceFee: string; monthlyFe
   return res.json();
 }
 
-export async function revealCardDetails(
-  cardId: string, pin: string
-): Promise<{ cardNumber: string; expiryDate: string | null; cvv: string | null }> {
-  const res = await fetch(API_BASE + `/api/cards/${cardId}/reveal`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ pin }),
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || "Could not verify PIN");
-  }
-  return res.json();
-}
-
 export async function setDefaultCard(id: string) {
   const res = await fetch(API_BASE + `/api/cards/${id}/set-default`, {
     method: "PATCH",
     headers: { ...(await getAuthHeader()) },
   });
   if (!res.ok) throw new Error("Failed to set default card");
-  return res.json();
-}
-
-export async function updateCardBalance(id: string, balance: string) {
-  const res = await fetch(API_BASE + `/api/cards/${id}/balance`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ balance }),
-  });
-  if (!res.ok) throw new Error("Failed to update balance");
   return res.json();
 }
 
@@ -67,15 +42,153 @@ export async function fetchTransactions(limit?: number) {
   return res.json();
 }
 
-export async function createTransaction(transaction: any) {
-  const res = await fetch(API_BASE + "/api/transactions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify(transaction),
-  });
-  if (!res.ok) throw new Error("Failed to create transaction");
+export type PublicCountry = {
+  code: string; name: string; region: string; status: "planned" | "pilot" | "live" | "suspended";
+  currency: string; dialCode?: string | null;
+};
+
+export async function fetchPublicCountries(): Promise<PublicCountry[]> {
+  const res = await fetch(API_BASE + "/api/public/countries");
+  if (!res.ok) throw new Error("Couldn't load countries");
   return res.json();
 }
+
+export async function fetchOperatingCountries(): Promise<PublicCountry[]> {
+  return (await fetchPublicCountries()).filter((c) => c.status === "pilot" || c.status === "live");
+}
+
+async function call<T = any>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  const res = await fetch(API_BASE + path, {
+    method,
+    headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers, ...(await getAuthHeader()) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || data.detail?.[0]?.msg || "Request failed");
+  return data as T;
+}
+
+/* ─── Visa cards (one per wallet, issued by the card issuer) ────────────── */
+
+export type CardControls = {
+  online: boolean; contactless: boolean; chip: boolean; atm: boolean; international: boolean;
+  perTransactionLimit: string | null; dailyLimit: string | null; blockedMccs: string[];
+};
+export type WalletToken = {
+  id: string; wallet: "apple_pay" | "google_pay" | "samsung_pay"; status: string;
+  deviceName: string | null; tokenLast4: string | null; createdAt: string;
+};
+export type IssuedCard = {
+  id: string; walletCardId: string; network: "visa"; form: "virtual" | "physical";
+  status: "pending_kyc" | "requested" | "active" | "frozen" | "cancelled" | "failed";
+  billingCurrency: string; last4: string | null; expMonth: number | null; expYear: number | null;
+  cardholderName: string; controls: CardControls; frozenReason: string | null;
+  overdraftOutstanding: string; createdAt: string; walletTokens: WalletToken[];
+};
+export type CardReveal = {
+  kind: "hosted" | "sandbox"; expiresAt: string; url: string | null; token: string | null;
+  pan: string | null; cvv: string | null; expMonth: number | null; expYear: number | null; cardholderName: string | null;
+};
+export type CardAuthorization = {
+  id: string; status: "approved" | "declined" | "reversed" | "captured" | "expired"; amount: string; fee: string;
+  currency: string; merchantAmount: string | null; merchantCurrency: string | null; merchantName: string | null;
+  merchantCountry: string | null; channel: string; declineReason: string | null; createdAt: string;
+};
+
+export const fetchIssuedCards = () => call<IssuedCard[]>("GET", "/api/issued-cards");
+export const fetchIssuedCard = (id: string) => call<IssuedCard>("GET", `/api/issued-cards/${id}`);
+export const requestWalletCard = (walletId: string) => call<IssuedCard>("POST", `/api/wallets/${walletId}/issued-card`);
+export const freezeCard = (id: string) => call<IssuedCard>("POST", `/api/issued-cards/${id}/freeze`);
+export const unfreezeCard = (id: string, pin: string) => call<IssuedCard>("POST", `/api/issued-cards/${id}/unfreeze`, { pin });
+export const replaceCard = (id: string, pin: string) => call<IssuedCard>("POST", `/api/issued-cards/${id}/replace`, { pin });
+export const updateCardControls = (id: string, pin: string, changes: Partial<CardControls>) =>
+  call<IssuedCard>("PATCH", `/api/issued-cards/${id}/controls`, { pin, ...changes });
+export const revealCard = (id: string, pin: string) => call<CardReveal>("POST", `/api/issued-cards/${id}/reveal`, { pin });
+export const cardAuthorizations = (id: string) => call<CardAuthorization[]>("GET", `/api/issued-cards/${id}/authorizations`);
+export const addCardToWallet = (id: string, pin: string, wallet: WalletToken["wallet"], deviceName?: string, device: Record<string, unknown> = {}) =>
+  call<{ token: WalletToken; activationData: string; encryptedPassData: string | null; ephemeralPublicKey: string | null }>(
+    "POST", `/api/issued-cards/${id}/wallet-tokens`, { pin, wallet, deviceName, device });
+export const removeCardFromWallet = (id: string, tokenId: string) =>
+  call("DELETE", `/api/issued-cards/${id}/wallet-tokens/${tokenId}`);
+/** Sandbox only (non-production API): drive a test card through the issuer webhooks. */
+export const simulateCardPayment = (id: string, body: { action: "authorize" | "clear" | "reverse" | "refund"; amount: string; merchantName?: string; merchantCountry?: string; channel?: string; authorizationId?: string }) =>
+  call<{ authorizationId?: string; approved?: boolean; declineReason?: string | null; status?: string }>(
+    "POST", `/api/sandbox/issued-cards/${id}/simulate`, body);
+
+/* ─── Cross-border: quote, then confirm the quote ───────────────────────── */
+
+export type TransferQuote = {
+  kind: "domestic" | "cross_border"; quoteId?: string; expiresAt?: string; rateTimestamp?: string;
+  sourceAmount: string; sourceCurrency: string; exchangeRate: string | null; fee: string; totalDebit: string;
+  destinationAmount: string; destinationCurrency: string; destinationCountry?: string;
+};
+
+export function quoteTransfer(fromCardId: string, amount: string, destinationCountryCode?: string) {
+  return call<TransferQuote>("POST", "/api/transfer/quote", { fromCardId, amount, destinationCountryCode });
+}
+
+export type TransferStatus = {
+  reference: string; status: string; fromCurrency: string; toCurrency: string; sourceAmount: string; fee: string;
+  rate: string; destinationAmount: string; corridor: string; rail: string; failureReason?: string | null;
+  createdAt: string; settledAt?: string | null; creditedAt?: string | null;
+};
+
+export function sendCrossBorder(quoteId: string, fromCardId: string, toUserId: string, pin: string,
+                                purpose?: { purposeCategory?: string; purposeSubcategory?: string },
+                                idempotencyKey = newIdempotencyKey()) {
+  return call<TransferStatus>("POST", "/api/transfers/cross-border", { quoteId, fromCardId, toUserId, pin, ...purpose },
+                              { "Idempotency-Key": idempotencyKey });
+}
+
+export function getTransferStatus(reference: string) {
+  return call<TransferStatus>("GET", `/api/transfers/${reference}`);
+}
+
+/* ─── Merchant QR (signed) ──────────────────────────────────────────────── */
+
+export const MERCHANT_QR_PREFIX = "bukkapay:qr:v1:";
+
+export type ResolvedQr = {
+  qrId: string; kind: "static" | "dynamic"; amount: string | null; currency: string; reference?: string | null;
+  label?: string | null; merchant: { id: string; businessName: string; logo?: string | null; country: string; verified: boolean };
+};
+
+export function resolveMerchantQr(payload: string) {
+  return call<ResolvedQr>("GET", `/api/qr/resolve?payload=${encodeURIComponent(payload)}`);
+}
+
+export function payMerchantQr(payload: string, pin: string, amount?: string) {
+  return call<{ success: boolean; transactionId: string; amount: string; currency: string; merchant: string; status: string }>(
+    "POST", "/api/qr/pay", { payload, pin, amount });
+}
+
+/* ─── Request money ─────────────────────────────────────────────────────── */
+
+export type MoneyRequest = {
+  id: string; userId: string; amount: string; currency: string; recipientName?: string | null; status: string;
+  description?: string | null; payerUserId?: string | null; expiresAt?: string | null; createdAt: string;
+  requester?: { name: string; username: string; walletId?: string } | null;
+};
+
+export function createMoneyRequest(body: { amount: string; currency: string; payer?: string; description?: string; expiresInHours?: number; recipientName?: string }) {
+  return call<MoneyRequest>("POST", "/api/payment-requests", body);
+}
+export const incomingMoneyRequests = () => call<MoneyRequest[]>("GET", "/api/payment-requests/incoming");
+export const myMoneyRequests = () => call<MoneyRequest[]>("GET", "/api/payment-requests");
+export const payMoneyRequest = (id: string, fromCardId: string, pin: string) =>
+  call("POST", `/api/payment-requests/${id}/pay`, { fromCardId, pin });
+export const cancelMoneyRequest = (id: string) => call("POST", `/api/payment-requests/${id}/cancel`);
+export const declineMoneyRequest = (id: string) => call("POST", `/api/payment-requests/${id}/decline`);
+
+/* ─── Contributions ─────────────────────────────────────────────────────── */
+
+export const contributeFromWallet = (groupId: string, body: { contributorName: string; amount: string; message?: string; isAnonymous?: boolean; pin: string }) =>
+  call("POST", `/api/contributions/${groupId}/contribute`, body);
+export const contributeByEft = (groupId: string, body: { payerName: string; payerEmail?: string; amount: string }) =>
+  call<{ paymentUrl: string; paymentRequestId: string; reference: string }>("POST", `/api/contributions/${groupId}/contribute/eft`, body);
+export const payoutContribution = (groupId: string, pin: string, amount?: string) =>
+  call<{ amount: string; fee: string; net: string; currency: string; remaining: string }>("POST", `/api/contributions/${groupId}/payout`, { pin, amount });
+export const closeContribution = (groupId: string) => call("POST", `/api/contributions/${groupId}/close`);
 
 export async function fetchContacts() {
   const res = await fetch(API_BASE + "/api/contacts", { headers: await getAuthHeader() });
@@ -128,15 +241,27 @@ export interface SendMoneyOptions {
   purposeCategory?: string;
   purposeSubcategory?: string;
   pin?: string;
+  /** Reuse the same key when retrying the same send, so it can never be
+   *  executed twice. A fresh key is generated when omitted. */
+  idempotencyKey?: string;
+}
+
+export function newIdempotencyKey(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 }
 
 export async function sendMoney(
   fromCardId: string, toUserId: string, amount: string, options: SendMoneyOptions = {}
 ) {
+  const { idempotencyKey, ...body } = options;
   const res = await fetch(API_BASE + "/api/transfer", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ fromCardId, toUserId, amount, ...options }),
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey ?? newIdempotencyKey(),
+      ...(await getAuthHeader()),
+    },
+    body: JSON.stringify({ fromCardId, toUserId, amount, ...body }),
   });
   if (!res.ok) {
     const error = await res.json();
@@ -145,31 +270,6 @@ export async function sendMoney(
   return res.json();
 }
 
-export async function getTransferQuote(fromCurrency: string, toCurrency: string, amount: string) {
-  const res = await fetch(API_BASE + "/api/transfer/quote", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ fromCurrency, toCurrency, amount }),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Could not get a quote");
-  }
-  return res.json();
-}
-
-export async function receivePayment(fromUserId: string, toWalletId: string, amount: string) {
-  const res = await fetch(API_BASE + "/api/receive", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
-    body: JSON.stringify({ fromUserId, toWalletId, amount }),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Receive failed");
-  }
-  return res.json();
-}
 
 export async function submitKyc(fullName: string, documentType: string, documentNumber: string, photoUrl?: string | null) {
   const res = await fetch(API_BASE + "/api/kyc/submit", {
@@ -249,6 +349,7 @@ export async function searchDepartures(params: {
 export async function bookTravel(payload: {
   departureId: string; fromCardId: string; seatClass?: string;
   passengers: { name: string; idNumber?: string; phone?: string }[];
+  pin: string;
 }) {
   const res = await fetch(API_BASE + "/api/travel/book", {
     method: "POST",

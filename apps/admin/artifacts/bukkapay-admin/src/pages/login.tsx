@@ -205,6 +205,11 @@ export default function Login() {
               {errors.password && <p className="text-xs text-destructive font-medium">{errors.password.message}</p>}
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">Authenticator code</label>
+              <Input inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code (if MFA is on)" {...register("otp")} />
+            </div>
+
             <Button
               type="submit"
               className="w-full h-12 text-base font-semibold"

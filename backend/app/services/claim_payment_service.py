@@ -2,15 +2,17 @@ import random
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
 from app.core.security import hash_secret, verify_secret
+from app.ledger import accounts as ledger_accounts
+from app.ledger import posting
 from app.models.claim_payment import ClaimPayment
 from app.models.enums import ClaimMethod, ClaimPaymentStatus, PickupStatus, TransactionType
+from app.models.ledger import JournalEntry
 from app.models.user import User
 from app.models.wallet import Transaction, WalletCard
 
@@ -45,18 +47,19 @@ async def create_claim(
     if sender is None:
         raise ApiError("Sender not found", status_code=404)
 
-    cards_result = await db.execute(select(WalletCard).where(WalletCard.user_id == sender_id))
-    cards = list(cards_result.scalars().all())
-    if not cards:
-        raise ApiError("No wallet card found")
-    card = cards[0]
+    claim_currency = (currency or "ZAR").upper()
+    card = (
+        await db.execute(
+            select(WalletCard).where(WalletCard.user_id == sender_id, WalletCard.currency == claim_currency)
+            .order_by(WalletCard.is_default.desc(), WalletCard.created_at)
+        )
+    ).scalars().first()
+    if card is None:
+        raise ApiError(f"You need a {claim_currency} wallet to send this claim")
+    if card.frozen or card.blocked or card.flagged:
+        raise ApiError("This card is restricted", status_code=403)
 
-    try:
-        amount_num = Decimal(amount)
-    except InvalidOperation as e:
-        raise ApiError("Invalid amount") from e
-    if amount_num <= 0:
-        raise ApiError("Invalid amount")
+    amount_num = posting.parse_amount(amount)
     if card.balance < amount_num:
         raise ApiError("Insufficient balance")
 
@@ -65,20 +68,60 @@ async def create_claim(
 
     claim = ClaimPayment(
         sender_id=sender_id, recipient_name=recipient_name, recipient_contact=recipient_contact,
-        amount=amount_num, currency=currency or "ZAR", note=note, pin_hash=pin_hash,
+        amount=amount_num, currency=claim_currency, note=note, pin_hash=pin_hash,
         require_pin=True, status=ClaimPaymentStatus.PENDING, claimed=False, attempts=0,
         expires_at=expires_at,
     )
     db.add(claim)
 
-    # Escrow: deduct from sender immediately, credited on successful claim.
-    card.balance = card.balance - amount_num
+    await db.flush()
+    # Escrow: the sender's money moves into the claims escrow account now and
+    # leaves it only when the claim is paid out or cancelled.
+    await posting.post(
+        db, kind="claim_escrow", description=f"Claim {claim.id} escrowed",
+        legs=[
+            posting.debit(await ledger_accounts.wallet_account(db, card), amount_num),
+            posting.credit(await ledger_accounts.claims_escrow(db, claim_currency), amount_num),
+        ],
+        details={"claim_id": str(claim.id), "sender_card_id": str(card.id)},
+    )
     db.add(Transaction(
         user_id=sender_id, card_id=card.id, title=f"Claim sent to {recipient_name}",
         category="transfer", amount=amount_num, type=TransactionType.DEBIT, icon="send",
     ))
     await db.flush()
     return claim
+
+
+async def _lock_claim(db: AsyncSession, claim_id: uuid.UUID) -> ClaimPayment:
+    return (
+        await db.execute(
+            select(ClaimPayment).where(ClaimPayment.id == claim_id).with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+
+
+async def _release_escrow(db: AsyncSession, claim: ClaimPayment, destination: posting.Leg, *, kind: str) -> None:
+    # Claims created before the ledger existed were deducted from the sender
+    # without an escrow entry; their release is funded from the migration
+    # suspense account so it is visible to reconciliation.
+    escrowed = (
+        await db.execute(
+            select(JournalEntry.id).where(
+                JournalEntry.kind == "claim_escrow", JournalEntry.details["claim_id"].astext == str(claim.id)
+            )
+        )
+    ).first()
+    source = (
+        await ledger_accounts.claims_escrow(db, claim.currency)
+        if escrowed else await ledger_accounts.migration_suspense(db, claim.currency)
+    )
+    await posting.post(
+        db, kind=kind, description=f"Claim {claim.id} released ({kind})",
+        legs=[posting.debit(source, claim.amount), destination],
+        details={"claim_id": str(claim.id), "pre_ledger": not escrowed},
+    )
 
 
 async def get_claim(db: AsyncSession, claim_id: str) -> ClaimPayment | None:
@@ -114,18 +157,21 @@ async def cancel_claim(db: AsyncSession, claim: ClaimPayment) -> None:
     if claim.status == ClaimPaymentStatus.CANCELLED:
         raise ApiError("Already cancelled")
 
+    claim = await _lock_claim(db, claim.id)
+    if claim.claimed or claim.status != ClaimPaymentStatus.PENDING:
+        raise ApiError("Claim is not pending")
     claim.status = ClaimPaymentStatus.CANCELLED
 
-    cards_result = await db.execute(select(WalletCard).where(WalletCard.user_id == claim.sender_id))
-    cards = list(cards_result.scalars().all())
-    if cards:
-        card = cards[0]
-        card.balance = card.balance + claim.amount
-        db.add(Transaction(
-            user_id=claim.sender_id, card_id=card.id,
-            title=f"Refund — cancelled claim for {claim.recipient_name}",
-            category="refund", amount=claim.amount, type=TransactionType.CREDIT, icon="refresh-cw",
-        ))
+    from app.services.wallet_service import get_or_create_currency_card
+
+    card = await get_or_create_currency_card(db, claim.sender_id, claim.currency)
+    await _release_escrow(db, claim, posting.credit(await ledger_accounts.wallet_account(db, card), claim.amount),
+                          kind="claim_cancelled")
+    db.add(Transaction(
+        user_id=claim.sender_id, card_id=card.id,
+        title=f"Refund — cancelled claim for {claim.recipient_name}",
+        category="refund", amount=claim.amount, type=TransactionType.CREDIT, icon="refresh-cw",
+    ))
     await db.flush()
 
 
@@ -162,7 +208,14 @@ async def claim_via_bank(
     db: AsyncSession, claim: ClaimPayment, *, account_name: str, bank_name: str,
     account_number: str, branch_code: str | None,
 ) -> str:
+    claim = await _lock_claim(db, claim.id)
     ensure_claimable(claim)
+    # No automatic bank payout exists for claims yet: the money moves to the
+    # pending-payouts account, where operations pays it out and reconciles.
+    await _release_escrow(
+        db, claim, posting.credit(await ledger_accounts.payouts_pending(db, claim.currency), claim.amount),
+        kind="claim_paid_bank",
+    )
     claim.claimed = True
     claim.status = ClaimPaymentStatus.COMPLETED
     claim.claim_method = ClaimMethod.BANK
@@ -182,16 +235,18 @@ async def claim_via_wallet(db: AsyncSession, claim: ClaimPayment, *, email: str)
     if receiver is None:
         raise ApiError("No BukkaPay account found for this email. Please sign up first.", status_code=404)
 
-    cards_result = await db.execute(select(WalletCard).where(WalletCard.user_id == receiver.id))
-    cards = list(cards_result.scalars().all())
-    if cards:
-        card = cards[0]
-        card.balance = card.balance + claim.amount
-        db.add(Transaction(
-            user_id=receiver.id, card_id=card.id,
-            title=f"Claim received from {claim.recipient_name}",
-            category="transfer", amount=claim.amount, type=TransactionType.CREDIT, icon="download",
-        ))
+    claim = await _lock_claim(db, claim.id)
+    ensure_claimable(claim)
+    from app.services.wallet_service import get_or_create_currency_card
+
+    card = await get_or_create_currency_card(db, receiver.id, claim.currency)
+    await _release_escrow(db, claim, posting.credit(await ledger_accounts.wallet_account(db, card), claim.amount),
+                          kind="claim_paid_wallet")
+    db.add(Transaction(
+        user_id=receiver.id, card_id=card.id,
+        title=f"Claim received from {claim.recipient_name}",
+        category="transfer", amount=claim.amount, type=TransactionType.CREDIT, icon="download",
+    ))
 
     claim.claimed = True
     claim.status = ClaimPaymentStatus.COMPLETED
@@ -221,6 +276,13 @@ async def redeem_pickup_code(db: AsyncSession, pickup_code: str) -> ClaimPayment
         raise ApiError("This pickup code has already been used")
     if claim.pickup_status == PickupStatus.COMPLETED:
         raise ApiError("Already redeemed")
+    claim = await _lock_claim(db, claim.id)
+    if claim.claimed:
+        raise ApiError("This pickup code has already been used")
+    await _release_escrow(
+        db, claim, posting.credit(await ledger_accounts.payouts_pending(db, claim.currency), claim.amount),
+        kind="claim_paid_cash",
+    )
 
     claim.claimed = True
     claim.status = ClaimPaymentStatus.COMPLETED

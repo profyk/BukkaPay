@@ -34,6 +34,8 @@ class ContributionGroup(Base, TimestampMixin):
     current_amount: Mapped[Money] = mapped_column(default=0)
     currency: Mapped[CurrencyCode] = mapped_column(default="USD")
     share_code: Mapped[str] = mapped_column(Text, unique=True, index=True)
+    # Total ever paid out to the creator (current_amount is what's still held).
+    paid_out_amount: Mapped[Money] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     end_date: Mapped[OptionalTimestamp]
 
@@ -54,3 +56,7 @@ class Contribution(Base, CreatedOnlyMixin):
     amount: Mapped[Money]
     message: Mapped[str | None] = mapped_column(Text)
     is_anonymous: Mapped[bool] = mapped_column(Boolean, default=False)
+    # paid = money moved through the ledger; pledge_legacy = recorded before
+    # contributions moved real money (0017) and never backed by funds.
+    status: Mapped[str] = mapped_column(Text, default="paid")
+    journal_entry_id: Mapped[UUIDFk | None] = mapped_column(UUID(as_uuid=True), ForeignKey("journal_entries.id"))

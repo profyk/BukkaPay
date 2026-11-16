@@ -39,6 +39,15 @@ class User(Base, CreatedOnlyMixin):
     kyc_reviewed_at: Mapped[OptionalTimestamp]
     kyc_rejection_reason: Mapped[str | None] = mapped_column(Text)
 
+    # 0 = registered, 1 = contact verified, 2 = identity verified (KYC approved).
+    # Limits per level are configured in transaction_limits.
+    kyc_level: Mapped[int] = mapped_column(Integer, default=0)
+    # ISO-3166 alpha-2 home country (users.country_code is the phone prefix).
+    residence_country: Mapped[str | None] = mapped_column(
+        String(2), ForeignKey("countries.code", ondelete="RESTRICT")
+    )
+    preferred_language: Mapped[str] = mapped_column(String(8), default="en")
+    terms_accepted_at: Mapped[OptionalTimestamp]
     transaction_pin: Mapped[str | None] = mapped_column(Text)
     pin_failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     pin_locked_until: Mapped[OptionalTimestamp]

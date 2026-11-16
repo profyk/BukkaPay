@@ -3,9 +3,12 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
-import { getCurrentUser, getAuthToken } from "../lib/auth";
+import { getCurrentUser } from "../lib/auth";
 import { API_BASE } from "../lib/config";
+import { fetchCards, payMoneyRequest } from "../lib/api";
+import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
+import PinPrompt from "../components/PinPrompt";
 
 export default function Pay() {
   const router = useRouter();
@@ -16,6 +19,7 @@ export default function Pay() {
   const [loading, setLoading] = useState(true);
   const [requester, setRequester] = useState<any>(null);
   const [user, setUser] = useState<any>(null);
+  const [askPin, setAskPin] = useState(false);
 
   const requestId = params.id as string;
 
@@ -68,32 +72,26 @@ export default function Pay() {
     );
   }
 
-  const handleConfirmPayment = async () => {
+  const handleConfirmPayment = () => {
     if (!user) {
       toast({ title: "Error", description: "Please log in to make a payment", variant: "destructive" });
       return;
     }
+    setAskPin(true);
+  };
 
-    try {
-      const token = await getAuthToken();
-      const response = await fetch(API_BASE + `/api/payment-requests/${requestId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: "paid" }),
-      });
-
-      if (!response.ok) throw new Error("Failed to confirm payment");
-
-      toast({ title: "Success", description: "Payment confirmed!" });
-      setTimeout(() => {
-        router.push("/(tabs)");
-      }, 1500);
-    } catch {
-      toast({ title: "Error", description: "Error confirming payment", variant: "destructive" });
-    }
+  // Money really moves here: the request is paid from the payer's wallet in
+  // the request's currency, on the ledger, and only then marked paid.
+  const payWithPin = async (pin: string) => {
+    const wallets: any[] = await fetchCards();
+    const wallet = wallets.filter((w) => w.currency === request.currency)
+      .sort((a, b) => Number(b.isDefault) - Number(a.isDefault))[0];
+    if (!wallet) throw new Error(`You need a ${request.currency} wallet to pay this request`);
+    await payMoneyRequest(requestId, wallet.id, pin);
+    setAskPin(false);
+    setRequest({ ...request, status: "paid" });
+    toast({ title: "Paid", description: `${getCurrency(request.currency).symbol}${request.amount} sent to ${requester?.name ?? "the requester"}` });
+    setTimeout(() => router.push("/(tabs)"), 1500);
   };
 
   return (
@@ -117,7 +115,7 @@ export default function Pay() {
 
       <View style={styles.amountCard}>
         <Text style={styles.amountLabel}>Amount Requested</Text>
-        <Text style={styles.amountValue}>${request.amount}</Text>
+        <Text style={styles.amountValue}>{getCurrency(request.currency).symbol}{request.amount}</Text>
         <Text style={styles.amountCurrency}>{request.currency}</Text>
       </View>
 
@@ -134,11 +132,11 @@ export default function Pay() {
         <View style={{ marginTop: 24 }}>
           <TouchableOpacity
             onPress={handleConfirmPayment}
-            disabled={request.status === "paid"}
-            style={[styles.confirmButton, request.status === "paid" && { opacity: 0.5 }]}
+            disabled={request.status !== "pending"}
+            style={[styles.confirmButton, request.status !== "pending" && { opacity: 0.5 }]}
           >
             <Text style={styles.confirmButtonText}>
-              {request.status === "paid" ? "Already Paid" : "Confirm Payment"}
+              {request.status === "paid" ? "Already Paid" : request.status === "pending" ? "Pay now" : "Not payable"}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push("/(tabs)")} style={[styles.cancelPayButton, { borderColor: colors.border }]}>
@@ -157,6 +155,13 @@ export default function Pay() {
           </TouchableOpacity>
         </View>
       )}
+      <PinPrompt
+        visible={askPin}
+        title="Confirm payment"
+        subtitle={`Pay ${getCurrency(request.currency).symbol}${request.amount} ${request.currency}`}
+        onCancel={() => setAskPin(false)}
+        onSubmit={payWithPin}
+      />
     </ScrollView>
   );
 }

@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
-import { sendMoney, fetchCards, lookupRecipient } from "../lib/api";
+import { sendMoney, fetchCards, lookupRecipient, resolveMerchantQr, payMerchantQr, type ResolvedQr } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 import PinPrompt from "../components/PinPrompt";
 
@@ -30,6 +30,8 @@ export default function QRPay() {
   const [loading, setLoading] = useState(false);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [showPinPrompt, setShowPinPrompt] = useState(false);
+  const [merchantQr, setMerchantQr] = useState<ResolvedQr | null>(null);
+  const merchantPayload = params.merchantQr as string | undefined;
 
   const { data: cards = [] } = useQuery({
     queryKey: ["cards"],
@@ -46,6 +48,29 @@ export default function QRPay() {
   // user to the one real scanner instead of resurrecting it.
   useEffect(() => {
     const incomingWalletId = params.walletId as string | undefined;
+    if (merchantPayload) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const qr = await resolveMerchantQr(merchantPayload);
+          if (cancelled) return;
+          setMerchantQr(qr);
+          setRecipient({ id: qr.merchant.id, name: qr.merchant.businessName, username: qr.merchant.businessName,
+                         walletId: "", avatar: qr.merchant.logo ?? null, verified: true });
+          if (qr.kind === "dynamic" && qr.amount) {
+            setAmount(qr.amount);
+            setStage("confirm");
+          } else {
+            setStage("amount");
+          }
+        } catch (e: any) {
+          if (cancelled) return;
+          setLookupError(e.message || "This QR code can't be used.");
+          setStage("error");
+        }
+      })();
+      return () => { cancelled = true; };
+    }
     if (!incomingWalletId) {
       router.replace("/(tabs)/scan" as any);
       return;
@@ -64,7 +89,7 @@ export default function QRPay() {
       }
     })();
     return () => { cancelled = true; };
-  }, [params.walletId]);
+  }, [params.walletId, merchantPayload]);
 
   const handleNumberClick = (num: string) => {
     if (amount === "0" && num !== ".") {
@@ -84,7 +109,7 @@ export default function QRPay() {
   };
 
   const handleConfirm = () => {
-    if (!selectedCard || !recipient) {
+    if (!merchantQr && (!selectedCard || !recipient)) {
       toast({ title: "Select Card", description: "Please select a card to send from", variant: "destructive" });
       return;
     }
@@ -95,7 +120,13 @@ export default function QRPay() {
     if (!recipient) return;
     setLoading(true);
     try {
-      await sendMoney(selectedCard, recipient.id, amount, { pin });
+      if (merchantQr && merchantPayload) {
+        // Paid from your wallet in the merchant's currency; a dynamic code
+        // always charges its own stored amount.
+        await payMerchantQr(merchantPayload, pin, merchantQr.kind === "static" ? amount : undefined);
+      } else {
+        await sendMoney(selectedCard, recipient.id, amount, { pin });
+      }
       setShowPinPrompt(false);
       setStage("success");
       toast({ title: "Payment Sent", description: `R${amount} sent to ${recipient.name}` });

@@ -100,7 +100,9 @@ export default function SendMoney() {
       if (paymentMethod === "bukka" || paymentMethod === "mobile") {
         await sendMoney(selectedCard, recipientData.id, amount, { pin });
       } else if (paymentMethod === "bank") {
-        await sendMoney(selectedCard, recipientData.accountNumber, amount, { pin });
+        // There is no direct wallet-to-bank-account payment; this used to
+        // "send" to the account number as if it were a BukkaPay user.
+        throw new Error("Paying a bank account directly isn't available. Ask for their BukkaPay ID, or send a claim link from 'Send to anyone'.");
       }
 
       setShowPinPrompt(false);

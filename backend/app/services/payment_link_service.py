@@ -1,13 +1,16 @@
 import secrets
 import uuid
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
 from app.integrations import stitch
+from app.ledger import accounts as ledger_accounts
+from app.ledger import posting
+from app.network import fees
 from app.models.enums import PaymentLinkStatus, TransactionType
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.user import User
@@ -28,12 +31,10 @@ async def create_payment_link(
     bank_details: dict | None, business_name: str | None, business_logo: str | None,
     invoice: dict | None,
 ) -> tuple[PaymentLink, Invoice | None]:
-    try:
-        parsed_amount = Decimal(amount)
-    except (InvalidOperation, TypeError) as e:
-        raise ApiError("Valid amount is required") from e
-    if parsed_amount <= 0:
-        raise ApiError("Valid amount is required")
+    parsed_amount = posting.parse_amount(amount or "")
+    from app.reference import currencies
+
+    currency = (await currencies.require_wallet_currency(db, currency or "ZAR")).code
 
     if destination == "bank":
         bd = bank_details or {}
@@ -164,91 +165,164 @@ async def get_payments_by_link(db: AsyncSession, link_id: uuid.UUID) -> list[Inv
     return list(result.scalars().all())
 
 
-async def _settle_link_destination(db: AsyncSession, link: PaymentLink, amount: Decimal) -> None:
-    """Route a confirmed payment to wherever the link actually says it
-    should go. destination="wallet" credits the link creator's BukkaPay
-    wallet. destination="bank" pays out via a real Stitch disbursement to
-    the bank details saved on the link — previously this branch did
-    nothing at all, so the payer's money was silently destroyed instead of
-    reaching anyone."""
+async def lock_link(db: AsyncSession, link_id: uuid.UUID) -> PaymentLink:
+    """Row-lock the link so two concurrent payments can't both pass the
+    remaining-balance check."""
+    link = (
+        await db.execute(
+            select(PaymentLink).where(PaymentLink.id == link_id).with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if link is None:
+        raise ApiError("Payment link not found", status_code=404)
+    return link
+
+
+def validate_link_amount(link: PaymentLink, amount: str | Decimal | None) -> Decimal:
+    from datetime import UTC
+
+    if link.expires_at is not None and link.expires_at <= datetime.now(UTC):
+        raise ApiError("This payment link has expired", status_code=410)
+    if link.status not in (PaymentLinkStatus.PENDING, PaymentLinkStatus.PARTIAL):
+        if link.status == PaymentLinkStatus.PAID:
+            raise ApiError("This payment link has already been fully paid")
+        raise ApiError("This payment link is no longer active")
+    remaining = link.remaining_balance if link.remaining_balance is not None else link.amount
+    pay_amount = posting.parse_amount(amount) if amount else posting.money(remaining)
+    if pay_amount > remaining:
+        raise ApiError("Amount exceeds remaining balance")
+    if pay_amount < remaining and not link.allow_partial_payment:
+        raise ApiError("This link must be paid in full")
+    if link.allow_partial_payment and link.minimum_payment and pay_amount < min(link.minimum_payment, remaining):
+        raise ApiError(f"Minimum payment is {link.currency} {link.minimum_payment}")
+    return pay_amount
+
+
+async def settle_link_payment(
+    db: AsyncSession, link: PaymentLink, pay_amount: Decimal, *, source: posting.Leg, method: str,
+    payer_name: str | None, payer_email: str | None, payer_user_id: uuid.UUID | None,
+    reference: str | None = None,
+) -> dict:
+    """Book a confirmed payment of ``pay_amount`` (already debited via
+    ``source``) to the link's destination, in one journal entry.
+
+    destination="wallet" credits the link creator's wallet in the link's
+    currency. destination="bank" pays out through a Stitch disbursement to
+    the bank details on the link; the money leaves BukkaPay's Stitch
+    account, so the credit side is the Stitch clearing account."""
     if link.destination == "bank":
         if not stitch.is_stitch_payments_configured():
             raise ApiError("Bank payouts are not yet available. Please contact support.", status_code=503)
         bd = link.bank_details or {}
-        reference = f"LINK-{str(link.id)[:8].upper()}-{secrets.token_hex(4).upper()}"
+        payout_ref = f"LINK-{str(link.id)[:8].upper()}-{secrets.token_hex(4).upper()}"
         await stitch.create_disbursement(
-            amount=float(amount), currency=link.currency, reference=reference,
+            amount=float(pay_amount), currency=link.currency, reference=payout_ref,
             recipient_name=bd.get("accountHolder"), bank_id=bd.get("bankId"),
             account_number=bd.get("accountNumber"), account_type=bd.get("accountType") or "savings",
         )
+        destination_leg = posting.credit(
+            await ledger_accounts.provider_clearing(db, "stitch", link.currency), pay_amount
+        )
+        details = {"payout_reference": payout_ref}
+    elif link.merchant_id is not None:
+        from app.merchants import webhooks_out
+        from app.models.merchant import Merchant
+        from app.services.merchant_service import require_can_transact
+
+        from app.services.merchant_service import check_collection_cap
+
+        merchant = await db.get(Merchant, link.merchant_id)
+        require_can_transact(merchant)
+        await check_collection_cap(db, merchant, pay_amount)
+        fee = await fees.compute(db, "merchant_payment", pay_amount, currency=link.currency,
+                                 country=merchant.country_code, method=method)
+        destination_leg = [
+            posting.credit(await ledger_accounts.merchant_account(db, merchant, link.currency), pay_amount - fee.fee),
+            posting.credit(await ledger_accounts.fee_revenue(db, link.currency), fee.fee),
+        ]
+        details = {"merchant_id": str(merchant.id), "fee_breakdown": fee.breakdown}
+        await webhooks_out.emit(db, merchant.id, "payment_link.paid", {
+            "paymentLinkId": str(link.id), "amount": str(pay_amount), "fee": str(fee.fee),
+            "currency": link.currency, "method": method,
+        })
     else:
-        sender_result = await db.execute(select(WalletCard).where(WalletCard.user_id == link.sender_id))
-        sender_cards = list(sender_result.scalars().all())
-        if sender_cards:
-            sender_cards[0].balance = sender_cards[0].balance + amount
+        from app.services.wallet_service import get_or_create_currency_card
 
+        owner_card = await get_or_create_currency_card(db, link.sender_id, link.currency)
+        owner = await db.get(User, link.sender_id)
+        fee = await fees.compute(db, "payment_link", pay_amount, currency=link.currency,
+                                 country=owner.residence_country if owner else None, method=method)
+        net = pay_amount - fee.fee
+        destination_leg = [
+            posting.credit(await ledger_accounts.wallet_account(db, owner_card), net),
+            posting.credit(await ledger_accounts.fee_revenue(db, link.currency), fee.fee),
+        ]
+        details = {"owner_card_id": str(owner_card.id), "fee_breakdown": fee.breakdown}
+        db.add(Transaction(
+            user_id=link.sender_id, card_id=owner_card.id,
+            title=f"Payment link paid by {payer_name or 'a payer'}",
+            category="payment", amount=net, type=TransactionType.CREDIT, icon="link", fee_amount=fee.fee,
+        ))
 
-async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUID, amount: str | None) -> dict:
-    if link.status == PaymentLinkStatus.PAID:
-        raise ApiError("This payment link has already been fully paid")
+    reference = reference or f"PAY-{int(datetime.now().timestamp() * 1000)}-{secrets.token_hex(4).upper()}"
+    entry = await posting.post(
+        db, kind="payment_link_payment",
+        description=f"Payment link {link.id} paid via {method}",
+        legs=[source, *(destination_leg if isinstance(destination_leg, list) else [destination_leg])],
+        details={"payment_link_id": str(link.id), "method": method, "reference": reference, **details},
+    )
 
-    remaining = link.remaining_balance if link.remaining_balance is not None else link.amount
-    try:
-        pay_amount = Decimal(amount) if amount else remaining
-    except InvalidOperation as e:
-        raise ApiError("Invalid payment amount") from e
-    if pay_amount <= 0:
-        raise ApiError("Invalid payment amount")
-    if pay_amount > remaining + Decimal("0.01"):
-        raise ApiError("Amount exceeds remaining balance")
-    if link.allow_partial_payment and link.minimum_payment:
-        if pay_amount < link.minimum_payment - Decimal("0.01"):
-            raise ApiError(f"Minimum payment is {link.currency} {link.minimum_payment}")
-
-    result = await db.execute(select(WalletCard).where(WalletCard.user_id == user_id))
-    payer_cards = list(result.scalars().all())
-    if not payer_cards:
-        raise ApiError("No wallet card found")
-    payer_card = payer_cards[0]
-    if payer_card.balance < pay_amount:
-        raise ApiError("Insufficient wallet balance")
-
-    # Settle to the link's real destination before touching the payer's
-    # balance, so a bank-payout failure (e.g. Stitch not configured) raises
-    # cleanly with nothing changed yet, instead of debiting the payer and
-    # then losing the money.
-    await _settle_link_destination(db, link, pay_amount)
-    payer_card.balance = payer_card.balance - pay_amount
-
-    payer_result = await db.execute(select(User).where(User.id == user_id))
-    payer = payer_result.scalar_one_or_none()
-
-    reference = f"PAY-{int(datetime.now().timestamp() * 1000)}-{secrets.token_hex(4).upper()}"
     db.add(InvoicePayment(
-        payment_link_id=link.id, amount=pay_amount, currency=link.currency, method="wallet",
-        payer_name=payer.name if payer else None, payer_email=payer.email if payer else None,
-        payer_user_id=user_id, reference=reference,
+        payment_link_id=link.id, amount=pay_amount, currency=link.currency, method=method,
+        payer_name=payer_name, payer_email=payer_email, payer_user_id=payer_user_id, reference=reference,
     ))
-
     new_amount_paid = link.amount_paid + pay_amount
     new_remaining = link.amount - new_amount_paid
-    new_status = PaymentLinkStatus.PAID if new_remaining <= Decimal("0.01") else PaymentLinkStatus.PARTIAL
+    new_status = PaymentLinkStatus.PAID if new_remaining <= 0 else PaymentLinkStatus.PARTIAL
     link.amount_paid = new_amount_paid
     link.remaining_balance = max(Decimal(0), new_remaining)
     link.status = new_status
-
-    db.add(Transaction(
-        user_id=user_id, title=f"Payment to {payer.name if payer else 'Recipient'}",
-        category="payment", amount=pay_amount, type=TransactionType.DEBIT, icon="link",
-    ))
     await db.flush()
-
     return {
         "success": True,
         "amountPaid": f"{new_amount_paid:.2f}",
         "remaining": f"{max(Decimal(0), new_remaining):.2f}",
         "status": new_status.value,
+        "reference": entry.reference,
     }
+
+
+async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUID, amount: str | None) -> dict:
+    link = await lock_link(db, link.id)
+    pay_amount = validate_link_amount(link, amount)
+
+    result = await db.execute(
+        select(WalletCard).where(WalletCard.user_id == user_id, WalletCard.currency == link.currency)
+        .order_by(WalletCard.is_default.desc(), WalletCard.created_at)
+    )
+    payer_card = result.scalars().first()
+    if payer_card is None:
+        raise ApiError(f"You need a {link.currency} wallet to pay this link")
+    if payer_card.frozen or payer_card.blocked or payer_card.flagged:
+        raise ApiError("This card is restricted", status_code=403)
+    if payer_card.balance < pay_amount:
+        raise ApiError("Insufficient wallet balance")
+
+    payer = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    outcome = await settle_link_payment(
+        db, link, pay_amount,
+        source=posting.debit(await ledger_accounts.wallet_account(db, payer_card), pay_amount),
+        method="wallet",
+        payer_name=payer.name if payer else None, payer_email=payer.email if payer else None,
+        payer_user_id=user_id,
+    )
+    db.add(Transaction(
+        user_id=user_id, card_id=payer_card.id, title=f"Payment link {link.description or ''}".strip(),
+        category="payment", amount=pay_amount, type=TransactionType.DEBIT, icon="link",
+    ))
+    await db.flush()
+    return outcome
 
 
 # No card/Paystack payment path here on purpose: payment links only settle

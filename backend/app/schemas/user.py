@@ -15,6 +15,10 @@ class UserAuthPayload(CamelModel):
     country_code: str | None
     loyalty_points: int
     biometric_enabled: bool
+    residence_country: str | None = None
+    kyc_level: int = 0
+    kyc_status: str | None = None
+    preferred_language: str = "en"
 
 
 class UserLoginPayload(UserAuthPayload):
@@ -40,6 +44,10 @@ class UserMePayload(CamelModel):
     country_code: str | None
     loyalty_points: int
     biometric_enabled: bool
+    residence_country: str | None = None
+    kyc_level: int = 0
+    kyc_status: str | None = None
+    preferred_language: str = "en"
     avatar: str | None
     frozen: bool
 
@@ -56,6 +64,10 @@ class UserProfilePayload(CamelModel):
     country_code: str | None
     loyalty_points: int
     biometric_enabled: bool
+    residence_country: str | None = None
+    kyc_level: int = 0
+    kyc_status: str | None = None
+    preferred_language: str = "en"
     avatar: str | None
 
 
@@ -65,10 +77,10 @@ class SignupRequest(CamelModel):
     username: str
     password: str
     phone: str | None = None
-    country_code: str | None = None
-    biometric_enabled: bool | None = None
-    verified: bool | None = None
-    loyalty_points: int | None = None
+    country_code: str | None = None  # phone dial prefix
+    residence_country: str  # ISO-3166 alpha-2; must be a country BukkaPay operates in
+    accept_terms: bool
+    preferred_language: str = "en"
 
 
 class LoginRequest(CamelModel):
@@ -80,6 +92,9 @@ class GoogleSignInRequest(CamelModel):
     id_token: str
     email: str | None = None
     name: str | None = None
+    # Required the first time (account creation), ignored afterwards.
+    residence_country: str | None = None
+    accept_terms: bool | None = None
 
 
 class ForgotPasswordRequest(CamelModel):
@@ -98,7 +113,6 @@ class VerifyEmailRequest(CamelModel):
 
 class OtpRequestRequest(CamelModel):
     email: str
-    code_length: int | None = 6
 
 
 class OtpVerifyRequest(CamelModel):

@@ -1,0 +1,16 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light dark; }
+html, body { background: #F9FAFB; color: #1A1A2E; }
+@media (prefers-color-scheme: dark) {
+  html, body { background: #0D0D1A; color: #F3F4F6; }
+}
+body { font-family: "DM Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+@media print {
+  .no-print { display: none !important; }
+  html, body { background: #fff !important; }
+}

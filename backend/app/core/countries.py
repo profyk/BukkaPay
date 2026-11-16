@@ -5,7 +5,7 @@ currency and pricing zone (`TransferZone`) it maps to, mirroring the
 existing `lib/countries.ts` reference-data duplication already used
 client-side (e.g. `CURRENCY_LABEL` in the admin's corridors.tsx).
 
-Every country settles into one of BukkaPay's `WalletCurrency` values —
+Every country settles into one of BukkaPay's currency codes (the `currencies` table) —
 there's no per-country currency, since BukkaPay is a closed-loop wallet
 (see wallet_service._resolve_user): sending "to Nigeria" really means
 sending to a BukkaPay user who holds an NGN wallet, not a Nigerian bank
@@ -15,7 +15,7 @@ common cross-border settlement currency.
 
 from dataclasses import dataclass
 
-from app.models.enums import TransferZone, WalletCurrency
+from app.models.enums import TransferZone
 
 
 @dataclass(frozen=True)
@@ -27,11 +27,11 @@ class CountryInfo:
     region: str
 
 
-def _africa(code: str, name: str, currency: str = WalletCurrency.USD.value) -> CountryInfo:
+def _africa(code: str, name: str, currency: str = "USD") -> CountryInfo:
     return CountryInfo(code=code, name=name, currency=currency, zone=TransferZone.AFRICA, region="Africa")
 
 
-def _intl(code: str, name: str, region: str, currency: str = WalletCurrency.USD.value) -> CountryInfo:
+def _intl(code: str, name: str, region: str, currency: str = "USD") -> CountryInfo:
     return CountryInfo(code=code, name=name, currency=currency, zone=TransferZone.INTERNATIONAL, region=region)
 
 
@@ -39,7 +39,7 @@ _AFRICA: list[CountryInfo] = [
     _africa("DZ", "Algeria"),
     _africa("AO", "Angola"),
     _africa("BJ", "Benin"),
-    _africa("BW", "Botswana", WalletCurrency.BWP.value),
+    _africa("BW", "Botswana", "BWP"),
     _africa("BF", "Burkina Faso"),
     _africa("BI", "Burundi"),
     _africa("CV", "Cabo Verde"),
@@ -57,11 +57,11 @@ _AFRICA: list[CountryInfo] = [
     _africa("ET", "Ethiopia"),
     _africa("GA", "Gabon"),
     _africa("GM", "Gambia"),
-    _africa("GH", "Ghana", WalletCurrency.GHS.value),
+    _africa("GH", "Ghana", "GHS"),
     _africa("GN", "Guinea"),
     _africa("GW", "Guinea-Bissau"),
     _africa("CI", "Ivory Coast"),
-    _africa("KE", "Kenya", WalletCurrency.KES.value),
+    _africa("KE", "Kenya", "KES"),
     _africa("LS", "Lesotho"),
     _africa("LR", "Liberia"),
     _africa("LY", "Libya"),
@@ -74,14 +74,14 @@ _AFRICA: list[CountryInfo] = [
     _africa("MZ", "Mozambique"),
     _africa("NA", "Namibia"),
     _africa("NE", "Niger"),
-    _africa("NG", "Nigeria", WalletCurrency.NGN.value),
+    _africa("NG", "Nigeria", "NGN"),
     _africa("RW", "Rwanda"),
     _africa("ST", "Sao Tome and Principe"),
     _africa("SN", "Senegal"),
     _africa("SC", "Seychelles"),
     _africa("SL", "Sierra Leone"),
     _africa("SO", "Somalia"),
-    _africa("ZA", "South Africa", WalletCurrency.ZAR.value),
+    _africa("ZA", "South Africa", "ZAR"),
     _africa("SS", "South Sudan"),
     _africa("SD", "Sudan"),
     _africa("TZ", "Tanzania"),
@@ -99,18 +99,18 @@ _INTERNATIONAL: list[CountryInfo] = [
     _intl("BR", "Brazil", "Americas"),
     _intl("MX", "Mexico", "Americas"),
     # Europe
-    _intl("GB", "United Kingdom", "Europe", WalletCurrency.GBP.value),
-    _intl("DE", "Germany", "Europe", WalletCurrency.EUR.value),
-    _intl("FR", "France", "Europe", WalletCurrency.EUR.value),
-    _intl("NL", "Netherlands", "Europe", WalletCurrency.EUR.value),
-    _intl("IT", "Italy", "Europe", WalletCurrency.EUR.value),
-    _intl("ES", "Spain", "Europe", WalletCurrency.EUR.value),
-    _intl("PT", "Portugal", "Europe", WalletCurrency.EUR.value),
-    _intl("IE", "Ireland", "Europe", WalletCurrency.EUR.value),
-    _intl("BE", "Belgium", "Europe", WalletCurrency.EUR.value),
-    _intl("AT", "Austria", "Europe", WalletCurrency.EUR.value),
-    _intl("GR", "Greece", "Europe", WalletCurrency.EUR.value),
-    _intl("FI", "Finland", "Europe", WalletCurrency.EUR.value),
+    _intl("GB", "United Kingdom", "Europe", "GBP"),
+    _intl("DE", "Germany", "Europe", "EUR"),
+    _intl("FR", "France", "Europe", "EUR"),
+    _intl("NL", "Netherlands", "Europe", "EUR"),
+    _intl("IT", "Italy", "Europe", "EUR"),
+    _intl("ES", "Spain", "Europe", "EUR"),
+    _intl("PT", "Portugal", "Europe", "EUR"),
+    _intl("IE", "Ireland", "Europe", "EUR"),
+    _intl("BE", "Belgium", "Europe", "EUR"),
+    _intl("AT", "Austria", "Europe", "EUR"),
+    _intl("GR", "Greece", "Europe", "EUR"),
+    _intl("FI", "Finland", "Europe", "EUR"),
     _intl("CH", "Switzerland", "Europe"),
     _intl("NO", "Norway", "Europe"),
     _intl("PL", "Poland", "Europe"),

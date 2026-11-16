@@ -1,11 +1,13 @@
 import pytest
 from httpx import AsyncClient
 
+from tests.conftest import TEST_PIN
+
 pytestmark = pytest.mark.asyncio
 
 
 async def _create_claim(client: AsyncClient, funded_user: dict, *, pin="1234", amount="100.00"):
-    r = await client.post("/api/claim-payments", json={
+    r = await client.post("/api/claim-payments", json={"transactionPin": TEST_PIN,
         "recipientName": "Someone", "recipientContact": "+27821234567",
         "amount": amount, "pin": pin,
     }, headers=funded_user["headers"])
@@ -80,7 +82,7 @@ async def test_cancel_claim_refunds_sender(client: AsyncClient, funded_user: dic
 
 
 async def test_create_claim_bad_pin_rejected(client: AsyncClient, funded_user: dict):
-    r = await client.post("/api/claim-payments", json={
+    r = await client.post("/api/claim-payments", json={"transactionPin": TEST_PIN,
         "recipientName": "Someone", "recipientContact": "+27821234567",
         "amount": "10.00", "pin": "12",
     }, headers=funded_user["headers"])

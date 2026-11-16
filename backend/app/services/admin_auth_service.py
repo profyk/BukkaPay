@@ -62,10 +62,13 @@ async def setup_mfa(db: AsyncSession, *, admin_id: str) -> dict:
     admin = result.scalar_one_or_none()
     if admin is None:
         raise ApiError("Admin not found", status_code=404)
+    if admin.mfa_enabled:
+        raise ApiError("MFA is already enabled. Ask a super admin to reset it.", status_code=409)
 
     secret = generate_totp_secret()
     admin.mfa_secret = secret
-    admin.mfa_enabled = True
+    # Not enabled until the admin proves they enrolled it (confirm_mfa).
+    admin.mfa_enabled = False
     await db.flush()
     return {
         "secret": secret,
@@ -84,8 +87,10 @@ async def list_admins(db: AsyncSession) -> list[AdminUser]:
 
 async def create_admin(db: AsyncSession, *, email: str, name: str, password: str, role: str | None) -> AdminUser:
     role = role or "admin"
-    if role not in ("admin", "super_admin"):
-        raise ApiError("role must be admin or super_admin")
+    from app.governance.permissions import ROLE_PERMISSIONS
+
+    if role not in ROLE_PERMISSIONS:
+        raise ApiError("role must be one of: " + ", ".join(sorted(ROLE_PERMISSIONS)))
 
     existing = await db.execute(select(AdminUser).where(AdminUser.email == email.lower().strip()))
     if existing.scalar_one_or_none() is not None:
@@ -118,6 +123,10 @@ async def update_admin(
     if email is not None:
         admin.email = email.lower().strip()
     if role is not None:
+        from app.governance.permissions import ROLE_PERMISSIONS
+
+        if role not in ROLE_PERMISSIONS:
+            raise ApiError("role must be one of: " + ", ".join(sorted(ROLE_PERMISSIONS)))
         admin.role = role
     if is_active is not None:
         admin.is_active = is_active
@@ -140,3 +149,14 @@ async def delete_admin(db: AsyncSession, admin_id: str) -> AdminUser:
     await db.delete(admin)
     await db.flush()
     return admin
+
+
+async def confirm_mfa(db: AsyncSession, *, admin_id: str, otp: str) -> dict:
+    admin = (await db.execute(select(AdminUser).where(AdminUser.id == uuid.UUID(admin_id)))).scalar_one()
+    if admin.mfa_enabled:
+        raise ApiError("MFA is already enabled", status_code=409)
+    if not admin.mfa_secret or not verify_totp(admin.mfa_secret, otp):
+        raise ApiError("Invalid code", status_code=400)
+    admin.mfa_enabled = True
+    await db.flush()
+    return {"mfaEnabled": True}

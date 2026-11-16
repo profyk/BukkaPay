@@ -5,16 +5,28 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import { apiRequest, queryClient } from "../lib/queryClient";
-import type { ContributionGroup, Contribution } from "../../shared/schema";
+import { API_BASE } from "../lib/config";
+
+// Shapes returned by GET /api/contributions/... (camelCase API contract).
+type ContributionGroup = {
+  id: string; creatorId: string; title: string; description: string | null; category: string;
+  targetAmount: string | null; currentAmount: string; paidOutAmount?: string; currency: string;
+  shareCode: string; isActive: boolean; endDate: string | null; createdAt: string; status: string;
+};
+type Contribution = {
+  id: string; groupId: string; contributorId: string | null; contributorName: string; contributorPhone: string | null;
+  amount: string; message: string | null; isAnonymous: boolean; status?: string; createdAt: string;
+};
+import PinPrompt from "../components/PinPrompt";
 import { useTheme } from "../lib/ThemeContext";
 
 const categories = [
-  { id: "funeral", label: "Funeral", icon: "heart" as const, color: "#475569" },
-  { id: "church", label: "Church", icon: "home" as const, color: "#7C3AED" },
-  { id: "fundraising", label: "Fundraising", icon: "business" as const, color: "#059669" },
-  { id: "celebration", label: "Celebration", icon: "happy" as const, color: "#D97706" },
-  { id: "charity", label: "Charity", icon: "hand-left" as const, color: "#EC4899" },
-  { id: "other", label: "Other", icon: "flag" as const, color: "#2563EB" },
+  { id: "community", label: "Community", icon: "people" as const, color: "#7C3AED" },
+  { id: "event", label: "Family event", icon: "happy" as const, color: "#D97706" },
+  { id: "education", label: "School", icon: "school" as const, color: "#2563EB" },
+  { id: "medical", label: "Medical", icon: "medkit" as const, color: "#EC4899" },
+  { id: "emergency", label: "Emergency", icon: "alert-circle" as const, color: "#DC2626" },
+  { id: "other", label: "Other", icon: "flag" as const, color: "#475569" },
 ];
 
 export default function Contribute() {
@@ -29,12 +41,14 @@ export default function Contribute() {
   const [message, setMessage] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [contributed, setContributed] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pending, setPending] = useState<any>(null);
   const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery<{ group: ContributionGroup; contributions: Contribution[] }>({
     queryKey: ["/api/contributions/code", code],
     queryFn: async () => {
-      const res = await fetch(`/api/contributions/code/${code}`);
+      const res = await fetch(`${API_BASE}/api/contributions/code/${code}`);
       if (!res.ok) throw new Error("Group not found");
       return res.json();
     },
@@ -50,13 +64,12 @@ export default function Contribute() {
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Thank you!", description: "Your contribution has been received." });
+      toast({ title: "Thank you!", description: "Your contribution has been paid into the campaign." });
+      setPinOpen(false);
       setContributed(true);
       queryClient.invalidateQueries({ queryKey: ["/api/contributions/code", code] });
     },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to contribute", variant: "destructive" });
-    },
+    onError: () => { /* surfaced inside the PIN prompt */ },
   });
 
   const handleContribute = () => {
@@ -69,13 +82,15 @@ export default function Contribute() {
       return;
     }
 
-    contributeMutation.mutate({
+    // Contributions are paid from your wallet and confirmed with your PIN.
+    setPending({
       contributorName: isAnonymous ? "Anonymous" : contributorName,
       contributorPhone: contributorPhone || null,
       amount,
       message: message || null,
       isAnonymous,
     });
+    setPinOpen(true);
   };
 
   if (isLoading) {
@@ -231,7 +246,7 @@ export default function Contribute() {
             disabled={contributeMutation.isPending}
           >
             <Text style={styles.primaryButtonText}>
-              {contributeMutation.isPending ? "Processing..." : `Contribute $${amount || "0"}`}
+              {contributeMutation.isPending ? "Processing..." : `Contribute ${data?.group.currency ?? ""} ${amount || "0"}`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -251,6 +266,8 @@ export default function Contribute() {
           </View>
         )}
       </View>
+      <PinPrompt visible={pinOpen} title="Confirm contribution" onCancel={() => setPinOpen(false)}
+                 onSubmit={(pin) => contributeMutation.mutateAsync({ ...pending, pin })} />
     </ScrollView>
   );
 }

@@ -111,6 +111,8 @@ class MerchantPayRequest(CamelModel):
     amount: str
     payer_name: str | None = None
     reference: str | None = None
+    pin: str | None = None
+    qr_payload: str | None = None
 
 
 class MerchantPayResponse(CamelModel):

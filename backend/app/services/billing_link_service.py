@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ApiError
 from app.models.merchant import BillingLink, Merchant
 from app.models.payment_link import PaymentLink
+from app.services import merchant_service
 
 PAYMENT_URL_BASE = "https://app.bukkapay.com/pay"
 
@@ -50,6 +51,7 @@ async def create_billing_link(
         raise ApiError("Merchant not found", status_code=404)
     if merchant.user_id != user_id:
         raise ApiError("Forbidden", status_code=403)
+    merchant_service.require_can_transact(merchant)
 
     try:
         parsed_amount = Decimal(amount)
@@ -66,21 +68,19 @@ async def create_billing_link(
     db.add(link)
     await db.flush()
 
-    # Best-effort: create a corresponding payment link, matching the
-    # try/except-and-ignore-failure pattern in the Node handler.
-    try:
-        payment_link = PaymentLink(
-            sender_id=user_id, amount=parsed_amount, currency=currency or "ZAR",
-            description=f"{biller_name} — {billing_period or 'Bill'}", remaining_balance=parsed_amount,
-            type="business", destination="wallet", business_name=merchant.business_name,
-            link_type="billing", status="pending",
-        )
-        db.add(payment_link)
-        await db.flush()
-        link.payment_link_id = payment_link.id
-        await db.flush()
-    except Exception:
-        pass
+    # The bill is paid through a merchant checkout link, so the money settles
+    # to the merchant's ledger account. Created in the same transaction: a
+    # bill with no way to pay it is never saved.
+    payment_link = PaymentLink(
+        sender_id=user_id, merchant_id=merchant.id, amount=parsed_amount, currency=link.currency,
+        description=f"{biller_name} — {billing_period or 'Bill'}", remaining_balance=parsed_amount,
+        type="business", destination="wallet", business_name=merchant.business_name,
+        link_type="billing", status="pending",
+    )
+    db.add(payment_link)
+    await db.flush()
+    link.payment_link_id = payment_link.id
+    await db.flush()
 
     return link
 
@@ -101,6 +101,10 @@ async def get_link_with_owner_check(db: AsyncSession, link_id: str, user_id: uui
 
 
 async def update_status(db: AsyncSession, link: BillingLink, status: str) -> BillingLink:
+    from app.models.enums import BillingLinkStatus
+
+    if status not in {s.value for s in BillingLinkStatus}:
+        raise ApiError("Status must be active, paused or archived")
     link.status = status
     await db.flush()
     return link

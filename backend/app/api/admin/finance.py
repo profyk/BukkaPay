@@ -1,22 +1,18 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.admin.deps import AdminContext, admin_auth, super_admin_or_master_key
+from app.api.admin.deps import AdminContext, require
 from app.core.errors import ApiError
 from app.db.deps import get_db
 from app.schemas.admin import (
     AdminPaymentLinksListResponse,
     AdminTransactionsListResponse,
     AdminWalletsListResponse,
-    CorridorRow,
-    CorridorsListResponse,
     FlagTransactionResponse,
     InternationalTransfersListResponse,
-    UpdateCorridorRequest,
     UpdatePaymentLinkStatusRequest,
     WalletActionRequest,
     WalletActionResponse,
-    WalletBalanceRequest,
 )
 from app.services import admin_finance_service as svc
 
@@ -31,7 +27,7 @@ def _pages(total: int, limit: int) -> int:
 async def list_transactions(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=200),
     user_id: str | None = Query(default=None),
-    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    _ctx: AdminContext = Depends(require("transactions.view")), db: AsyncSession = Depends(get_db),
 ) -> AdminTransactionsListResponse:
     rows, total = await svc.list_transactions(db, page=page, limit=limit, user_id=user_id)
     transactions = [
@@ -46,7 +42,7 @@ async def list_transactions(
 
 @router.post("/transactions/flag/{transaction_id}")
 async def flag_transaction(
-    transaction_id: str, _ctx: AdminContext = Depends(admin_auth)
+    transaction_id: str, _ctx: AdminContext = Depends(require("compliance.manage"))
 ) -> FlagTransactionResponse:
     result = await svc.flag_transaction(transaction_id)
     return FlagTransactionResponse.model_validate(result)
@@ -54,7 +50,7 @@ async def flag_transaction(
 
 @router.delete("/transactions/{transaction_id}")
 async def delete_transaction(
-    transaction_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    transaction_id: str, _ctx: AdminContext = Depends(require("users.manage")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     await svc.delete_transaction(db, transaction_id)
     return {"success": True}
@@ -64,7 +60,7 @@ async def delete_transaction(
 async def list_wallets(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=200),
     user_id: str | None = Query(default=None),
-    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    _ctx: AdminContext = Depends(require("wallets.view")), db: AsyncSession = Depends(get_db),
 ) -> AdminWalletsListResponse:
     rows, total = await svc.list_wallets(db, page=page, limit=limit, user_id=user_id)
     wallets = []
@@ -95,7 +91,7 @@ async def _wallet_card_response(db: AsyncSession, card, success_extra: dict | No
 
 @router.patch("/wallets/{card_id}/freeze")
 async def freeze_wallet(
-    card_id: str, body: WalletActionRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    card_id: str, body: WalletActionRequest, _ctx: AdminContext = Depends(require("wallets.restrict")), db: AsyncSession = Depends(get_db)
 ) -> WalletActionResponse:
     card = await svc.get_wallet_card(db, card_id)
     if card is None:
@@ -108,7 +104,7 @@ async def freeze_wallet(
 
 @router.patch("/wallets/{card_id}/block")
 async def block_wallet(
-    card_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    card_id: str, _ctx: AdminContext = Depends(require("wallets.restrict")), db: AsyncSession = Depends(get_db)
 ) -> WalletActionResponse:
     card = await svc.get_wallet_card(db, card_id)
     if card is None:
@@ -120,19 +116,22 @@ async def block_wallet(
 
 @router.patch("/wallets/{card_id}/unblock")
 async def unblock_wallet(
-    card_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
-) -> WalletActionResponse:
+    card_id: str, ctx: AdminContext = Depends(require("wallets.restrict")), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Unblocking is maker-checker: this files an approval request."""
+    from app.governance import approvals
+
     card = await svc.get_wallet_card(db, card_id)
     if card is None:
         raise ApiError("Card not found", status_code=404)
-    await svc.set_card_blocked(card, False)
-    await db.flush()
-    return WalletActionResponse.model_validate(await _wallet_card_response(db, card))
+    req = await approvals.request(db, ctx, action="wallet.unblock", payload={"card_id": str(card.id)},
+                                  reason="Unblock requested from the wallets screen")
+    return {"success": True, "pendingApproval": True, "approvalId": str(req.id)}
 
 
 @router.patch("/wallets/{card_id}/flag")
 async def flag_wallet(
-    card_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    card_id: str, _ctx: AdminContext = Depends(require("wallets.restrict")), db: AsyncSession = Depends(get_db)
 ) -> WalletActionResponse:
     card = await svc.get_wallet_card(db, card_id)
     if card is None:
@@ -144,7 +143,7 @@ async def flag_wallet(
 
 @router.patch("/wallets/{card_id}/unflag")
 async def unflag_wallet(
-    card_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    card_id: str, _ctx: AdminContext = Depends(require("wallets.restrict")), db: AsyncSession = Depends(get_db)
 ) -> WalletActionResponse:
     card = await svc.get_wallet_card(db, card_id)
     if card is None:
@@ -154,23 +153,11 @@ async def unflag_wallet(
     return WalletActionResponse.model_validate(await _wallet_card_response(db, card))
 
 
-@router.patch("/wallets/{card_id}/balance")
-async def set_wallet_balance(
-    card_id: str, body: WalletBalanceRequest, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
-) -> WalletActionResponse:
-    card = await svc.get_wallet_card(db, card_id)
-    if card is None:
-        raise ApiError("Card not found", status_code=404)
-    await svc.set_card_balance(card, body.balance)
-    await db.flush()
-    return WalletActionResponse.model_validate(await _wallet_card_response(db, card))
-
-
 @router.get("/payment-links")
 async def list_payment_links(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=200),
     status: str | None = Query(default=None),
-    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    _ctx: AdminContext = Depends(require("transactions.view")), db: AsyncSession = Depends(get_db),
 ) -> AdminPaymentLinksListResponse:
     rows, total = await svc.list_payment_links(db, page=page, limit=limit, status=status)
     links = [
@@ -185,7 +172,7 @@ async def list_payment_links(
 
 @router.patch("/payment-links/{link_id}/status")
 async def update_payment_link_status(
-    link_id: str, body: UpdatePaymentLinkStatusRequest, _ctx: AdminContext = Depends(admin_auth),
+    link_id: str, body: UpdatePaymentLinkStatusRequest, _ctx: AdminContext = Depends(require("users.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     link = await svc.get_payment_link(db, link_id)
@@ -199,7 +186,7 @@ async def update_payment_link_status(
 
 @router.delete("/payment-links/{link_id}")
 async def delete_payment_link(
-    link_id: str, _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    link_id: str, _ctx: AdminContext = Depends(require("users.manage")), db: AsyncSession = Depends(get_db),
 ) -> dict:
     link = await svc.get_payment_link(db, link_id)
     if link is None:
@@ -208,33 +195,11 @@ async def delete_payment_link(
     return {"success": True}
 
 
-@router.get("/corridors")
-async def list_corridors(
-    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
-) -> CorridorsListResponse:
-    corridors = await svc.list_corridors(db)
-    return CorridorsListResponse.model_validate({"corridors": corridors})
-
-
-@router.patch("/corridors/{corridor_id}")
-async def update_corridor(
-    corridor_id: str, body: UpdateCorridorRequest,
-    _ctx: AdminContext = Depends(super_admin_or_master_key), db: AsyncSession = Depends(get_db),
-) -> CorridorRow:
-    corridor = await svc.get_corridor(db, corridor_id)
-    if corridor is None:
-        raise ApiError("Corridor not found", status_code=404)
-    await svc.update_corridor(corridor, body.model_dump(exclude_unset=True))
-    await db.flush()
-    await db.refresh(corridor)
-    return CorridorRow.model_validate(corridor)
-
-
 @router.get("/international-transfers")
 async def list_international_transfers(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=200),
     user_id: str | None = Query(default=None),
-    _ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    _ctx: AdminContext = Depends(require("transactions.view")), db: AsyncSession = Depends(get_db),
 ) -> InternationalTransfersListResponse:
     transfers, users_by_id, total = await svc.list_international_transfers(db, page=page, limit=limit, user_id=user_id)
 

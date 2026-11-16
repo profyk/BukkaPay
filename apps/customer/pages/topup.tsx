@@ -8,6 +8,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
+import { fetchCards } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 
 const BLUE  = "#1D4ED8";
@@ -35,6 +36,15 @@ export default function TopUp() {
   const INPUT_BG = colors.inputBg;
   const [amount, setAmount] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
+  const [withdrawPin, setWithdrawPin] = useState("");
+
+  /** Bank (EFT) top-ups and withdrawals run through Stitch, which settles in ZAR. */
+  const zarWalletId = async (): Promise<string> => {
+    const cards = (await fetchCards()) as any[];
+    const zar = cards.find((c) => c.currency === "ZAR" && c.isDefault) ?? cards.find((c) => c.currency === "ZAR");
+    if (!zar) throw new Error("Bank top-ups and withdrawals need a ZAR wallet");
+    return zar.id;
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [banks, setBanks] = useState<StitchBank[]>([]);
   const [pendingPaymentId, setPendingPaymentId] = useState("");
@@ -71,13 +81,7 @@ export default function TopUp() {
     setIsLoading(true);
     try {
       const headers = await getAuthHeader();
-      const userRes = await fetch(`${API_BASE}/api/user/me`, { headers: headers as HeadersInit });
-      if (!userRes.ok) throw new Error("Please log in to top up");
-
-      const userData = await userRes.json();
-      const walletCards = userData.walletCards || [];
-      if (!walletCards.length) throw new Error("No wallet card found");
-      const cardId = walletCards[0].id;
+      const cardId = await zarWalletId();
 
       const res = await fetch(`${API_BASE}/api/wallet/topup/stitch`, {
         method: "POST",
@@ -127,6 +131,12 @@ export default function TopUp() {
         setSection("select");
         setAmount("");
         setPendingPaymentId("");
+      } else if (data.status === "review") {
+        // The bank confirmed a different amount than requested; support
+        // reconciles it rather than crediting a guess.
+        toast({ title: "Payment Under Review", description: "We received your payment but need to confirm the amount. Our team will update your wallet shortly." });
+        setSection("select");
+        setPendingPaymentId("");
       } else {
         toast({ title: "Payment Failed", description: "Your payment was not completed.", variant: "destructive" });
         setSection("select");
@@ -143,6 +153,10 @@ export default function TopUp() {
       toast({ title: "Minimum R50", description: "Enter at least R50 to withdraw", variant: "destructive" });
       return;
     }
+    if (!withdrawPin) {
+      toast({ title: "PIN required", description: "Enter your transaction PIN", variant: "destructive" });
+      return;
+    }
     if (!selectedBank || !accountNumber || !accountName) {
       toast({ title: "Missing Info", description: "Please fill in all bank details", variant: "destructive" });
       return;
@@ -150,12 +164,8 @@ export default function TopUp() {
     setIsLoading(true);
     try {
       const headers = await getAuthHeader();
-      const userRes = await fetch(`${API_BASE}/api/user/me`, { headers: headers as HeadersInit });
-      if (!userRes.ok) throw new Error("Please log in to withdraw");
-      const userData = await userRes.json();
-      const walletCards = userData.walletCards || [];
-      if (!walletCards.length) throw new Error("No wallet card found");
-      const cardId = walletCards[0].id;
+      const cardId = await zarWalletId();
+      const pin = withdrawPin;
 
       const res = await fetch(`${API_BASE}/api/wallet/withdraw/stitch`, {
         method: "POST",
@@ -168,10 +178,12 @@ export default function TopUp() {
           accountNumber,
           accountType,
           accountName,
+          pin,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Withdrawal failed");
+      setWithdrawPin("");
 
       toast({ title: "Withdrawal Submitted", description: data.message || "Funds arrive in 1–2 business days." });
       setSection("select");
@@ -187,12 +199,8 @@ export default function TopUp() {
   };
 
   const handleVoucherTopUp = async () => {
-    if (!voucherCode) {
-      toast({ title: "Error", description: "Please enter a voucher code", variant: "destructive" });
-      return;
-    }
-    toast({ title: "Success", description: "Voucher redeemed successfully!" });
-    setVoucherCode("");
+    // No voucher provider is connected; never pretend a redemption worked.
+    toast({ title: "Not available yet", description: "Voucher top-ups aren't available in your country yet.", variant: "destructive" });
     setSection("select");
   };
 
@@ -432,6 +440,21 @@ export default function TopUp() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <Text style={[s.label, { color: NAVY }]}>Transaction PIN</Text>
+        <TextInput
+          style={[s.input, { backgroundColor: INPUT_BG, borderColor: BORDER, color: NAVY }]}
+          value={withdrawPin}
+          onChangeText={setWithdrawPin}
+          placeholder="Your 4–6 digit PIN"
+          placeholderTextColor={MUTED}
+          keyboardType="number-pad"
+          secureTextEntry
+          maxLength={6}
+        />
+        <Text style={{ color: MUTED, fontSize: 12, marginBottom: 12 }}>
+          A payout fee applies and is shown on your receipt. Funds show as pending until the bank confirms.
+        </Text>
 
         <TouchableOpacity
           style={[s.primaryBtn, { backgroundColor: "#EA580C" }, isLoading && { opacity: 0.7 }]}

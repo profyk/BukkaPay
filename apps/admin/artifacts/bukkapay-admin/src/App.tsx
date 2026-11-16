@@ -35,13 +35,25 @@ import TransactionsPage from "@/pages/transactions"
 import KycPage from "@/pages/kyc"
 import AuditLogsPage from "@/pages/audit-logs"
 import WalletsPage from "@/pages/wallets"
+import CardsPage from "@/pages/cards"
+import WebsitePage from "@/pages/website"
 import PaymentLinksPage from "@/pages/payment-links"
 import MerchantsPage from "@/pages/merchants"
 import BroadcastPage from "@/pages/broadcast"
 import AdminManagementPage from "@/pages/admin-management"
-import PricingPage from "@/pages/pricing"
-import CorridorsPage from "@/pages/corridors"
 import InternationalTransfersPage from "@/pages/international-transfers"
+import ApprovalsPage from "@/pages/approvals"
+import LedgerPage from "@/pages/ledger"
+import ReconciliationPage from "@/pages/reconciliation"
+import CompliancePage from "@/pages/compliance"
+import CrossBorderPage from "@/pages/cross-border"
+import FeesLimitsPage from "@/pages/fees-limits"
+import MerchantKybPage from "@/pages/merchant-kyb"
+import NetworkCountriesPage from "@/pages/network-countries"
+import NetworkCurrenciesPage from "@/pages/network-currencies"
+import NetworkCustodiansPage from "@/pages/network-custodians"
+import NetworkProvidersPage from "@/pages/network-providers"
+import NetworkCorridorsPage from "@/pages/network-corridors"
 import TravelOperatorsPage from "@/pages/travel-operators"
 import TravelRoutesPage from "@/pages/travel-routes"
 import SupportChatPage from "@/pages/support-chat"
@@ -67,12 +79,24 @@ function Router() {
       <Route path="/kyc"            component={KycPage} />
       <Route path="/audit-logs"     component={AuditLogsPage} />
       <Route path="/wallets"        component={WalletsPage} />
+      <Route path="/cards"          component={CardsPage} />
+      <Route path="/website"        component={WebsitePage} />
       <Route path="/payment-links"  component={PaymentLinksPage} />
       <Route path="/merchants"      component={MerchantsPage} />
       <Route path="/broadcast"         component={BroadcastPage} />
       <Route path="/admin-management"  component={AdminManagementPage} />
-      <Route path="/pricing"           component={PricingPage} />
-      <Route path="/corridors"         component={CorridorsPage} />
+      <Route path="/approvals"          component={ApprovalsPage} />
+      <Route path="/ledger"             component={LedgerPage} />
+      <Route path="/reconciliation"     component={ReconciliationPage} />
+      <Route path="/compliance"         component={CompliancePage} />
+      <Route path="/cross-border"       component={CrossBorderPage} />
+      <Route path="/fees"               component={FeesLimitsPage} />
+      <Route path="/merchant-kyb"       component={MerchantKybPage} />
+      <Route path="/network/countries"  component={NetworkCountriesPage} />
+      <Route path="/network/currencies" component={NetworkCurrenciesPage} />
+      <Route path="/network/custodians" component={NetworkCustodiansPage} />
+      <Route path="/network/providers"  component={NetworkProvidersPage} />
+      <Route path="/network/corridors"  component={NetworkCorridorsPage} />
       <Route path="/international-transfers" component={InternationalTransfersPage} />
       <Route path="/travel-operators" component={TravelOperatorsPage} />
       <Route path="/travel-routes"    component={TravelRoutesPage} />

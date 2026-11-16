@@ -14,7 +14,6 @@ export default function ForgotPassword() {
   const { colors } = useTheme();
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [resetLink, setResetLink] = useState("");
   const [email, setEmail] = useState("");
 
   const handleSubmit = async () => {
@@ -38,9 +37,6 @@ export default function ForgotPassword() {
       }
 
       setSent(true);
-      if (data.resetLink) {
-        setResetLink(data.resetLink);
-      }
       toast({ title: "Success", description: "Password reset instructions sent!" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -94,16 +90,8 @@ export default function ForgotPassword() {
               <Text style={{ fontWeight: "700", color: colors.text }}>{email}</Text>
             </Text>
 
-            {resetLink ? (
-              <View style={[styles.demoBox, { backgroundColor: colors.surface }]}>
-                <Text style={[styles.demoLabel, { color: colors.textMuted }]}>Demo Mode: Tap below to reset your password</Text>
-                <TouchableOpacity onPress={() => router.push(("/(screens)/reset-password?token=" + resetLink.split("token=")[1]) as any)}>
-                  <Text style={styles.demoLink}>Reset Password Now</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
 
-            <TouchableOpacity onPress={() => { setSent(false); setEmail(""); setResetLink(""); }} style={[styles.outlineButton, { borderColor: colors.border }]}>
+            <TouchableOpacity onPress={() => { setSent(false); setEmail(""); }} style={[styles.outlineButton, { borderColor: colors.border }]}>
               <Text style={[styles.outlineButtonText, { color: colors.text }]}>Try Different Email</Text>
             </TouchableOpacity>
           </View>
@@ -139,9 +127,6 @@ const styles = StyleSheet.create({
   successCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(16,185,129,0.1)", alignItems: "center", justifyContent: "center", marginBottom: 16 },
   sentTitle: { fontSize: 24, fontWeight: "700", color: "#1A1A2E", marginBottom: 8 },
   sentSubtitle: { fontSize: 14, color: "#6B7280", textAlign: "center", marginBottom: 24 },
-  demoBox: { backgroundColor: "#F8F9FA", borderRadius: 12, padding: 16, marginBottom: 24, width: "100%" },
-  demoLabel: { fontSize: 12, color: "#6B7280", marginBottom: 8, textAlign: "center" },
-  demoLink: { fontSize: 14, fontWeight: "500", color: "#7C3AED", textAlign: "center" },
   outlineButton: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingVertical: 14, alignItems: "center", width: "100%" },
   outlineButtonText: { fontSize: 16, fontWeight: "600", color: "#1A1A2E" },
   backToLogin: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 24 },

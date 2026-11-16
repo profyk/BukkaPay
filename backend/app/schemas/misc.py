@@ -49,6 +49,10 @@ class PaymentRequestResponse(CamelModel):
     status: str
     expires_at: OptionalJsDateTime
     created_at: JsDateTime
+    description: str | None = None
+    payer_user_id: UUID | None = None
+    paid_at: OptionalJsDateTime = None
+    transfer_reference: str | None = None
     requester: PublicUser | None = None
 
 
@@ -57,8 +61,15 @@ class CreatePaymentRequestRequest(CamelModel):
     currency: str | None = None
     recipient_name: str | None = None
     recipient_phone: str | None = None
-    status: str | None = None
-    expires_at: str | None = None
+    # Wallet ID / username of the BukkaPay user being asked (they get notified).
+    payer: str | None = None
+    description: str | None = None
+    expires_in_hours: int | None = 72
+
+
+class PayPaymentRequestRequest(CamelModel):
+    from_card_id: str
+    pin: str | None = None
 
 
 class UpdatePaymentRequestStatusRequest(CamelModel):

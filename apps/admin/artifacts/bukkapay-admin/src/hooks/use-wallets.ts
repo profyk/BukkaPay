@@ -67,12 +67,7 @@ export function useWalletActions() {
     onSuccess: invalidate,
   });
 
-  const adjustBalance = useMutation({
-    mutationFn: async ({ id, balance }: { id: string; balance: number }) => {
-      await api.patch(`/admin/wallets/${id}/balance`, { balance });
-    },
-    onSuccess: invalidate,
-  });
-
-  return { freezeWallet, blockWallet, unblockWallet, flagWallet, unflagWallet, adjustBalance };
+  // No balance editing: balances only change through ledger postings.
+  // Corrections will go through an audited, maker-checker adjustment flow.
+  return { freezeWallet, blockWallet, unblockWallet, flagWallet, unflagWallet };
 }

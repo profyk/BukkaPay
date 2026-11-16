@@ -20,7 +20,7 @@ import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 import PremiumCard from "./PremiumCard";
 
-const PREVIEW_NUMBER = "5399 •••• •••• ••••";
+const PREVIEW_NUMBER = "•••• •••• •••• ••••";
 
 export default function AddCardDialog() {
   const [open, setOpen] = useState(false);
@@ -47,7 +47,7 @@ export default function AddCardDialog() {
     mutationFn: createCard,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cards"] });
-      toast({ title: "Card Created", description: `"${cardName.trim()}" virtual card is ready.` });
+      toast({ title: "Card Created", description: `"${cardName.trim()}" wallet created. Its Visa card is on the way.` });
       handleClose();
     },
     onError: (error: Error) => {
@@ -104,7 +104,7 @@ export default function AddCardDialog() {
               />
               <View style={[styles.stitchBadge, { backgroundColor: colors.primaryLight }]}>
                 <Ionicons name="shield-checkmark" size={12} color={colors.primary} />
-                <Text style={[styles.stitchBadgeText, { color: colors.primary }]}>Issued by Stitch · Mastercard</Text>
+                <Text style={[styles.stitchBadgeText, { color: colors.primary }]}>Visa · online & tap to pay</Text>
               </View>
             </View>
 
@@ -120,7 +120,7 @@ export default function AddCardDialog() {
                 autoFocus
                 maxLength={32}
               />
-              <Text style={[styles.hint, { color: colors.textMuted }]}>A real Mastercard virtual card will be issued for your account.</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>Each wallet gets its own Visa virtual card once your ID is verified.</Text>
               {pricing && (Number(pricing.issuanceFee) > 0 || Number(pricing.monthlyFee) > 0) && (
                 <Text style={[styles.hint, { color: colors.textMuted }]}>
                   {Number(pricing.issuanceFee) > 0 ? `${getCurrency(currency).symbol}${pricing.issuanceFee} issuance fee` : ""}

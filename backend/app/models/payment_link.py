@@ -32,6 +32,12 @@ class PaymentLink(Base, TimestampMixin):
     sender_id: Mapped[UUIDFk] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
+    # Set for merchant checkout links: payments settle to the merchant's
+    # payable account (merchant fee), not the creator's personal wallet.
+    merchant_id: Mapped[UUIDFk | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("merchants.id", ondelete="RESTRICT"), index=True
+    )
+    expires_at: Mapped[OptionalTimestamp]
     amount: Mapped[Money]
     currency: Mapped[CurrencyCode] = mapped_column(default="ZAR")
     description: Mapped[str | None] = mapped_column(Text)

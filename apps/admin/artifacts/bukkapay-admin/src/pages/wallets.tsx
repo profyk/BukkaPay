@@ -2,7 +2,7 @@ import { useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import {
   AlertCircle, Loader2, Wallet, ShieldBan, CheckCircle2,
-  Pencil, ChevronLeft, ChevronRight, Search, X,
+  ChevronLeft, ChevronRight, Search, X,
   Flag, OctagonX, Unlock, MoreHorizontal,
 } from "lucide-react"
 import { AppLayout } from "@/components/layout/AppLayout"
@@ -10,7 +10,6 @@ import { useWallets, useWalletActions } from "@/hooks/use-wallets"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
@@ -44,17 +43,20 @@ export default function WalletsPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [processingId, setProcessingId] = useState<string | null>(null)
-  const [balanceDialog, setBalanceDialog] = useState<{ id: string; current: number; email: string } | null>(null)
-  const [newBalance, setNewBalance] = useState("")
 
   const { data, isLoading, isError, error } = useWallets(page)
-  const { freezeWallet, blockWallet, unblockWallet, flagWallet, unflagWallet, adjustBalance } = useWalletActions()
+  const { freezeWallet, blockWallet, unblockWallet, flagWallet, unflagWallet } = useWalletActions()
   const { toast } = useToast()
   const perms = usePermissions()
 
   const wallets = data?.wallets ?? []
   const pagination = data?.pagination
-  const totalBalance = wallets.reduce((s, w) => s + parseFloat(String(w.balance ?? "0")), 0)
+  // Per currency: different currencies are never added together.
+  const totalsByCurrency = wallets.reduce<Record<string, number>>((acc, w) => {
+    const ccy = w.currency ?? "ZAR"
+    acc[ccy] = (acc[ccy] ?? 0) + parseFloat(String(w.balance ?? "0"))
+    return acc
+  }, {})
 
   const filtered = useMemo(() => {
     let list = wallets
@@ -74,14 +76,6 @@ export default function WalletsPage() {
     finally { setProcessingId(null) }
   }
 
-  const handleAdjust = async () => {
-    if (!balanceDialog) return
-    const val = parseFloat(newBalance)
-    if (isNaN(val) || val < 0) { toast({ title: "Invalid amount", variant: "destructive" }); return }
-    await run(balanceDialog.id, "Balance updated", () => adjustBalance.mutateAsync({ id: balanceDialog.id, balance: val }))
-    setBalanceDialog(null); setNewBalance("")
-  }
-
   const summaryRow = [
     { label: "Total Wallets", value: pagination?.total.toLocaleString() ?? "—" },
     { label: "Flagged",       value: wallets.filter((w) => w.flagged).length },
@@ -95,12 +89,14 @@ export default function WalletsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-display">Wallets</h1>
-            <p className="text-muted-foreground mt-1">Manage wallet status, balances, and security flags.</p>
+            <p className="text-muted-foreground mt-1">Manage wallet status and security flags. Balances come from the ledger and can't be edited here.</p>
           </div>
           {!isLoading && wallets.length > 0 && (
             <div className="bg-primary/8 border border-primary/15 rounded-xl px-5 py-3 text-right">
               <p className="text-xs text-primary font-semibold uppercase tracking-wide">Page Balance</p>
-              <p className="text-xl font-bold text-primary">{formatCurrency(totalBalance)}</p>
+              {Object.entries(totalsByCurrency).map(([ccy, total]) => (
+                <p key={ccy} className="text-xl font-bold text-primary">{formatCurrency(total, ccy)}</p>
+              ))}
             </div>
           )}
         </div>
@@ -177,12 +173,6 @@ export default function WalletsPage() {
                             <Loader2 className="w-4 h-4 animate-spin text-primary inline" />
                           ) : (
                             <div className="flex items-center justify-end gap-1.5">
-                              {/* Balance (super_admin only) */}
-                              {perms.canAdjustBalances && (
-                                <Button variant="outline" size="sm" onClick={() => { setBalanceDialog({ id: w.id, current: w.balance, email: w.user_email }); setNewBalance(String(w.balance)) }}>
-                                  <Pencil className="w-3.5 h-3.5 mr-1.5" />Balance
-                                </Button>
-                              )}
                               {/* More actions dropdown */}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -275,29 +265,6 @@ export default function WalletsPage() {
         )}
       </motion.div>
 
-      {/* Adjust Balance dialog */}
-      <Dialog open={!!balanceDialog} onOpenChange={(o) => !o && setBalanceDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Adjust Wallet Balance</DialogTitle>
-            <DialogDescription>{balanceDialog?.email} · Current: {balanceDialog ? formatCurrency(balanceDialog.current) : ""}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5 mt-2">
-            <label className="text-sm font-semibold">New Balance (ZAR)</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">R</span>
-              <Input type="number" min="0" step="0.01" className="pl-7" value={newBalance} onChange={(e) => setNewBalance(e.target.value)} placeholder="0.00" />
-            </div>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setBalanceDialog(null)}>Cancel</Button>
-            <Button onClick={handleAdjust} disabled={!newBalance || processingId === balanceDialog?.id}>
-              {processingId === balanceDialog?.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Pencil className="w-4 h-4 mr-2" />}
-              Update Balance
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AppLayout>
   )
 }

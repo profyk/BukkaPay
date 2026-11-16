@@ -182,7 +182,14 @@ async def approve_kyc(db: AsyncSession, user: User) -> User:
     user.kyc_reviewed_at = datetime.now(UTC)
     user.kyc_rejection_reason = None
     user.verified = True
+    user.kyc_level = 2
     await db.flush()
+    from app.network import compliance
+
+    await compliance.record_screening(db, user_id=user.id)
+    from app.cards import service as card_service
+
+    await card_service.on_kyc_verified(db, user.id)
     await notification_service.create_notification(
         db, user.id, NotificationType.SUCCESS, "KYC Approved",
         "Your identity has been verified. Your BukkaPay account is now fully active.",

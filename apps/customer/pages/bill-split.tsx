@@ -1,809 +1,179 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "../lib/queryClient";
-import { useToast } from "../hooks/use-toast";
+import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import { createMoneyRequest, fetchCards, myMoneyRequests, cancelMoneyRequest, type MoneyRequest } from "../lib/api";
+import { getCurrency } from "../lib/currency";
+import { queryClient } from "../lib/queryClient";
 import { useTheme } from "../lib/ThemeContext";
+import { useToast } from "../hooks/use-toast";
 
-interface Participant {
-  id: string;
-  name: string;
-  amount: string;
-  paid: boolean;
-}
+const SPLIT_PREFIX = "Split: ";
 
-interface BillSplit {
-  id: string;
-  creatorId: string;
-  title: string;
-  totalAmount: string;
-  participants: Participant[];
-  status: string;
-  createdAt: string;
-}
+type Person = { who: string; share: string };
 
-type SplitType = "equal" | "custom" | "percentage";
-
-export default function BillSplitPage() {
+/**
+ * Split a bill: each friend gets a real BukkaPay money request for their
+ * share (paid from their wallet, on the ledger). Your own share is what's
+ * left after theirs. Tracking = the status of those requests.
+ */
+export default function BillSplit() {
   const router = useRouter();
-  const { toast } = useToast();
   const { colors } = useTheme();
-  const [showCreate, setShowCreate] = useState(false);
-  const [selectedBill, setSelectedBill] = useState<BillSplit | null>(null);
-
+  const { toast } = useToast();
   const [title, setTitle] = useState("");
-  const [totalAmount, setTotalAmount] = useState("");
-  const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [participants, setParticipants] = useState<Participant[]>([
-    { id: "1", name: "", amount: "0", paid: false },
-  ]);
+  const [total, setTotal] = useState("");
+  const [people, setPeople] = useState<Person[]>([{ who: "", share: "" }]);
+  const [equal, setEqual] = useState(true);
+  const [sending, setSending] = useState(false);
 
-  const { data: billSplits = [], isLoading } = useQuery<BillSplit[]>({
-    queryKey: ["/api/bill-splits"],
-  });
+  const { data: wallets } = useQuery({ queryKey: ["cards"], queryFn: fetchCards });
+  const currency: string = ((wallets || []).find((w: any) => w.isDefault) || (wallets || [])[0])?.currency || "ZAR";
+  const symbol = getCurrency(currency).symbol;
+  const { data: requests, isLoading } = useQuery({ queryKey: ["money-requests"], queryFn: myMoneyRequests });
 
-  const createMutation = useMutation({
-    mutationFn: async (data: { title: string; totalAmount: string; participants: Participant[] }) => {
-      return apiRequest("POST", "/api/bill-splits", data);
-    },
-    onSuccess: () => {
-      toast({ title: "Bill Created", description: "Your bill has been created and shared with participants." });
-      queryClient.invalidateQueries({ queryKey: ["/api/bill-splits"] });
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
+  const filled = people.filter((p) => p.who.trim());
+  const totalNum = Number(total) || 0;
+  // Equal split includes you: total / (friends + 1), rounded down to cents;
+  // any rounding remainder stays with you.
+  const equalShare = filled.length ? Math.floor((totalNum / (filled.length + 1)) * 100) / 100 : 0;
+  const shares = filled.map((p) => (equal ? equalShare : Number(p.share) || 0));
+  const friendsTotal = shares.reduce((a, b) => a + b, 0);
+  const yourShare = Math.max(0, totalNum - friendsTotal);
+  const valid = title.trim() && totalNum > 0 && filled.length > 0 && shares.every((s) => s > 0) && friendsTotal <= totalNum;
 
-  const updateParticipantsMutation = useMutation({
-    mutationFn: async ({ id, participants }: { id: string; participants: Participant[] }) => {
-      return apiRequest("PATCH", `/api/bill-splits/${id}/participants`, { participants });
-    },
-    onSuccess: () => {
-      toast({ title: "Updated", description: "Payment status updated." });
-      queryClient.invalidateQueries({ queryKey: ["/api/bill-splits"] });
-    },
-  });
-
-  const resetForm = () => {
-    setShowCreate(false);
-    setTitle("");
-    setTotalAmount("");
-    setSplitType("equal");
-    setParticipants([{ id: "1", name: "", amount: "0", paid: false }]);
-  };
-
-  const addParticipant = () => {
-    const newId = (participants.length + 1).toString();
-    setParticipants([...participants, { id: newId, name: "", amount: "0", paid: false }]);
-  };
-
-  const removeParticipant = (id: string) => {
-    if (participants.length > 1) {
-      setParticipants(participants.filter((p) => p.id !== id));
+  const send = async () => {
+    setSending(true);
+    const failed: string[] = [];
+    for (let i = 0; i < filled.length; i++) {
+      try {
+        await createMoneyRequest({
+          amount: shares[i].toFixed(2), currency, payer: filled[i].who.trim(),
+          description: `${SPLIT_PREFIX}${title.trim()}`, expiresInHours: 24 * 7,
+        });
+      } catch (e: any) {
+        failed.push(`${filled[i].who}: ${e.message}`);
+      }
+    }
+    setSending(false);
+    queryClient.invalidateQueries({ queryKey: ["money-requests"] });
+    if (failed.length) {
+      toast({ title: "Some requests weren't sent", description: failed.join("\n"), variant: "destructive" });
+    } else {
+      toast({ title: "Split sent", description: `${filled.length} friend${filled.length > 1 ? "s" : ""} asked to pay their share.` });
+      setTitle(""); setTotal(""); setPeople([{ who: "", share: "" }]);
     }
   };
 
-  const updateParticipant = (id: string, field: keyof Participant, value: string | boolean) => {
-    setParticipants(participants.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
-  };
+  const splits = (requests || []).filter((r) => (r.description || "").startsWith(SPLIT_PREFIX));
+  const grouped = splits.reduce((acc: Record<string, MoneyRequest[]>, r) => {
+    const key = (r.description || "").slice(SPLIT_PREFIX.length);
+    (acc[key] = acc[key] || []).push(r);
+    return acc;
+  }, {});
 
-  const handleCreate = () => {
-    const validParticipants = participants.filter((p) => p.name.trim());
-    if (!title.trim() || !totalAmount || validParticipants.length === 0) {
-      toast({ title: "Missing Info", description: "Please fill in all required fields.", variant: "destructive" });
-      return;
-    }
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Split a bill</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
-    createMutation.mutate({
-      title: title.trim(),
-      totalAmount,
-      participants: validParticipants.map((p) => ({
-        ...p,
-        amount: p.amount || (parseFloat(totalAmount) / validParticipants.length).toFixed(2),
-      })),
-    });
-  };
-
-  const markAsPaid = (billId: string, participantId: string) => {
-    const bill = billSplits.find((b) => b.id === billId);
-    if (!bill) return;
-
-    const updatedParticipants = (bill.participants || []).map((p: Participant) =>
-      p.id === participantId ? { ...p, paid: true } : p
-    );
-
-    updateParticipantsMutation.mutate({ id: billId, participants: updatedParticipants });
-
-    if (selectedBill?.id === billId) {
-      setSelectedBill({ ...selectedBill, participants: updatedParticipants });
-    }
-  };
-
-  const sendReminder = (participantName: string) => {
-    toast({ title: "Reminder Sent", description: `A payment reminder has been sent to ${participantName}.` });
-  };
-
-  const getPaidAmount = (bill: BillSplit) => {
-    return (bill.participants || [])
-      .filter((p: Participant) => p.paid)
-      .reduce((sum: number, p: Participant) => sum + parseFloat(p.amount || "0"), 0);
-  };
-
-  const getPaidCount = (bill: BillSplit) => {
-    return (bill.participants || []).filter((p: Participant) => p.paid).length;
-  };
-
-  if (selectedBill) {
-    const paidAmount = getPaidAmount(selectedBill);
-    const totalAmt = parseFloat(selectedBill.totalAmount);
-    const progress = totalAmt > 0 ? (paidAmount / totalAmt) * 100 : 0;
-
-    return (
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSelectedBill(null)} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{selectedBill.title}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.centerBlock}>
-              <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>Total Bill</Text>
-              <Text style={[styles.bigAmount, { color: colors.text }]}>${parseFloat(selectedBill.totalAmount).toFixed(2)}</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>Collected</Text>
-              <Text style={[styles.fontSemibold, { color: "#059669" }]}>${paidAmount.toFixed(2)}</Text>
-            </View>
-            <View style={[styles.progressBar, { backgroundColor: colors.card }]}>
-              <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
-            </View>
-            <Text style={[styles.mutedSmall, { color: colors.textMuted, textAlign: "center", marginTop: 4 }]}>
-              {getPaidCount(selectedBill)} of {(selectedBill.participants || []).length} people have paid
-            </Text>
-          </View>
-
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>PARTICIPANTS</Text>
-          {(selectedBill.participants || []).map((participant: Participant) => (
-            <View
-              key={participant.id}
-              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, participant.paid && styles.cardPaid]}
-            >
-              <View style={styles.participantRow}>
-                <View style={styles.participantLeft}>
-                  <View
-                    style={[
-                      styles.avatar,
-                      { backgroundColor: participant.paid ? "#10B981" : colors.card },
-                    ]}
-                  >
-                    {participant.paid ? (
-                      <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                    ) : (
-                      <Text style={[styles.avatarText, { color: colors.textMuted }]}>{participant.name.charAt(0).toUpperCase()}</Text>
-                    )}
-                  </View>
-                  <View>
-                    <Text style={[styles.participantName, { color: colors.text }]}>{participant.name}</Text>
-                    <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>${parseFloat(participant.amount).toFixed(2)}</Text>
-                  </View>
-                </View>
-
-                {participant.paid ? (
-                  <View style={styles.paidBadge}>
-                    <Text style={styles.paidBadgeText}>Paid</Text>
-                  </View>
-                ) : (
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={[styles.outlineButtonSmall, { borderColor: colors.border }]}
-                      onPress={() => sendReminder(participant.name)}
-                    >
-                      <Ionicons name="chatbubble" size={14} color="#7C3AED" />
-                      <Text style={styles.outlineButtonSmallText}>Remind</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.smallButton}
-                      onPress={() => markAsPaid(selectedBill.id, participant.id)}
-                    >
-                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                      <Text style={styles.smallButtonText}>Paid</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
+      <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TextInput placeholder="What was it? e.g. Dinner at Mama's" placeholderTextColor={colors.textMuted} value={title} onChangeText={setTitle}
+          style={[styles.input, { color: colors.text, borderColor: colors.border }]} />
+        <TextInput placeholder={`Total (${currency})`} placeholderTextColor={colors.textMuted} value={total} onChangeText={setTotal} keyboardType="decimal-pad"
+          style={[styles.input, { color: colors.text, borderColor: colors.border }]} />
+        <View style={styles.row}>
+          {[true, false].map((v) => (
+            <TouchableOpacity key={String(v)} onPress={() => setEqual(v)} style={[styles.chip, { borderColor: colors.primary, backgroundColor: equal === v ? colors.primary : "transparent" }]}>
+              <Text style={{ color: equal === v ? "#fff" : colors.primary, fontWeight: "600" }}>{v ? "Split equally" : "Custom amounts"}</Text>
+            </TouchableOpacity>
           ))}
         </View>
-      </ScrollView>
-    );
-  }
 
-  if (showCreate) {
-    return (
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={resetForm} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Create Bill Split</Text>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.formGroup}>
-            <Text style={[styles.label, { color: colors.textMuted }]}>Bill Title</Text>
-            <TextInput
-              style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
-              placeholder="e.g., Dinner at Restaurant"
-              placeholderTextColor={colors.textMuted}
-              value={title}
-              onChangeText={setTitle}
-            />
+        <Text style={[styles.label, { color: colors.textMuted }]}>FRIENDS (BukkaPay wallet ID or username)</Text>
+        {people.map((p, i) => (
+          <View key={i} style={styles.row}>
+            <TextInput placeholder="@username or wallet ID" placeholderTextColor={colors.textMuted} autoCapitalize="none" value={p.who}
+              onChangeText={(v) => setPeople(people.map((x, j) => (j === i ? { ...x, who: v } : x)))}
+              style={[styles.input, { flex: 1, color: colors.text, borderColor: colors.border }]} />
+            {equal ? (
+              <Text style={[styles.share, { color: colors.text }]}>{p.who.trim() ? `${symbol}${equalShare.toFixed(2)}` : ""}</Text>
+            ) : (
+              <TextInput placeholder="0.00" placeholderTextColor={colors.textMuted} keyboardType="decimal-pad" value={p.share}
+                onChangeText={(v) => setPeople(people.map((x, j) => (j === i ? { ...x, share: v } : x)))}
+                style={[styles.input, { width: 96, color: colors.text, borderColor: colors.border }]} />
+            )}
+            {people.length > 1 && (
+              <TouchableOpacity onPress={() => setPeople(people.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={22} color={colors.textMuted} /></TouchableOpacity>
+            )}
           </View>
+        ))}
+        <TouchableOpacity onPress={() => setPeople([...people, { who: "", share: "" }])}>
+          <Text style={{ color: colors.primary, fontWeight: "600" }}>+ Add friend</Text>
+        </TouchableOpacity>
 
-          <View style={styles.formGroup}>
-            <Text style={[styles.label, { color: colors.textMuted }]}>Total Amount</Text>
-            <View style={[styles.inputWithIcon, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-              <Ionicons name="cash" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
-              <TextInput
-                style={[styles.inputInner, { color: colors.text }]}
-                keyboardType="numeric"
-                placeholder="0.00"
-                placeholderTextColor={colors.textMuted}
-                value={totalAmount}
-                onChangeText={setTotalAmount}
-              />
-            </View>
-          </View>
+        {totalNum > 0 && (
+          <Text style={[styles.muted, { color: friendsTotal > totalNum ? "#DC2626" : colors.textMuted }]}>
+            {friendsTotal > totalNum ? "Friends' shares add up to more than the total." : `Your share: ${symbol}${yourShare.toFixed(2)}`}
+          </Text>
+        )}
+        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary, opacity: valid && !sending ? 1 : 0.5 }]} disabled={!valid || sending} onPress={send}>
+          {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Send payment requests</Text>}
+        </TouchableOpacity>
+      </View>
 
-          <View style={styles.formGroup}>
-            <Text style={[styles.label, { color: colors.textMuted }]}>Split Type</Text>
-            <View style={styles.splitTypeRow}>
-              {([
-                { type: "equal" as SplitType, icon: "reorder-two" as const, label: "Equal" },
-                { type: "custom" as SplitType, icon: "calculator" as const, label: "Custom" },
-                { type: "percentage" as SplitType, icon: "analytics" as const, label: "Percent" },
-              ]).map(({ type, icon, label }) => (
-                <TouchableOpacity
-                  key={type}
-                  onPress={() => setSplitType(type)}
-                  style={[
-                    styles.splitTypeButton,
-                    { borderColor: colors.border },
-                    splitType === type && styles.splitTypeButtonActive,
-                  ]}
-                >
-                  <Ionicons
-                    name={icon}
-                    size={20}
-                    color={splitType === type ? "#7C3AED" : colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.splitTypeLabel,
-                      { color: colors.textMuted },
-                      splitType === type && { color: "#7C3AED" },
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.formGroup}>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Your splits</Text>
+      {isLoading && <ActivityIndicator color={colors.primary} />}
+      {!isLoading && Object.keys(grouped).length === 0 && <Text style={[styles.muted, { color: colors.textMuted }]}>No splits yet.</Text>}
+      {Object.entries(grouped).map(([name, reqs]) => {
+        const paid = reqs.filter((r) => r.status === "paid");
+        return (
+          <View key={name} style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.rowBetween}>
-              <Text style={[styles.label, { color: colors.textMuted }]}>Participants</Text>
-              <TouchableOpacity onPress={addParticipant} style={styles.addButton}>
-                <Ionicons name="add" size={16} color="#7C3AED" />
-                <Text style={styles.addButtonText}>Add</Text>
-              </TouchableOpacity>
+              <Text style={[styles.value, { color: colors.text }]}>{name}</Text>
+              <Text style={[styles.muted, { color: colors.textMuted }]}>{paid.length}/{reqs.length} paid</Text>
             </View>
-
-            {participants.map((participant, index) => (
-              <View key={participant.id} style={styles.participantInputRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
-                  placeholder={`Person ${index + 1}`}
-                  placeholderTextColor={colors.textMuted}
-                  value={participant.name}
-                  onChangeText={(v) => updateParticipant(participant.id, "name", v)}
-                />
-                {splitType !== "equal" && (
-                  <View style={[styles.amountInputWrap, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                    <Text style={[styles.amountPrefix, { color: colors.textMuted }]}>
-                      {splitType === "percentage" ? "%" : "$"}
-                    </Text>
-                    <TextInput
-                      style={[styles.amountInput, { color: colors.text }]}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor={colors.textMuted}
-                      value={participant.amount}
-                      onChangeText={(v) => updateParticipant(participant.id, "amount", v)}
-                    />
-                  </View>
-                )}
-                {participants.length > 1 && (
-                  <TouchableOpacity onPress={() => removeParticipant(participant.id)} style={{ padding: 8 }}>
-                    <Ionicons name="close" size={18} color={colors.textMuted} />
+            {reqs.map((r) => (
+              <View key={r.id} style={styles.rowBetween}>
+                <Text style={{ color: colors.text, flex: 1 }}>{r.recipientName || "Friend"}</Text>
+                <Text style={{ color: colors.text, marginRight: 10 }}>{getCurrency(r.currency).symbol}{r.amount}</Text>
+                <Text style={{ color: r.status === "paid" ? "#059669" : r.status === "pending" ? "#D97706" : colors.textMuted, width: 70, textAlign: "right" }}>{r.status}</Text>
+                {r.status === "pending" && (
+                  <TouchableOpacity onPress={async () => { await cancelMoneyRequest(r.id); queryClient.invalidateQueries({ queryKey: ["money-requests"] }); }}>
+                    <Ionicons name="close" size={18} color={colors.textMuted} style={{ marginLeft: 8 }} />
                   </TouchableOpacity>
                 )}
               </View>
             ))}
           </View>
-
-          {splitType === "equal" && totalAmount && participants.filter((p) => p.name.trim()).length > 0 && (
-            <View style={styles.equalSplitCard}>
-              <View style={styles.rowBetween}>
-                <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>Each person pays:</Text>
-                <Text style={styles.splitAmount}>
-                  ${(parseFloat(totalAmount) / participants.filter((p) => p.name.trim()).length).toFixed(2)}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.primaryButton, createMutation.isPending && styles.disabledButton]}
-            onPress={handleCreate}
-            disabled={createMutation.isPending}
-          >
-            <Text style={styles.primaryButtonText}>
-              {createMutation.isPending ? "Creating..." : "Create & Share Bill"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    );
-  }
-
-  return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Bill Splitting</Text>
-      </View>
-
-      <View style={styles.section}>
-        <TouchableOpacity style={styles.heroButton} onPress={() => setShowCreate(true)}>
-          <View style={styles.heroButtonInner}>
-            <View style={styles.heroIcon}>
-              <Ionicons name="add" size={24} color="#FFFFFF" />
-            </View>
-            <View>
-              <Text style={styles.heroTitle}>Split a Bill</Text>
-              <Text style={styles.heroSubtitle}>Create a new bill to split with friends</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {isLoading ? (
-          <View style={styles.loadingBlock}>
-            {[1, 2, 3].map((i) => (
-              <View key={i} style={[styles.skeleton, { backgroundColor: colors.surface }]} />
-            ))}
-          </View>
-        ) : billSplits.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.surface }]}>
-              <Ionicons name="people" size={32} color={colors.textMuted} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Bills Yet</Text>
-            <Text style={[styles.emptyDesc, { color: colors.textMuted }]}>Create your first bill split to get started</Text>
-          </View>
-        ) : (
-          <View>
-            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>YOUR BILLS</Text>
-            {billSplits.map((bill) => {
-              const paidCount = getPaidCount(bill);
-              const totalCount = (bill.participants || []).length;
-              const isComplete = bill.status === "completed" || paidCount === totalCount;
-
-              return (
-                <TouchableOpacity
-                  key={bill.id}
-                  onPress={() => setSelectedBill(bill)}
-                  style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                >
-                  <View style={styles.billRow}>
-                    <View style={styles.billLeft}>
-                      <View
-                        style={[
-                          styles.billIcon,
-                          { backgroundColor: isComplete ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)" },
-                        ]}
-                      >
-                        <Ionicons
-                          name={isComplete ? "checkmark" : "time"}
-                          size={24}
-                          color={isComplete ? "#059669" : "#D97706"}
-                        />
-                      </View>
-                      <View>
-                        <Text style={[styles.billTitle, { color: colors.text }]}>{bill.title}</Text>
-                        <Text style={[styles.mutedSmall, { color: colors.textMuted }]}>
-                          ${parseFloat(bill.totalAmount).toFixed(2)} • {paidCount}/{totalCount} paid
-                        </Text>
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </View>
+        );
+      })}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  contentContainer: {
-    paddingBottom: 96,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 16,
-    gap: 16,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 12,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1A1A2E",
-  },
-  section: {
-    paddingHorizontal: 24,
-  },
-  card: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardPaid: {
-    borderColor: "rgba(16,185,129,0.3)",
-    backgroundColor: "rgba(16,185,129,0.05)",
-  },
-  centerBlock: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  mutedSmall: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  bigAmount: {
-    fontSize: 36,
-    fontWeight: "700",
-    color: "#1A1A2E",
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  fontSemibold: {
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  progressBar: {
-    height: 12,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 6,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#10B981",
-    borderRadius: 6,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  participantRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  participantLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  participantName: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#1A1A2E",
-  },
-  paidBadge: {
-    backgroundColor: "rgba(16,185,129,0.1)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  paidBadgeText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#059669",
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  outlineButtonSmall: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  outlineButtonSmallText: {
-    fontSize: 12,
-    color: "#7C3AED",
-    fontWeight: "500",
-  },
-  smallButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "#7C3AED",
-  },
-  smallButtonText: {
-    fontSize: 12,
-    color: "#FFFFFF",
-    fontWeight: "500",
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6B7280",
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: "#1A1A2E",
-    backgroundColor: "#FFFFFF",
-  },
-  inputWithIcon: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  inputInner: {
-    flex: 1,
-    paddingVertical: 9,
-    fontSize: 14,
-    color: "#1A1A2E",
-  },
-  splitTypeRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  splitTypeButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-  },
-  splitTypeButtonActive: {
-    borderColor: "#7C3AED",
-    backgroundColor: "rgba(124,58,237,0.1)",
-  },
-  splitTypeLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#6B7280",
-    marginTop: 4,
-  },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  addButtonText: {
-    fontSize: 14,
-    color: "#7C3AED",
-    fontWeight: "500",
-  },
-  participantInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  amountInputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: 96,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    backgroundColor: "#FFFFFF",
-  },
-  amountPrefix: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginRight: 4,
-  },
-  amountInput: {
-    flex: 1,
-    paddingVertical: 9,
-    fontSize: 14,
-    color: "#1A1A2E",
-  },
-  equalSplitCard: {
-    backgroundColor: "rgba(124,58,237,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(124,58,237,0.2)",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  splitAmount: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#7C3AED",
-  },
-  primaryButton: {
-    backgroundColor: "#7C3AED",
-    borderRadius: 12,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  heroButton: {
-    borderRadius: 16,
-    padding: 24,
-    backgroundColor: "#7C3AED",
-    marginBottom: 24,
-  },
-  heroButtonInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  heroIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  heroSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-  },
-  loadingBlock: {
-    gap: 12,
-  },
-  skeleton: {
-    height: 96,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 48,
-  },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1A1A2E",
-    marginBottom: 8,
-  },
-  emptyDesc: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  billRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  billLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  billIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  billTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1A1A2E",
-  },
+  container: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingBottom: 80, gap: 14 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: Platform.OS === "ios" ? 56 : 44, paddingBottom: 8 },
+  backButton: { width: 40, height: 40, justifyContent: "center" },
+  headerTitle: { fontSize: 18, fontWeight: "700" },
+  panel: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginTop: 4 },
+  share: { width: 96, textAlign: "right", fontWeight: "600" },
+  muted: { fontSize: 13 },
+  value: { fontSize: 15, fontWeight: "700" },
+  primaryBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 },
+  primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  sectionTitle: { fontSize: 16, fontWeight: "700", marginTop: 8 },
 });

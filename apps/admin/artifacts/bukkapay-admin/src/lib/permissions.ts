@@ -1,41 +1,48 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { isDemoMode } from "@/lib/demo";
 
-export type AdminRole = "admin" | "super_admin" | "master";
+export type AdminRole =
+  | "super_admin" | "ceo" | "finance_admin" | "compliance_officer" | "operations_admin"
+  | "customer_support" | "merchant_support" | "technical_admin" | "auditor" | "admin" | "master";
 
 export interface AdminMe {
   id?: string;
   name?: string;
   email?: string | null;
   role?: AdminRole;
-  isActive?: boolean;
+  permissions?: string[];
+  mfaEnabled?: boolean;
 }
 
+/** Permission flags derived from the backend's role → permission map
+ *  (GET /admin/auth/me returns the effective permission list). The server
+ *  enforces every one of these; the UI only hides what you can't use. */
 export interface Permissions {
   role: AdminRole;
+  list: Set<string>;
+  can: (permission: string) => boolean;
   isSuperAdmin: boolean;
   canDeleteUsers: boolean;
   canDeleteTransactions: boolean;
-  canAdjustBalances: boolean;
   canBlockWallets: boolean;
   canManageAdmins: boolean;
-  canManagePricing: boolean;
   canBroadcast: boolean;
 }
 
-function compute(role?: AdminRole): Permissions {
-  const isSuper = role === "super_admin" || role === "master";
+function compute(me?: AdminMe): Permissions {
+  const list = new Set(me?.permissions ?? []);
+  const can = (p: string) => list.has(p);
+  const role = (me?.role ?? "admin") as AdminRole;
   return {
-    role: role ?? "admin",
-    isSuperAdmin: isSuper,
-    canDeleteUsers: isSuper,
-    canDeleteTransactions: isSuper,
-    canAdjustBalances: isSuper,
-    canBlockWallets: isSuper,
-    canManageAdmins: isSuper,
-    canManagePricing: isSuper,
-    canBroadcast: true,
+    role,
+    list,
+    can,
+    isSuperAdmin: role === "super_admin" || role === "master",
+    canDeleteUsers: can("users.manage"),
+    canDeleteTransactions: can("users.manage"),
+    canBlockWallets: can("wallets.restrict"),
+    canManageAdmins: can("admins.manage"),
+    canBroadcast: can("broadcast.send"),
   };
 }
 
@@ -46,7 +53,6 @@ export function useAdminMe() {
       const { data } = await api.get("/admin/auth/me");
       return data as AdminMe;
     },
-    enabled: !isDemoMode(),
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -54,6 +60,5 @@ export function useAdminMe() {
 
 export function usePermissions(): Permissions {
   const { data: me } = useAdminMe();
-  if (isDemoMode()) return compute("super_admin");
-  return compute(me?.role);
+  return compute(me);
 }

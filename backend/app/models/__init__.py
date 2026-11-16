@@ -2,12 +2,22 @@
 Alembic autogenerate/FK resolution, so everything is re-exported here.
 """
 
+from app.ledger.ddl import register_create_all_hooks
 from app.models.admin import AdminSession, AdminUser
+from app.models.cards import CardAuthorization, CardClearing, CardWalletToken, IssuedCard
 from app.models.chat import ChatMessage
 from app.models.claim_payment import ClaimPayment
 from app.models.contribution import Contribution, ContributionGroup
 from app.models.dormant import FamilyMember, SecuritySetting
 from app.models.gamification import Achievement, Challenge
+from app.models.ledger import (
+    FundingRequest,
+    IdempotencyRecord,
+    JournalEntry,
+    JournalLine,
+    LedgerAccount,
+    WithdrawalRequest,
+)
 from app.models.loyalty import AutoPay, Beneficiary, LoyaltyReward
 from app.models.merchant import (
     BillingLink,
@@ -19,14 +29,81 @@ from app.models.merchant import (
 from app.models.misc import Contact, PaymentRequest, PurchaseTransaction
 from app.models.notification import Notification
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
+from app.models.platform import (
+    ApprovalRequest,
+    AuditLog,
+    ComplianceCase,
+    ContributionPayout,
+    Country,
+    CountryCurrency,
+    CountryCustodian,
+    Custodian,
+    Enquiry,
+    FeeSchedule,
+    FxQuote,
+    MerchantApiKey,
+    MerchantQrCode,
+    MerchantWebhookEndpoint,
+    OutboxEvent,
+    PaymentCorridor,
+    PaymentProvider,
+    ProviderWebhook,
+    ReconciliationItem,
+    ReconciliationRun,
+    RiskEvent,
+    ScreeningResult,
+    TransactionLimit,
+    Transfer,
+)
+from app.models.reference import Currency
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
 from app.models.travel import TravelDeparture, TravelOperator, TravelRoute
 from app.models.user import User, UserSession
+from app.models.website import SiteContent, WaitlistSignup
 from app.models.virtual_card import VirtualCard
 from app.models.wallet import CurrencyCorridor, InternationalTransfer, Transaction, WalletCard
 from app.models.webauthn import WebauthnCredential
 
+register_create_all_hooks(JournalLine.__table__)
+
 __all__ = [
+    "SiteContent",
+    "WaitlistSignup",
+    "CardAuthorization",
+    "CardClearing",
+    "CardWalletToken",
+    "IssuedCard",
+    "Enquiry",
+    "ApprovalRequest",
+    "AuditLog",
+    "ComplianceCase",
+    "ContributionPayout",
+    "Country",
+    "CountryCurrency",
+    "CountryCustodian",
+    "Custodian",
+    "FeeSchedule",
+    "FxQuote",
+    "MerchantApiKey",
+    "MerchantQrCode",
+    "MerchantWebhookEndpoint",
+    "OutboxEvent",
+    "PaymentCorridor",
+    "PaymentProvider",
+    "ProviderWebhook",
+    "ReconciliationItem",
+    "ReconciliationRun",
+    "RiskEvent",
+    "ScreeningResult",
+    "TransactionLimit",
+    "Transfer",
+    "Currency",
+    "FundingRequest",
+    "IdempotencyRecord",
+    "JournalEntry",
+    "JournalLine",
+    "LedgerAccount",
+    "WithdrawalRequest",
     "Achievement",
     "AdminSession",
     "AdminUser",

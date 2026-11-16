@@ -5,11 +5,12 @@ from app.api.admin.deps import (
     AdminContext,
     admin_auth,
     is_allowed_admin_origin,
-    super_admin_or_master_key,
+    require,
 )
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.db.deps import get_db
+from app.schemas.base import CamelModel
 from app.schemas.admin import (
     AdminLoginRequest,
     AdminLoginResponse,
@@ -56,11 +57,29 @@ async def setup_mfa(
     return await svc.setup_mfa(db, admin_id=str(ctx.admin.id))
 
 
+class MfaConfirmRequest(CamelModel):
+    otp: str
+
+
+@router.post("/auth/mfa/confirm")
+async def confirm_mfa(
+    body: MfaConfirmRequest, ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)
+) -> dict:
+    if ctx.is_master_key or ctx.admin is None:
+        raise ApiError("Personal admin session required", status_code=401)
+    return await svc.confirm_mfa(db, admin_id=str(ctx.admin.id), otp=body.otp)
+
+
 @router.get("/auth/me")
 async def me(ctx: AdminContext = Depends(admin_auth)) -> AdminMeResponse:
+    perms = sorted(ctx.permissions)
     if ctx.is_master_key:
-        return AdminMeResponse.model_validate({"role": "master", "name": "Master Key", "email": None})
-    return AdminMeResponse.model_validate(ctx.admin)
+        return AdminMeResponse.model_validate({"role": "master", "name": "Master Key", "email": None,
+                                               "permissions": perms, "mfaEnabled": True})
+    return AdminMeResponse.model_validate({
+        "id": str(ctx.admin.id), "role": ctx.admin.role, "name": ctx.admin.name, "email": ctx.admin.email,
+        "permissions": perms, "mfaEnabled": ctx.admin.mfa_enabled,
+    })
 
 
 @router.post("/auth/logout")
@@ -76,7 +95,7 @@ async def logout(
 
 @router.get("/admins")
 async def list_admins(
-    _ctx: AdminContext = Depends(super_admin_or_master_key), db: AsyncSession = Depends(get_db)
+    _ctx: AdminContext = Depends(require("admins.manage")), db: AsyncSession = Depends(get_db)
 ) -> list[AdminUserResponse]:
     admins = await svc.list_admins(db)
     return [AdminUserResponse.model_validate(a) for a in admins]
@@ -84,7 +103,7 @@ async def list_admins(
 
 @router.post("/admins", status_code=201)
 async def create_admin(
-    body: CreateAdminRequest, _ctx: AdminContext = Depends(super_admin_or_master_key),
+    body: CreateAdminRequest, _ctx: AdminContext = Depends(require("admins.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserResponse:
     admin = await svc.create_admin(db, email=body.email, name=body.name, password=body.password, role=body.role)
@@ -93,7 +112,7 @@ async def create_admin(
 
 @router.patch("/admins/{admin_id}")
 async def update_admin(
-    admin_id: str, body: UpdateAdminRequest, _ctx: AdminContext = Depends(super_admin_or_master_key),
+    admin_id: str, body: UpdateAdminRequest, _ctx: AdminContext = Depends(require("admins.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserResponse:
     admin = await svc.update_admin(
@@ -105,7 +124,7 @@ async def update_admin(
 
 @router.delete("/admins/{admin_id}")
 async def delete_admin(
-    admin_id: str, _ctx: AdminContext = Depends(super_admin_or_master_key), db: AsyncSession = Depends(get_db)
+    admin_id: str, _ctx: AdminContext = Depends(require("admins.manage")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     admin = await svc.delete_admin(db, admin_id)
     return {"success": True, "message": f"Admin {admin.email} deleted"}

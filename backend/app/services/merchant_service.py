@@ -2,13 +2,15 @@ import secrets
 import uuid
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
 from app.integrations import stitch
+from app.ledger import accounts as ledger_accounts
+from app.ledger import posting
 from app.models.enums import (
     MerchantBusinessType,
     MerchantStaffRole,
@@ -17,13 +19,20 @@ from app.models.enums import (
     MerchantTransactionType,
     NotificationType,
     SubscriptionStatus,
+    TransactionType,
 )
 from app.models.merchant import Merchant, MerchantStaff, MerchantSubscription, MerchantTransaction
 from app.models.user import User
+from app.models.wallet import Transaction, WalletCard
+from app.network import fees
 from app.services import notification_service, pin_service
 from app.services.stitch_service import STITCH_BANKS
 
 SUBSCRIPTION_PLANS = {"starter": Decimal(0), "pro": Decimal(99), "business": Decimal(299)}
+
+# Merchants hold one settlement balance today; per-merchant currency
+# arrives with multi-country merchant onboarding.
+MERCHANT_SETTLEMENT_CURRENCY = "ZAR"
 
 
 async def get_merchants_by_user(db: AsyncSession, user_id: uuid.UUID) -> list[Merchant]:
@@ -85,6 +94,12 @@ async def create_merchant(db: AsyncSession, user_id: uuid.UUID, **fields) -> Mer
 
 
 async def delete_merchant(db: AsyncSession, merchant: Merchant) -> None:
+    from app.models.ledger import LedgerAccount
+
+    has_money_history = (await db.execute(
+        select(LedgerAccount.id).where(LedgerAccount.merchant_id == merchant.id))).first()
+    if has_money_history:
+        raise ApiError("A business with payment history can't be deleted. Deactivate it instead.", status_code=409)
     await db.delete(merchant)
     await db.flush()
 
@@ -226,30 +241,181 @@ async def get_merchant_transactions(
     return list(result.scalars().all())
 
 
-async def merchant_pay(
-    db: AsyncSession, merchant: Merchant, *, amount: str, payer_id: uuid.UUID | None,
-    payer_name: str | None, reference: str | None,
-) -> tuple[MerchantTransaction, Decimal]:
-    try:
-        parsed_amount = Decimal(amount)
-    except InvalidOperation as e:
-        raise ApiError("Invalid amount") from e
+INDIVIDUAL_ELIGIBLE = {
+    MerchantBusinessType.STREET_VENDOR, MerchantBusinessType.TUCKSHOP, MerchantBusinessType.RENTAL,
+    MerchantBusinessType.SERVICES, MerchantBusinessType.RETAIL, MerchantBusinessType.RESTAURANT,
+    MerchantBusinessType.OTHER,
+}
+INDIVIDUAL_MIN_KYC = 2
 
+
+async def _individual_rule(db: AsyncSession, merchant: Merchant, owner: User):
+    from app.models.platform import TransactionLimit
+
+    return (
+        await db.execute(
+            select(TransactionLimit)
+            .where(TransactionLimit.product == "merchant_individual", TransactionLimit.active.is_(True),
+                   TransactionLimit.kyc_level <= (owner.kyc_level or 0),
+                   (TransactionLimit.country_code.is_(None)) | (TransactionLimit.country_code == merchant.country_code),
+                   (TransactionLimit.currency.is_(None)) | (TransactionLimit.currency == merchant.settlement_currency))
+            .order_by(TransactionLimit.kyc_level.desc())
+        )
+    ).scalars().first()
+
+
+async def verify_as_individual(db: AsyncSession, merchant: Merchant) -> Merchant:
+    """Instant approval for an individual seller: no business documents, the
+    owner's verified ID stands in for KYB. Collections are capped."""
+    owner = await db.get(User, merchant.user_id)
+    if merchant.kyb_status == "approved":
+        raise ApiError("This business is already verified", status_code=409)
+    if merchant.business_type not in INDIVIDUAL_ELIGIBLE:
+        raise ApiError("This business type needs full business verification", status_code=409)
+    if owner is None or owner.frozen or (owner.kyc_level or 0) < INDIVIDUAL_MIN_KYC:
+        raise ApiError("Verify your own ID in the BukkaPay app first", status_code=403)
+    if await _individual_rule(db, merchant, owner) is None:
+        raise ApiError("Individual seller accounts aren't available in this country yet", status_code=409)
+    merchant.verification_tier = "individual"
+    merchant.kyb_status = "approved"
+    merchant.kyb_submitted_at = merchant.kyb_reviewed_at = datetime.now(UTC)
+    merchant.kyb_rejection_reason = None
+    merchant.kyb_details = {"tier": "individual", "verifiedVia": "owner_kyc", "ownerKycLevel": owner.kyc_level}
+    await db.flush()
+    return merchant
+
+
+async def check_collection_cap(db: AsyncSession, merchant: Merchant, amount: Decimal) -> None:
+    """Individual sellers may only collect up to their tier's limits; above
+    that they upgrade to full business verification. Usage is measured from
+    the ledger: what the seller actually received (credits to the merchant's
+    accounts, i.e. after fees)."""
+    if merchant.verification_tier != "individual":
+        return
+    from datetime import timedelta
+
+    from sqlalchemy import func
+
+    from app.models.ledger import JournalEntry, JournalLine, LedgerAccount
+
+    owner = await db.get(User, merchant.user_id)
+    rule = await _individual_rule(db, merchant, owner) if owner else None
+    if rule is None or owner.frozen or (owner.kyc_level or 0) < INDIVIDUAL_MIN_KYC:
+        raise ApiError("This seller can't accept payments right now", status_code=403)
+    upgrade = " The seller can raise this by completing business verification."
+    if rule.per_transaction_max is not None and amount > rule.per_transaction_max:
+        raise ApiError(f"This seller accepts at most {merchant.settlement_currency} {rule.per_transaction_max} per payment.{upgrade}", status_code=403)
+    now = datetime.now(UTC)
+    for window, cap, label in ((timedelta(days=1), rule.daily_max, "daily"), (timedelta(days=30), rule.monthly_max, "monthly")):
+        if cap is None:
+            continue
+        used = Decimal((await db.execute(
+            select(func.coalesce(func.sum(JournalLine.credit), 0))
+            .join(JournalEntry, JournalEntry.id == JournalLine.entry_id)
+            .join(LedgerAccount, LedgerAccount.id == JournalLine.account_id)
+            .where(LedgerAccount.code.like(f"merchant:{merchant.id}:%"),
+                   JournalEntry.kind.notin_(("opening_balance", "manual_adjustment")),
+                   JournalEntry.posted_at >= now - window)
+        )).scalar_one())
+        if used + amount > cap:
+            raise ApiError(f"This seller has reached their {label} collection limit.{upgrade}", status_code=403)
+
+
+def require_can_transact(merchant: Merchant) -> None:
+    if not merchant.is_active:
+        raise ApiError("This merchant is not active", status_code=403)
+    verified = merchant.kyb_status == "approved" or (
+        # an individual seller applying to upgrade keeps trading under their caps
+        merchant.verification_tier == "individual" and merchant.kyb_status == "pending"
+    )
+    if not verified:
+        raise ApiError("This business hasn't completed verification yet and can't accept payments",
+                       status_code=403)
+
+
+async def merchant_pay(
+    db: AsyncSession, merchant: Merchant, *, amount: str | None, payer_id: uuid.UUID,
+    payer_name: str | None, reference: str | None, qr_payload: str | None = None,
+) -> tuple[MerchantTransaction, Decimal]:
+    """A signed-in customer pays a verified merchant from their wallet.
+    With a signed QR payload, the amount/currency/reference of a dynamic QR
+    come from the stored QR — never from the client."""
+    require_can_transact(merchant)
+    currency = merchant.settlement_currency
+    qr = None
+    if qr_payload:
+        from app.merchants import qr as merchant_qr
+
+        qr, qr_merchant = await merchant_qr.resolve(db, qr_payload)
+        if qr_merchant.id != merchant.id:
+            raise ApiError("This QR code belongs to a different merchant", status_code=400)
+        currency = qr.currency
+        if qr.kind == "dynamic":
+            amount = str(qr.amount)
+            reference = qr.reference or reference
+    parsed_amount = posting.parse_amount(amount or "")
+    if parsed_amount > merchant.daily_limit:
+        raise ApiError(f"This exceeds the merchant's per-payment limit of {currency} {merchant.daily_limit}")
+    await check_collection_cap(db, merchant, parsed_amount)
+    card = (
+        await db.execute(
+            select(WalletCard)
+            .where(WalletCard.user_id == payer_id, WalletCard.currency == currency)
+            .order_by(WalletCard.is_default.desc(), WalletCard.created_at)
+        )
+    ).scalars().first()
+    if card is None:
+        raise ApiError(f"You need a {currency} wallet to pay this merchant")
+    if card.frozen or card.blocked or card.flagged:
+        raise ApiError("This card is restricted", status_code=403)
+    payer = await db.get(User, payer_id)
+    if payer is None or payer.frozen:
+        raise ApiError("Your account is restricted", status_code=403)
+
+    fee = await fees.compute(db, "merchant_payment", parsed_amount, currency=currency,
+                             country=merchant.country_code, merchant_category=str(merchant.business_type))
     transaction = MerchantTransaction(
         merchant_id=merchant.id,
         payer_id=payer_id,
-        payer_name=payer_name or "Anonymous",
+        payer_name=payer_name or payer.name or "BukkaPay customer",
         amount=parsed_amount,
         type=MerchantTransactionType.PAYMENT,
         status=MerchantTransactionStatus.COMPLETED,
         reference=reference,
     )
     db.add(transaction)
-
-    new_balance = merchant.wallet_balance + parsed_amount
-    merchant.wallet_balance = new_balance
     await db.flush()
-    return transaction, new_balance
+    entry = await posting.post(
+        db, kind="merchant_payment", description=f"Payment to merchant {merchant.id}",
+        legs=[
+            posting.debit(await ledger_accounts.wallet_account(db, card), parsed_amount),
+            posting.credit(await ledger_accounts.merchant_account(db, merchant, currency), parsed_amount - fee.fee),
+            posting.credit(await ledger_accounts.fee_revenue(db, currency), fee.fee),
+        ],
+        details={"merchant_id": str(merchant.id), "merchant_transaction_id": str(transaction.id),
+                 "payer_card_id": str(card.id),
+                 "sender_id": str(payer_id), "fee": str(fee.fee), "fee_breakdown": fee.breakdown,
+                 "qr_id": str(qr.id) if qr else None},
+    )
+    if qr is not None and qr.kind == "dynamic":
+        qr.status = "paid"
+        qr.paid_at = datetime.now(UTC)
+    db.add(Transaction(
+        user_id=payer_id, card_id=card.id, title=f"Paid {merchant.business_name}", category="merchant",
+        amount=parsed_amount, type=TransactionType.DEBIT, icon="store",
+    ))
+    from app.merchants import webhooks_out
+    from app.network import compliance
+
+    await webhooks_out.emit(db, merchant.id, "payment.succeeded", {
+        "transactionId": str(transaction.id), "amount": str(parsed_amount), "fee": str(fee.fee),
+        "net": str(parsed_amount - fee.fee), "currency": currency, "reference": reference,
+        "ledgerReference": entry.reference,
+    })
+    await compliance.evaluate(db, user=payer, amount=parsed_amount, currency=currency, kind="merchant_payment",
+                              reference=entry.reference)
+    await db.flush()
+    return transaction, merchant.wallet_balance
 
 
 async def withdraw(
@@ -262,42 +428,57 @@ async def withdraw(
     moved any money."""
     await pin_service.verify_pin(db, user_id, pin)
 
-    try:
-        parsed_amount = Decimal(amount)
-    except InvalidOperation as e:
-        raise ApiError("Invalid withdrawal amount") from e
-    if parsed_amount <= 0:
-        raise ApiError("Invalid withdrawal amount")
+    parsed_amount = posting.parse_amount(amount, field="withdrawal amount")
+    require_can_transact(merchant)
+    fee = await fees.compute(db, "withdrawal", parsed_amount, currency=merchant.settlement_currency,
+                             country=merchant.country_code, method="bank_payout")
     if not merchant.bank_id or not merchant.account_number or not merchant.account_holder:
         raise ApiError("Set up your banking details in Settings before withdrawing")
 
     current_balance = merchant.wallet_balance
-    if parsed_amount > current_balance:
+    if parsed_amount + fee.fee > current_balance:
         raise ApiError(f"Insufficient balance. Available: {current_balance:.2f}")
 
     if not stitch.is_stitch_payments_configured():
         raise ApiError("Payouts are not yet available — contact support", status_code=503)
 
     reference = f"MWD-{secrets.token_hex(5).upper()}"
-    disbursement = await stitch.create_disbursement(
-        amount=float(parsed_amount), currency=currency or "ZAR", reference=reference,
-        recipient_name=merchant.account_holder, bank_id=merchant.bank_id,
-        account_number=merchant.account_number, account_type=merchant.account_type or "savings",
+    # Debit first (locked, non-negative), commit, then call the provider, so
+    # a timeout can't pay out twice or lose the merchant's money.
+    entry = await posting.post(
+        db, kind="merchant_withdrawal", description=f"Merchant payout {reference}",
+        legs=[
+            posting.debit(await ledger_accounts.merchant_account(db, merchant), parsed_amount + fee.fee),
+            posting.credit(await ledger_accounts.payouts_pending(db, merchant.settlement_currency), parsed_amount),
+            posting.credit(await ledger_accounts.fee_revenue(db, merchant.settlement_currency), fee.fee),
+        ],
+        details={"merchant_id": str(merchant.id), "reference": reference},
     )
-
-    new_balance = current_balance - parsed_amount
-    merchant.wallet_balance = new_balance
-
-    db.add(MerchantTransaction(
+    payout = MerchantTransaction(
         merchant_id=merchant.id,
         amount=parsed_amount,
         type=MerchantTransactionType.WITHDRAWAL,
         status=MerchantTransactionStatus.PENDING,
         reference=reference,
-    ))
-    await db.flush()
+    )
+    db.add(payout)
+    await db.commit()
+    new_balance = merchant.wallet_balance
+    try:
+        disbursement = await stitch.create_disbursement(
+            amount=float(parsed_amount), currency=merchant.settlement_currency, reference=reference,
+            recipient_name=merchant.account_holder, bank_id=merchant.bank_id,
+            account_number=merchant.account_number, account_type=merchant.account_type or "savings",
+        )
+    except stitch.StitchRejected as e:
+        await posting.reverse(db, entry, description=f"Merchant payout {reference} rejected by provider")
+        payout.status = MerchantTransactionStatus.FAILED
+        await db.commit()
+        raise ApiError("The bank payout was rejected. Your balance has been restored.", status_code=502) from e
+    except Exception:  # noqa: BLE001 - outcome unknown; stays pending for reconciliation
+        disbursement = {"id": None, "status": "processing"}
 
-    currency = currency or "ZAR"
+    currency = merchant.settlement_currency
     try:
         await notification_service.create_notification(
             db, user_id, NotificationType.INFO, "Withdrawal Requested",
@@ -315,6 +496,7 @@ async def withdraw(
         "currency": currency,
         "disbursementId": disbursement["id"],
         "status": disbursement["status"],
+        "fee": f"{fee.fee:.2f}",
     }
 
 

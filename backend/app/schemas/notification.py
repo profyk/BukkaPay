@@ -23,6 +23,7 @@ class UploadRequest(CamelModel):
     base64: str
     mime_type: str
     filename: str | None = None
+    purpose: str | None = None  # kyc / kyb / avatar / invoice / other
 
 
 class UploadResponse(CamelModel):

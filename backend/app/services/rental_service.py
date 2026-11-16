@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
+from app.ledger import accounts as ledger_accounts
+from app.ledger import posting
 from app.models.enums import MerchantBusinessType, RentPaymentStatus, TransactionType
 from app.models.merchant import Merchant
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
@@ -278,18 +280,64 @@ async def get_property_payments_detailed(db: AsyncSession, property_id: uuid.UUI
     return detailed
 
 
+async def _rent_wallet(db: AsyncSession, user_id: uuid.UUID, currency: str) -> WalletCard:
+    """Rent is charged in the merchant settlement currency, from the
+    tenant's wallet in that currency (never an arbitrary first card)."""
+    card = (
+        await db.execute(
+            select(WalletCard)
+            .where(WalletCard.user_id == user_id, WalletCard.currency == currency)
+            .order_by(WalletCard.is_default.desc(), WalletCard.created_at)
+        )
+    ).scalars().first()
+    if card is None:
+        raise ApiError(f"No {currency} wallet found. Please top up your BukkaPay wallet first.")
+    if card.frozen or card.blocked or card.flagged:
+        raise ApiError("This card is restricted", status_code=403)
+    return card
+
+
+async def _rent_merchant(db: AsyncSession, property_) -> Merchant:
+    merchant = (
+        await db.execute(select(Merchant).where(Merchant.id == property_.merchant_id))
+    ).scalar_one_or_none()
+    if merchant is None:
+        # Previously the tenant was debited and the money went nowhere.
+        raise ApiError("This property's landlord account is unavailable", status_code=409)
+    # Same gate as every other merchant payment: an unverified business
+    # can't collect money.
+    from app.services import merchant_service
+
+    merchant_service.require_can_transact(merchant)
+    return merchant
+
+
+async def _post_rent(
+    db: AsyncSession, card: WalletCard, merchant: Merchant, amount: Decimal, *, rent_payment_id,
+) -> None:
+    from app.services import merchant_service
+
+    await merchant_service.check_collection_cap(db, merchant, amount)
+    await posting.post(
+        db, kind="rent_payment", description=f"Rent payment {rent_payment_id}",
+        legs=[
+            posting.debit(await ledger_accounts.wallet_account(db, card), amount),
+            posting.credit(
+                await ledger_accounts.merchant_account(db, merchant), amount
+            ),
+        ],
+        details={"rent_payment_id": str(rent_payment_id), "merchant_id": str(merchant.id)},
+        insufficient_message="Insufficient wallet balance",
+    )
+
+
 async def pay_rent(
     db: AsyncSession, user_id: uuid.UUID, *, tenant_code: str, amount: str, payment_method: str | None,
     reference: str | None,
 ) -> tuple[RentPayment, Decimal]:
     if not tenant_code or not amount:
         raise ApiError("Tenant ID and amount are required")
-    try:
-        amount_num = Decimal(amount)
-    except InvalidOperation as e:
-        raise ApiError("Invalid amount") from e
-    if amount_num <= 0:
-        raise ApiError("Invalid amount")
+    amount_num = posting.parse_amount(amount)
 
     tenant = await get_tenant_by_tenant_code(db, tenant_code)
     if tenant is None:
@@ -301,17 +349,10 @@ async def pay_rent(
     if property_ is None:
         raise ApiError("Property not found", status_code=404)
 
-    cards_result = await db.execute(select(WalletCard).where(WalletCard.user_id == user_id))
-    cards = list(cards_result.scalars().all())
-    if not cards:
-        raise ApiError("No wallet found. Please top up your BukkaPay wallet first.")
-    primary_card = cards[0]
-
+    merchant = await _rent_merchant(db, property_)
+    primary_card = await _rent_wallet(db, user_id, merchant.settlement_currency)
     if primary_card.balance < amount_num:
         raise ApiError(f"Insufficient wallet balance. Available: R{primary_card.balance:.2f}")
-
-    new_tenant_balance = primary_card.balance - amount_num
-    primary_card.balance = new_tenant_balance
 
     payment = RentPayment(
         tenant_id=tenant.id, property_id=tenant.property_id, unit_id=tenant.unit_id,
@@ -319,14 +360,9 @@ async def pay_rent(
         payment_method=payment_method or "wallet", status=RentPaymentStatus.COMPLETED, reference=reference,
     )
     db.add(payment)
-
-    merchant_result = await db.execute(select(Merchant).where(Merchant.id == property_.merchant_id))
-    merchant = merchant_result.scalar_one_or_none()
-    if merchant is not None:
-        merchant.wallet_balance = merchant.wallet_balance + amount_num
-
     await db.flush()
-    return payment, new_tenant_balance
+    await _post_rent(db, primary_card, merchant, amount_num, rent_payment_id=payment.id)
+    return payment, primary_card.balance
 
 
 async def get_tenant_dashboard(db: AsyncSession, user_id: uuid.UUID) -> dict:
@@ -435,6 +471,12 @@ async def pay_via_link(db: AsyncSession, user_id: uuid.UUID, link_code: str) -> 
     link = await get_payment_link_by_code(db, link_code)
     if link is None:
         raise ApiError("Payment link not found", status_code=404)
+    link = (
+        await db.execute(
+            select(RentPaymentLink).where(RentPaymentLink.id == link.id).with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
     if link.status == "paid":
         raise ApiError("This payment link has already been paid")
 
@@ -445,16 +487,10 @@ async def pay_via_link(db: AsyncSession, user_id: uuid.UUID, link_code: str) -> 
     if property_ is None:
         raise ApiError("Property not found", status_code=404)
 
-    cards_result = await db.execute(select(WalletCard).where(WalletCard.user_id == user_id))
-    cards = list(cards_result.scalars().all())
-    if not cards:
-        raise ApiError("No wallet card found. Please add a card first.")
-    primary_card = cards[0]
-
+    merchant = await _rent_merchant(db, property_)
+    primary_card = await _rent_wallet(db, user_id, merchant.settlement_currency)
     if primary_card.balance < link.amount:
         raise ApiError("Insufficient funds in your wallet")
-
-    primary_card.balance = primary_card.balance - link.amount
 
     db.add(Transaction(
         user_id=user_id, card_id=primary_card.id, title=f"Rent Payment - {property_.name}",
@@ -467,11 +503,8 @@ async def pay_via_link(db: AsyncSession, user_id: uuid.UUID, link_code: str) -> 
         payment_method="wallet", status=RentPaymentStatus.COMPLETED, reference=f"LINK-{link.link_code}",
     )
     db.add(payment)
-
-    merchant_result = await db.execute(select(Merchant).where(Merchant.id == property_.merchant_id))
-    merchant = merchant_result.scalar_one_or_none()
-    if merchant is not None:
-        merchant.wallet_balance = merchant.wallet_balance + link.amount
+    await db.flush()
+    await _post_rent(db, primary_card, merchant, link.amount, rent_payment_id=payment.id)
 
     link.status = "paid"
 

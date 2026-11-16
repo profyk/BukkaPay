@@ -56,9 +56,12 @@ class AdminLoginResponse(CamelModel):
 
 
 class AdminMeResponse(CamelModel):
+    id: str | None = None
     role: str
     name: str | None
     email: str | None
+    permissions: list[str] = []
+    mfa_enabled: bool = False
 
 
 class CreateAdminRequest(CamelModel):

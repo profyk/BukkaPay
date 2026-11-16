@@ -104,13 +104,6 @@ const ALL_ITEMS: AppItem[] = [
     icon: "arrow-down-circle-outline", iconBg: "#EFF6FF", iconColor: "#3B82F6",
     route: "/(screens)/received-links",
   },
-  {
-    id: "billing-links", category: "Payment Links",
-    title: "Billing Pay Links", description: "Recurring or invoice-style payment links for regular billing",
-    keywords: ["billing", "invoice", "recurring", "payment link"],
-    icon: "receipt-outline", iconBg: "#F0FDF4", iconColor: "#16A34A",
-    route: "/(screens)/billing-links",
-  },
 
   // ── Cards & Finance ────────────────────────────────────────
   {
@@ -184,11 +177,11 @@ const ALL_ITEMS: AppItem[] = [
   },
 
   {
-    id: "landlord-dashboard", category: "Business",
-    title: "Landlord Dashboard", description: "Manage properties, units, tenants and rent",
-    keywords: ["landlord", "property", "tenant", "rent", "units"],
-    icon: "home-outline", iconBg: "#FFF7ED", iconColor: "#EA580C",
-    route: "/(screens)/landlord-dashboard",
+    id: "business", category: "Business",
+    title: "BukkaPay Business", description: "Sell, rent out property and send bills — in the merchant app",
+    keywords: ["business", "merchant", "landlord", "property", "billing", "invoice", "vendor", "shop", "sell"],
+    icon: "storefront-outline", iconBg: "#FFF7ED", iconColor: "#EA580C",
+    route: "/(screens)/business",
   },
   {
     id: "tenant-dashboard", category: "Business",

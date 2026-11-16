@@ -45,6 +45,14 @@ class PaymentRequest(Base, TimestampMixin):
         default=PaymentRequestStatus.PENDING,
     )
     expires_at: Mapped[OptionalTimestamp]
+    description: Mapped[str | None] = mapped_column(Text)
+    # Optional: the specific BukkaPay user asked to pay (contact / username).
+    payer_user_id: Mapped[UUIDFk | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    paid_by_user_id: Mapped[UUIDFk | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    paid_at: Mapped[OptionalTimestamp]
+    transfer_reference: Mapped[str | None] = mapped_column(Text)
 
 
 class PurchaseTransaction(Base, TimestampMixin):

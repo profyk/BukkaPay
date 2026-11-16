@@ -65,6 +65,9 @@ async def get_departure(
 async def book_travel(
     body: BookTravelRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> PurchaseTransactionResponse:
+    from app.services import pin_service
+
+    await pin_service.verify_pin(db, user_id, body.pin)
     transaction = await travel_service.book(
         db, user_id,
         departure_id=body.departure_id, from_card_id=body.from_card_id, seat_class=body.seat_class,

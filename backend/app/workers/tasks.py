@@ -22,6 +22,8 @@ from sqlalchemy import select, update
 
 from app.core.logging import log
 from app.db.base import get_session_factory
+from app.ledger import accounts as ledger_accounts
+from app.ledger import posting
 from app.models.claim_payment import ClaimPayment
 from app.models.enums import (
     ClaimPaymentStatus,
@@ -33,7 +35,8 @@ from app.models.enums import (
 from app.models.misc import PaymentRequest
 from app.models.rental import RentPaymentLink
 from app.models.wallet import Transaction, WalletCard
-from app.services import admin_platform_service, notification_service, platform_wallet_service
+from app.network import fees
+from app.services import notification_service
 from app.services.platform_wallet_service import PLATFORM_WALLET_ID
 
 
@@ -97,6 +100,9 @@ async def sweep_expired_rent_payment_links(ctx: dict) -> int:
         return count
 
 
+MAINTENANCE_BATCH = 1000
+
+
 async def charge_monthly_card_maintenance_fees(ctx: dict) -> int:
     """Admin-configured "virtual_card.monthly_fee" (Platform Pricing), charged
     once per card per rolling 30 days from issuance/last charge. Runs daily —
@@ -104,30 +110,40 @@ async def charge_monthly_card_maintenance_fees(ctx: dict) -> int:
     often the cron fires. Cards with insufficient balance are skipped (the
     balance >= 0 check constraint forbids ever going negative) and notified
     instead of charged, so a fee never silently fails to appear anywhere."""
+    from app.models.cards import IssuedCard
     from app.models.user import User
 
     session_factory = get_session_factory()
     async with session_factory() as db:
-        pricing = (await admin_platform_service.get_pricing())["virtual_card"]
-        monthly_fee = Decimal(str(pricing["monthly_fee"]))
-        if monthly_fee <= 0:
-            return 0
-
         now = datetime.now(UTC)
         cutoff = now - timedelta(days=30)
+        # Only wallets carrying a live network-issued card are charged — the
+        # fee pays for the card. The 30 days start when that card was issued.
         result = await db.execute(
             select(WalletCard)
             .join(User, WalletCard.user_id == User.id)
+            .join(IssuedCard, IssuedCard.wallet_card_id == WalletCard.id)
             .where(
                 User.wallet_id != PLATFORM_WALLET_ID,
-                (WalletCard.last_maintenance_fee_at.is_(None) & (WalletCard.created_at < cutoff))
+                IssuedCard.status.in_(("active", "frozen")),
+                IssuedCard.issuer_card_id.is_not(None),
+                (WalletCard.last_maintenance_fee_at.is_(None) & (IssuedCard.created_at < cutoff))
                 | (WalletCard.last_maintenance_fee_at < cutoff),
             )
+            .order_by(WalletCard.id)
+            .limit(MAINTENANCE_BATCH)
         )
         due_cards = list(result.scalars().all())
 
         charged = 0
         for card in due_cards:
+            owner = await db.get(User, card.user_id)
+            monthly_fee = (
+                await fees.compute(db, "card_maintenance", Decimal(0), currency=card.currency,
+                                   country=owner.residence_country if owner else None)
+            ).fee
+            if monthly_fee <= 0:
+                continue
             if card.balance < monthly_fee:
                 # Left un-timestamped on purpose: the fee is still owed, so the
                 # card stays "due" and gets retried on tomorrow's run rather
@@ -139,9 +155,20 @@ async def charge_monthly_card_maintenance_fees(ctx: dict) -> int:
                 )
                 continue
 
-            card.balance = card.balance - monthly_fee
+            try:
+                async with db.begin_nested():
+                    await posting.post(
+                        db, kind="card_maintenance_fee",
+                        description=f"Monthly maintenance fee for card {card.id}",
+                        legs=[
+                            posting.debit(await ledger_accounts.wallet_account(db, card), monthly_fee),
+                            posting.credit(await ledger_accounts.fee_revenue(db, card.currency), monthly_fee),
+                        ],
+                    )
+            except posting.InsufficientFunds:
+                # Balance dropped between the scan and the lock — retry tomorrow.
+                continue
             card.last_maintenance_fee_at = now
-            await platform_wallet_service.credit_fee(db, card.currency, monthly_fee)
             db.add(Transaction(
                 user_id=card.user_id,
                 card_id=card.id,
@@ -162,3 +189,104 @@ async def charge_monthly_card_maintenance_fees(ctx: dict) -> int:
         if due_cards:
             log.info("charge_monthly_card_maintenance_fees", charged=charged, skipped=len(due_cards) - charged)
         return charged
+
+
+async def process_outbox(ctx: dict) -> int:
+    """Deliver due outbox events (sandbox settlements, merchant webhooks)."""
+    from app.network import outbox
+
+    done = await outbox.process_due(get_session_factory())
+    if done:
+        log.info("outbox_processed", count=done)
+    return done
+
+
+async def expire_fx_quotes(ctx: dict) -> int:
+    from app.models.platform import FxQuote
+
+    async with get_session_factory()() as db:
+        result = await db.execute(
+            update(FxQuote).where(FxQuote.status == "open", FxQuote.expires_at <= datetime.now(UTC))
+            .values(status="expired")
+        )
+        await db.commit()
+        return result.rowcount or 0
+
+
+async def encrypt_legacy_card_data(ctx: dict) -> int:
+    """Re-encrypt PAN/CVV rows written before encryption at rest. Reads go
+    through EncryptedText (which decrypts or passes legacy plaintext through);
+    rewriting the value stores it encrypted."""
+    from sqlalchemy import text
+
+    from app.core import crypto
+
+    async with get_session_factory()() as db:
+        rows = (await db.execute(text(
+            "SELECT id, card_number, cvv FROM wallet_cards "
+            "WHERE card_number NOT LIKE 'enc:v1:%' OR (cvv IS NOT NULL AND cvv NOT LIKE 'enc:v1:%')"
+        ))).all()
+        for row in rows:
+            await db.execute(
+                text("UPDATE wallet_cards SET card_number = :pan, cvv = :cvv WHERE id = :id"),
+                {"id": row.id, "pan": crypto.encrypt(crypto.decrypt(row.card_number)),
+                 "cvv": crypto.encrypt(crypto.decrypt(row.cvv))},
+            )
+        vrows = (await db.execute(text(
+            "SELECT id, card_number, cvv FROM virtual_cards "
+            "WHERE card_number NOT LIKE 'enc:v1:%' OR (cvv IS NOT NULL AND cvv NOT LIKE 'enc:v1:%')"
+        ))).all()
+        for row in vrows:
+            await db.execute(
+                text("UPDATE virtual_cards SET card_number = :pan, cvv = :cvv WHERE id = :id"),
+                {"id": row.id, "pan": crypto.encrypt(crypto.decrypt(row.card_number)),
+                 "cvv": crypto.encrypt(crypto.decrypt(row.cvv))},
+            )
+        await db.commit()
+    count = len(rows) + len(vrows)
+    if count:
+        log.info("legacy_card_data_encrypted", count=count)
+    return count
+
+
+async def daily_reconciliation(ctx: dict) -> None:
+    from app.reconciliation import engine
+
+    async with get_session_factory()() as db:
+        await engine.run_ledger_integrity(db, started_by="system:daily")
+        await db.commit()
+
+
+async def issue_pending_cards(ctx: dict) -> int:
+    """Safety net for the outbox: issue cards for wallets that have none, or
+    whose owner has since passed KYC."""
+    from app.cards import service as card_service
+
+    async with get_session_factory()() as db:
+        issued = await card_service.sweep_unissued(db)
+        await db.commit()
+    if issued:
+        log.info("issue_pending_cards", issued=issued)
+    return issued
+
+
+async def expire_card_holds(ctx: dict) -> int:
+    from app.cards import processing
+
+    async with get_session_factory()() as db:
+        n = await processing.expire_stale_holds(db)
+        await db.commit()
+    if n:
+        log.info("expire_card_holds", expired=n)
+    return n
+
+
+async def collect_card_overdrafts(ctx: dict) -> int:
+    from app.cards import processing
+
+    async with get_session_factory()() as db:
+        n = await processing.collect_overdrafts(db)
+        await db.commit()
+    if n:
+        log.info("collect_card_overdrafts", collected=n)
+    return n

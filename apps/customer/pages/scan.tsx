@@ -66,7 +66,10 @@ export default function Scan() {
     const rentMatch = data.match(/\/pay-rent\/([^/?#]+)/);
     const payLinkMatch = data.match(/\/pay\/([^/?#]+)/);
 
-    if (data.startsWith("bukkapay://pay/")) {
+    if (data.startsWith("bukkapay:qr:v1:")) {
+      // Signed merchant QR — amount/currency come from the server, never the code.
+      router.push(`/(screens)/qr-pay?merchantQr=${encodeURIComponent(data)}` as any);
+    } else if (data.startsWith("bukkapay://pay/")) {
       const payId = data.replace("bukkapay://pay/", "");
       router.push(`/(screens)/qr-pay?walletId=${payId}` as any);
     } else if (rentMatch) {

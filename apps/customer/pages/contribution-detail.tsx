@@ -6,7 +6,21 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "../hooks/use-toast";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
-import type { ContributionGroup, Contribution } from "../../shared/schema";
+import { API_BASE } from "../lib/config";
+import { getAuthHeader } from "../lib/auth";
+import { payoutContribution } from "../lib/api";
+import PinPrompt from "../components/PinPrompt";
+
+// Shapes returned by GET /api/contributions/... (camelCase API contract).
+type ContributionGroup = {
+  id: string; creatorId: string; title: string; description: string | null; category: string;
+  targetAmount: string | null; currentAmount: string; paidOutAmount?: string; currency: string;
+  shareCode: string; isActive: boolean; endDate: string | null; createdAt: string; status: string;
+};
+type Contribution = {
+  id: string; groupId: string; contributorId: string | null; contributorName: string; contributorPhone: string | null;
+  amount: string; message: string | null; isAnonymous: boolean; status?: string; createdAt: string;
+};
 import { useTheme } from "../lib/ThemeContext";
 
 const categories = [
@@ -83,10 +97,16 @@ export default function ContributionDetail() {
   const id = (params.id as string) || "";
   const { colors } = useTheme();
 
-  const { data, isLoading, error } = useQuery<{ group: ContributionGroup; contributions: Contribution[] }>({
+  const [pinOpen, setPinOpen] = useState(false);
+  const [payoutNote, setPayoutNote] = useState<string | null>(null);
+  const { data: me } = useQuery({
+    queryKey: ["me"],
+    queryFn: async () => (await fetch(`${API_BASE}/api/auth/me`, { headers: await getAuthHeader() })).json(),
+  });
+  const { data, isLoading, error, refetch } = useQuery<{ group: ContributionGroup; contributions: Contribution[] }>({
     queryKey: ["/api/contributions", id],
     queryFn: async () => {
-      const res = await fetch(`/api/contributions/${id}`);
+      const res = await fetch(`${API_BASE}/api/contributions/${id}`);
       if (!res.ok) throw new Error("Group not found");
       return res.json();
     },
@@ -135,14 +155,17 @@ export default function ContributionDetail() {
         <Text style={styles.heroTitle}>{group.title}</Text>
         {group.description && <Text style={styles.heroDesc}>{group.description}</Text>}
 
-        <Text style={styles.heroAmount}>${group.currentAmount}</Text>
+        <Text style={styles.heroAmount}>{group.currency} {group.currentAmount}</Text>
+        {!!group.paidOutAmount && parseFloat(group.paidOutAmount) > 0 && (
+          <Text style={styles.heroProgress}>{group.currency} {group.paidOutAmount} already paid out to the organiser</Text>
+        )}
         {group.targetAmount && (
           <>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
             </View>
             <Text style={styles.heroProgress}>
-              {Math.round(progress)}% of ${group.targetAmount} goal
+              {Math.round(progress)}% of {group.currency} {group.targetAmount} goal
             </Text>
           </>
         )}
@@ -153,6 +176,24 @@ export default function ContributionDetail() {
 
       <View style={styles.section}>
         <ShareSection group={group} />
+
+        {me?.id === group.creatorId && parseFloat(group.currentAmount) > 0 && (
+          <TouchableOpacity style={[styles.primaryButton, { marginBottom: 16 }]} onPress={() => setPinOpen(true)}>
+            <Text style={styles.primaryButtonText}>Move {group.currency} {group.currentAmount} to my wallet</Text>
+          </TouchableOpacity>
+        )}
+        {payoutNote && <Text style={[styles.mutedText, { color: colors.textMuted, marginBottom: 12 }]}>{payoutNote}</Text>}
+        <PinPrompt
+          visible={pinOpen}
+          title="Withdraw campaign funds"
+          onCancel={() => setPinOpen(false)}
+          onSubmit={async (pin) => {
+            const r = await payoutContribution(group.id, pin);
+            setPinOpen(false);
+            setPayoutNote(`${r.currency} ${r.net} moved to your wallet${parseFloat(r.fee) > 0 ? ` (fee ${r.fee})` : ""}.`);
+            refetch();
+          }}
+        />
 
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>All Contributions ({contributions.length})</Text>
 

@@ -67,11 +67,14 @@ export async function getCurrentUser(): Promise<User | null> {
   return user ? JSON.parse(user) : null;
 }
 
-export async function signup(email: string, username: string, password: string, name: string, phone?: string, countryCode?: string) {
+export async function signup(
+  email: string, username: string, password: string, name: string, phone: string | undefined,
+  countryCode: string | undefined, residenceCountry: string, acceptTerms: boolean, preferredLanguage = "en",
+) {
   const res = await fetch(API_BASE + "/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, username, password, name, phone, countryCode }),
+    body: JSON.stringify({ email, username, password, name, phone, countryCode, residenceCountry, acceptTerms, preferredLanguage }),
   });
 
   if (!res.ok) {
@@ -229,9 +232,15 @@ export async function verifyOtp(email: string, code: string) {
   });
 
   if (!res.ok) {
-    const error = await res.json();
+    const error = await res.json().catch(() => ({}));
     throw new Error(error.error || "OTP verification failed");
   }
 
-  return await res.json();
+  // A verified email code confirms the address and signs the customer in.
+  const data = await res.json();
+  if (data.token) {
+    await setAuthToken(data.token);
+    await setCurrentUser(data.user);
+  }
+  return data;
 }

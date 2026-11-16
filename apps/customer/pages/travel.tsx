@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useToast } from "../hooks/use-toast";
 import { searchDepartures, bookTravel, fetchCards } from "../lib/api";
+import PinPrompt from "../components/PinPrompt";
 import { AFRICA_COUNTRIES, INTERNATIONAL_COUNTRIES, Country } from "../lib/countries";
 import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
@@ -123,11 +124,18 @@ export default function Travel() {
     setStage("payment");
   };
 
-  const handleBook = async () => {
+  const [pinOpen, setPinOpen] = useState(false);
+  const handleBook = () => {
+    if (!selectedCardId || !selectedDeparture) return;
+    setPinOpen(true);
+  };
+
+  const bookWithPin = async (pin: string) => {
     if (!selectedCardId || !selectedDeparture) return;
     setBooking(true);
     try {
       const transaction = await bookTravel({
+        pin,
         departureId: selectedDeparture.departureId,
         fromCardId: selectedCardId,
         seatClass,
@@ -138,9 +146,8 @@ export default function Travel() {
         })),
       });
       setBookedTransaction(transaction);
+      setPinOpen(false);
       setStage("success");
-    } catch (e: any) {
-      toast({ title: "Booking failed", description: e.message, variant: "destructive" });
     } finally {
       setBooking(false);
     }
@@ -442,6 +449,7 @@ export default function Travel() {
               </>
             )}
           </TouchableOpacity>
+          <PinPrompt visible={pinOpen} title="Confirm booking" onCancel={() => setPinOpen(false)} onSubmit={bookWithPin} />
         </ScrollView>
       </View>
     );

@@ -9,7 +9,7 @@ pytestmark = pytest.mark.asyncio
 async def test_signup_creates_default_card(client: AsyncClient):
     r = await client.post("/api/auth/signup", json={
         "name": "Alice", "email": unique_email(), "username": unique_username(),
-        "password": "password123",
+        "password": "password123", "residenceCountry": "ZA", "acceptTerms": True,
     })
     assert r.status_code == 201
     body = r.json()
@@ -20,7 +20,8 @@ async def test_signup_creates_default_card(client: AsyncClient):
 
 async def test_signup_duplicate_email_rejected(client: AsyncClient):
     email = unique_email()
-    payload = {"name": "Bob", "email": email, "username": unique_username(), "password": "password123"}
+    payload = {"name": "Bob", "email": email, "username": unique_username(), "password": "password123",
+               "residenceCountry": "ZA", "acceptTerms": True}
     r1 = await client.post("/api/auth/signup", json=payload)
     assert r1.status_code == 201
 
@@ -40,7 +41,7 @@ async def test_signup_short_password_rejected(client: AsyncClient):
 async def test_login_wrong_password(client: AsyncClient):
     email = unique_email()
     await client.post("/api/auth/signup", json={
-        "name": "Dana", "email": email, "username": unique_username(), "password": "password123",
+        "name": "Dana", "email": email, "username": unique_username(), "password": "password123", "residenceCountry": "ZA", "acceptTerms": True,
     })
     r = await client.post("/api/auth/login", json={"email": email, "password": "wrongpassword"})
     assert r.status_code == 401
@@ -50,7 +51,7 @@ async def test_login_wrong_password(client: AsyncClient):
 async def test_login_lockout_after_ten_failures(client: AsyncClient):
     email = unique_email()
     await client.post("/api/auth/signup", json={
-        "name": "Eve", "email": email, "username": unique_username(), "password": "password123",
+        "name": "Eve", "email": email, "username": unique_username(), "password": "password123", "residenceCountry": "ZA", "acceptTerms": True,
     })
     for _ in range(10):
         await client.post("/api/auth/login", json={"email": email, "password": "wrong"})

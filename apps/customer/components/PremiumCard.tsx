@@ -22,7 +22,7 @@ const colorMap: Record<string, string> = {
 export default function PremiumCard({
   cardNumber,
   holderName,
-  expiryDate = "12/28",
+  expiryDate = "—",
   balance,
   currency,
   color = "blue",

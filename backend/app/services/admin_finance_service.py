@@ -1,13 +1,11 @@
 import uuid
-from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ApiError
 from app.models.payment_link import PaymentLink
 from app.models.user import User
-from app.models.wallet import CurrencyCorridor, InternationalTransfer, Transaction, WalletCard
+from app.models.wallet import InternationalTransfer, Transaction, WalletCard
 
 
 async def list_transactions(
@@ -93,14 +91,6 @@ async def set_card_flagged(card: WalletCard, flagged: bool) -> WalletCard:
     return card
 
 
-async def set_card_balance(card: WalletCard, balance: str) -> WalletCard:
-    try:
-        card.balance = Decimal(balance)
-    except InvalidOperation as e:
-        raise ApiError("Invalid balance") from e
-    return card
-
-
 async def list_payment_links(
     db: AsyncSession, *, page: int, limit: int, status: str | None,
 ) -> tuple[list[tuple[PaymentLink, User]], int]:
@@ -131,39 +121,6 @@ async def update_payment_link_status(link: PaymentLink, status: str) -> PaymentL
 async def delete_payment_link(db: AsyncSession, link: PaymentLink) -> None:
     await db.delete(link)
     await db.flush()
-
-
-async def list_corridors(db: AsyncSession) -> list[CurrencyCorridor]:
-    result = await db.execute(
-        select(CurrencyCorridor).order_by(CurrencyCorridor.from_currency, CurrencyCorridor.to_currency)
-    )
-    return list(result.scalars().all())
-
-
-async def get_corridor(db: AsyncSession, corridor_id: str) -> CurrencyCorridor | None:
-    try:
-        corridor_uuid = uuid.UUID(corridor_id)
-    except ValueError:
-        return None
-    result = await db.execute(select(CurrencyCorridor).where(CurrencyCorridor.id == corridor_uuid))
-    return result.scalar_one_or_none()
-
-
-_CORRIDOR_DECIMAL_FIELDS = {"exchange_rate", "fee_percentage", "fee_fixed", "min_amount", "max_amount"}
-
-
-async def update_corridor(corridor: CurrencyCorridor, values: dict) -> CurrencyCorridor:
-    for field, raw in values.items():
-        if raw is None:
-            continue
-        if field in _CORRIDOR_DECIMAL_FIELDS:
-            try:
-                setattr(corridor, field, Decimal(raw))
-            except InvalidOperation as e:
-                raise ApiError(f"Invalid value for {field}") from e
-        elif field == "is_active":
-            corridor.is_active = bool(raw)
-    return corridor
 
 
 async def list_international_transfers(

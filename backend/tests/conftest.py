@@ -20,7 +20,7 @@ from httpx import ASGITransport, AsyncClient
 
 os.environ.setdefault("DATABASE_URL", "postgresql://bukkapay:bukkapay@localhost:5432/bukkapay_test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-os.environ.setdefault("ADMIN_API_KEY", "test-master-key")
+os.environ["ADMIN_API_KEY"] = "test-master-key"  # fixtures send this exact key
 
 import app.core.redis as redis_module
 
@@ -40,33 +40,12 @@ async def _create_schema():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    await _seed_corridors(engine)
+    from app.reference.bootstrap import seed_reference_data
+
+    async with engine.begin() as conn:
+        await seed_reference_data(conn)
     yield
     await engine.dispose()
-
-
-async def _seed_corridors(engine):
-    """Mirrors the seed data inserted by the 0005 + 0008 migrations, since
-    tests build schema from the ORM models directly rather than replaying
-    migrations."""
-    from sqlalchemy import insert
-
-    from app.models.wallet import CurrencyCorridor
-
-    usd_rate = {
-        "USD": 1.0, "ZAR": 18.2, "BWP": 13.5,
-        "NGN": 1550.0, "KES": 129.0, "GHS": 15.5, "EUR": 0.92, "GBP": 0.79,
-    }
-    async with engine.begin() as conn:
-        for from_cur in usd_rate:
-            for to_cur in usd_rate:
-                if from_cur == to_cur:
-                    continue
-                rate = usd_rate[to_cur] / usd_rate[from_cur]
-                await conn.execute(insert(CurrencyCorridor).values(
-                    from_currency=from_cur, to_currency=to_cur, exchange_rate=f"{rate:.6f}",
-                    fee_percentage="1.0", fee_fixed="0",
-                ))
 
 
 @pytest_asyncio.fixture
@@ -78,6 +57,16 @@ async def client():
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     await _fake_redis.flushall()
+
+
+# Payments require a transaction PIN (pin_service.verify_pin); every test
+# user gets this one at signup.
+TEST_PIN = "4826"
+
+
+async def set_test_pin(client: AsyncClient, headers: dict) -> None:
+    r = await client.post("/api/auth/pin", json={"newPin": TEST_PIN}, headers=headers)
+    assert r.status_code == 200, r.text
 
 
 def unique_email() -> str:
@@ -93,20 +82,44 @@ async def user(client: AsyncClient) -> dict:
     """Signs up a fresh user and returns {token, user, headers}."""
     r = await client.post("/api/auth/signup", json={
         "name": "Test User", "email": unique_email(), "username": unique_username(),
-        "password": "password123",
+        "password": "password123", "residenceCountry": "ZA", "acceptTerms": True,
     })
     assert r.status_code == 201, r.text
     body = r.json()
-    return {"token": body["token"], "user": body["user"], "headers": {"Authorization": f"Bearer {body['token']}"}}
+    headers = {"Authorization": f"Bearer {body['token']}"}
+    await set_test_pin(client, headers)
+    return {"token": body["token"], "user": body["user"], "headers": headers}
 
 
 @pytest_asyncio.fixture
 async def funded_user(client: AsyncClient, user: dict) -> dict:
     r = await client.get("/api/cards", headers=user["headers"])
     card_id = r.json()[0]["id"]
-    await client.patch(f"/api/cards/{card_id}/balance", json={"balance": "1000.00"}, headers=user["headers"])
+    await fund_card(card_id, "1000.00")
     user["card_id"] = card_id
     return user
+
+
+async def fund_card(card_id: str, amount: str) -> None:
+    """Fund a wallet the way a real top-up does — a balanced ledger posting
+    from a (test) provider clearing account — since balances can no longer
+    be set directly."""
+    from decimal import Decimal
+
+    from app.db.base import get_session_factory
+    from app.ledger import accounts, posting
+    from app.models.wallet import WalletCard
+
+    async with get_session_factory()() as db:
+        card = await db.get(WalletCard, uuid.UUID(card_id))
+        await posting.post(
+            db, kind="test_funding", description="test funding",
+            legs=[
+                posting.debit(await accounts.provider_clearing(db, "test", card.currency), Decimal(amount)),
+                posting.credit(await accounts.wallet_account(db, card), Decimal(amount)),
+            ],
+        )
+        await db.commit()
 
 
 @pytest_asyncio.fixture
@@ -115,11 +128,13 @@ async def other_user(client: AsyncClient) -> dict:
     share one underlying account since `funded_user` depends on `user`."""
     r = await client.post("/api/auth/signup", json={
         "name": "Other User", "email": unique_email(), "username": unique_username(),
-        "password": "password123",
+        "password": "password123", "residenceCountry": "ZA", "acceptTerms": True,
     })
     assert r.status_code == 201, r.text
     body = r.json()
-    return {"token": body["token"], "user": body["user"], "headers": {"Authorization": f"Bearer {body['token']}"}}
+    headers = {"Authorization": f"Bearer {body['token']}"}
+    await set_test_pin(client, headers)
+    return {"token": body["token"], "user": body["user"], "headers": headers}
 
 
 SUPER_ADMIN_EMAIL = "super-admin@example.com"

@@ -11,15 +11,18 @@ from app.api import (
     auth,
     bank_partner,
     billing_link,
+    cards,
     chat,
     claim_payment,
     contribution,
     kyc,
     loyalty,
     merchant,
+    merchant_platform,
     misc,
     notification,
     payment_link,
+    public,
     purchase_transaction,
     rental,
     stitch,
@@ -32,8 +35,10 @@ from app.api import (
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(wallet.router)
+api_router.include_router(cards.router)
 api_router.include_router(misc.router)
 api_router.include_router(merchant.router)
+api_router.include_router(merchant_platform.router)
 api_router.include_router(payment_link.router)
 api_router.include_router(claim_payment.router)
 api_router.include_router(purchase_transaction.router)
@@ -49,10 +54,14 @@ api_router.include_router(bank_partner.router)
 api_router.include_router(kyc.router)
 api_router.include_router(travel.router)
 api_router.include_router(chat.router)
+api_router.include_router(public.router)
 
 from app.api.admin import auth as admin_auth
+from app.api.admin import cards as admin_cards
+from app.api.admin import website as admin_website
 from app.api.admin import chat as admin_chat
 from app.api.admin import finance as admin_finance
+from app.api.admin import network as admin_network
 from app.api.admin import platform as admin_platform
 from app.api.admin import travel as admin_travel
 from app.api.admin import users as admin_users
@@ -64,3 +73,6 @@ admin_router.include_router(admin_finance.router)
 admin_router.include_router(admin_platform.router)
 admin_router.include_router(admin_travel.router)
 admin_router.include_router(admin_chat.router)
+admin_router.include_router(admin_network.router)
+admin_router.include_router(admin_cards.router)
+admin_router.include_router(admin_website.router)

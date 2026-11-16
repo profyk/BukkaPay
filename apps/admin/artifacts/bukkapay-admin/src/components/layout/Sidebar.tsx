@@ -1,15 +1,15 @@
 import { Link, useLocation } from "wouter"
 import {
   LayoutDashboard, Users, ArrowRightLeft, LogOut,
-  FlaskConical, FileCheck, ScrollText, Wallet,
+  CreditCard, FileCheck, ScrollText, Wallet,
   Link2, Store, Megaphone, ChevronRight,
   ShieldCheck, Settings2, Globe2, PlaneTakeoff, Route as RouteIcon,
-  MessageCircle,
+  MessageCircle, Stamp, BookOpen, Scale, BadgeCheck, Map as MapIcon, Coins, Landmark, PlugZap, Waypoints,
+  ShieldAlert,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
-import { isDemoMode } from "@/lib/demo"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -18,55 +18,72 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useAdminMe, usePermissions } from "@/lib/permissions"
 
-const SECTIONS = [
+type NavItem = { href: string; label: string; icon: any; perm?: string }
+
+const SECTIONS: { label: string; links: NavItem[] }[] = [
   {
     label: "Overview",
     links: [
-      { href: "/",             label: "Dashboard",       icon: LayoutDashboard },
+      { href: "/",              label: "Dashboard",        icon: LayoutDashboard, perm: "dashboard.view" },
+      { href: "/approvals",     label: "Approvals",        icon: Stamp,           perm: "approvals.view" },
     ],
   },
   {
-    label: "Users",
+    label: "Customers",
     links: [
-      { href: "/users",        label: "Users",           icon: Users },
-      { href: "/kyc",          label: "KYC Review",      icon: FileCheck },
-      { href: "/support-chat", label: "Support Chat",    icon: MessageCircle },
+      { href: "/users",         label: "Users",            icon: Users,           perm: "users.view" },
+      { href: "/kyc",           label: "KYC Review",       icon: FileCheck,       perm: "kyc.view" },
+      { href: "/support-chat",  label: "Support Chat",     icon: MessageCircle,   perm: "support.view" },
     ],
   },
   {
-    label: "Finance",
+    label: "Money",
     links: [
-      { href: "/transactions", label: "Transactions",    icon: ArrowRightLeft },
-      { href: "/wallets",      label: "Wallets",         icon: Wallet },
-      { href: "/payment-links",label: "Payment Links",   icon: Link2 },
-      { href: "/international-transfers", label: "International Transfers", icon: Globe2 },
+      { href: "/transactions",  label: "Transactions",     icon: ArrowRightLeft,  perm: "transactions.view" },
+      { href: "/wallets",       label: "Wallets",          icon: Wallet,          perm: "wallets.view" },
+      { href: "/cards",         label: "Visa Cards",       icon: CreditCard,      perm: "wallets.view" },
+      { href: "/payment-links", label: "Payment Links",    icon: Link2,           perm: "transactions.view" },
+      { href: "/cross-border",  label: "Cross-Border",     icon: Globe2,          perm: "transactions.view" },
+      { href: "/ledger",        label: "Ledger",           icon: BookOpen,        perm: "ledger.view" },
+      { href: "/reconciliation",label: "Reconciliation",   icon: Scale,           perm: "reconciliation.view" },
     ],
   },
   {
-    label: "Travel",
+    label: "Merchants",
     links: [
-      { href: "/travel-operators", label: "Operators", icon: PlaneTakeoff },
-      { href: "/travel-routes",    label: "Routes & Pricing", icon: RouteIcon },
+      { href: "/merchants",     label: "Merchants",        icon: Store,           perm: "merchants.view" },
+      { href: "/merchant-kyb",  label: "Business Verification", icon: BadgeCheck, perm: "merchants.view" },
     ],
   },
   {
-    label: "Platform",
+    label: "Network",
     links: [
-      { href: "/merchants",    label: "Merchants",       icon: Store },
-      { href: "/broadcast",    label: "Broadcast",       icon: Megaphone },
-      { href: "/audit-logs",   label: "Audit Log",       icon: ScrollText },
+      { href: "/network/countries",  label: "Countries",      icon: MapIcon,  perm: "network.view" },
+      { href: "/network/currencies", label: "Currencies",     icon: Coins,    perm: "network.view" },
+      { href: "/network/custodians", label: "Custodians",     icon: Landmark, perm: "network.view" },
+      { href: "/network/providers",  label: "Providers",      icon: PlugZap,  perm: "network.view" },
+      { href: "/network/corridors",  label: "Corridors & FX", icon: Waypoints, perm: "network.view" },
+      { href: "/fees",               label: "Fees & Limits",  icon: Settings2, perm: "fees.view" },
+    ],
+  },
+  {
+    label: "Risk & Governance",
+    links: [
+      { href: "/compliance",       label: "Compliance",     icon: ShieldAlert, perm: "compliance.view" },
+      { href: "/audit-logs",       label: "Audit Log",      icon: ScrollText,  perm: "audit.view" },
+      { href: "/admin-management", label: "Admins & Roles", icon: ShieldCheck, perm: "admins.manage" },
+    ],
+  },
+  {
+    label: "Other",
+    links: [
+      { href: "/broadcast",        label: "Broadcast",        icon: Megaphone,    perm: "broadcast.send" },
+      { href: "/website",          label: "Website",          icon: Globe2,       perm: "website.view" },
+      { href: "/travel-operators", label: "Travel Operators", icon: PlaneTakeoff, perm: "travel.manage" },
+      { href: "/travel-routes",    label: "Travel Routes",    icon: RouteIcon,    perm: "travel.manage" },
     ],
   },
 ]
-
-const SUPER_ADMIN_SECTION = {
-  label: "Super Admin",
-  links: [
-    { href: "/admin-management", label: "Admin Management", icon: ShieldCheck },
-    { href: "/pricing",          label: "Platform Pricing",  icon: Settings2 },
-    { href: "/corridors",        label: "Cross-Border FX",   icon: Globe2 },
-  ],
-}
 
 function NavLink({ href, label, icon: Icon }: { href: string; label: string; icon: any }) {
   const [location] = useLocation()
@@ -91,9 +108,8 @@ function NavLink({ href, label, icon: Icon }: { href: string; label: string; ico
 
 export function Sidebar() {
   const { logout } = useAuth()
-  const demo = isDemoMode()
   const { data: me } = useAdminMe()
-  const { isSuperAdmin } = usePermissions()
+  const perms = usePermissions()
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen sticky top-0 shrink-0">
@@ -107,54 +123,34 @@ export function Sidebar() {
         />
       </div>
 
-      {demo && (
-        <div className="mx-3 mb-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
-          <FlaskConical className="w-3.5 h-3.5 text-primary shrink-0" />
-          <span className="text-xs font-semibold text-primary">Demo Mode</span>
-        </div>
-      )}
-
       {/* Nav */}
       <nav className="flex-1 px-3 overflow-y-auto space-y-4 py-2">
-        {SECTIONS.map((section) => (
-          <div key={section.label}>
-            <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              {section.label}
-            </p>
-            <div className="space-y-0.5">
-              {section.links.map((link) => <NavLink key={link.href} {...link} />)}
+        {SECTIONS.map((section) => {
+          const links = section.links.filter((l) => !l.perm || perms.can(l.perm))
+          if (!links.length) return null
+          return (
+            <div key={section.label}>
+              <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                {section.label}
+              </p>
+              <div className="space-y-0.5">
+                {links.map((link) => <NavLink key={link.href} href={link.href} label={link.label} icon={link.icon} />)}
+              </div>
             </div>
-          </div>
-        ))}
-
-        {/* Super Admin section — only visible to super_admin role */}
-        {isSuperAdmin && (
-          <div>
-            <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-violet-500/70">
-              {SUPER_ADMIN_SECTION.label}
-            </p>
-            <div className="space-y-0.5">
-              {SUPER_ADMIN_SECTION.links.map((link) => <NavLink key={link.href} {...link} />)}
-            </div>
-          </div>
-        )}
+          )
+        })}
       </nav>
 
       {/* Footer */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
         <div className="px-3 py-2 rounded-xl bg-muted/30">
           <p className="text-xs text-muted-foreground font-medium">Signed in as</p>
-          {demo ? (
-            <>
-              <p className="text-sm font-semibold text-sidebar-foreground mt-0.5">Demo User</p>
-              <p className="text-xs text-violet-500 font-medium">Super Admin</p>
-            </>
-          ) : me ? (
+          {me ? (
             <>
               <p className="text-sm font-semibold text-sidebar-foreground truncate mt-0.5">{me.name || me.email}</p>
               {me.role && (
                 <p className={cn("text-xs capitalize font-medium", me.role === "super_admin" ? "text-violet-500" : "text-muted-foreground")}>
-                  {me.role.replace("_", " ")}
+                  {me.role.replace(/_/g, " ")}{me.mfaEnabled === false && " · MFA off"}
                 </p>
               )}
             </>
@@ -177,9 +173,7 @@ export function Sidebar() {
             <AlertDialogHeader>
               <AlertDialogTitle>Sign out of BukkaPay Admin?</AlertDialogTitle>
               <AlertDialogDescription>
-                {demo
-                  ? "This will exit demo mode and return you to the login page."
-                  : "You will be redirected to the login page."}
+                You will be redirected to the login page.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

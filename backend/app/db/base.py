@@ -10,7 +10,10 @@ from app.core.config import get_settings
 
 
 class Base(DeclarativeBase):
-    pass
+    # Fetch server-generated values (created_at/updated_at, defaults) as part
+    # of each flush, so reading them afterwards never triggers a lazy load in
+    # async code.
+    __mapper_args__ = {"eager_defaults": True}
 
 
 _engine: AsyncEngine | None = None
@@ -21,13 +24,34 @@ def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         settings = get_settings()
+        connect_args: dict = {"ssl": "require"} if settings.is_production else {}
+        timeouts = {
+            "statement_timeout": str(settings.db_statement_timeout_ms),
+            "lock_timeout": str(settings.db_lock_timeout_ms),
+            "idle_in_transaction_session_timeout": str(settings.db_idle_in_transaction_timeout_ms),
+        }
+        if settings.db_pgbouncer:
+            # Transaction poolers can't keep prepared statements or startup
+            # parameters across transactions.
+            connect_args |= {"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+        else:
+            connect_args["server_settings"] = timeouts
         _engine = create_async_engine(
             settings.sqlalchemy_database_url,
             pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=5,
-            connect_args={"ssl": "require"} if settings.is_production else {},
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+            pool_timeout=settings.db_pool_timeout_seconds,
+            pool_recycle=settings.db_pool_recycle_seconds,
+            connect_args=connect_args,
         )
+        if settings.db_pgbouncer:
+            from sqlalchemy import event
+
+            @event.listens_for(_engine.sync_engine, "begin")
+            def _set_local_timeouts(conn):  # noqa: ANN001
+                for name, value in timeouts.items():
+                    conn.exec_driver_sql(f"SET LOCAL {name} = {int(value)}")
     return _engine
 
 

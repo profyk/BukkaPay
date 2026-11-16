@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { isDemoMode, DEMO_USERS } from "@/lib/demo";
 
 export interface User {
   id: string;
@@ -30,7 +29,6 @@ export function useUsers(page = 1) {
   return useQuery({
     queryKey: [...USERS_QUERY_KEY, page],
     queryFn: async () => {
-      if (isDemoMode()) return { users: DEMO_USERS as User[], pagination: { page: 1, limit: 50, total: DEMO_USERS.length, pages: 1 } };
       const { data } = await api.get(`/admin/users?page=${page}&limit=50`);
       return data as { users: User[]; pagination: { page: number; limit: number; total: number; pages: number } };
     },
@@ -44,7 +42,7 @@ export function useUserDetail(id: string | null) {
       const { data } = await api.get(`/admin/users/${id}`);
       return data as UserDetail;
     },
-    enabled: !!id && !isDemoMode(),
+    enabled: !!id,
   });
 }
 
@@ -55,7 +53,6 @@ export function useUserActions() {
 
   const freezeUser = useMutation({
     mutationFn: async (id: string) => {
-      if (isDemoMode()) return;
       await api.patch(`/admin/users/${id}/freeze`, { frozen: true });
     },
     onSuccess: invalidate,
@@ -63,7 +60,6 @@ export function useUserActions() {
 
   const activateUser = useMutation({
     mutationFn: async (id: string) => {
-      if (isDemoMode()) return;
       await api.patch(`/admin/users/${id}/freeze`, { frozen: false });
     },
     onSuccess: invalidate,
@@ -71,7 +67,6 @@ export function useUserActions() {
 
   const deleteUser = useMutation({
     mutationFn: async (id: string) => {
-      if (isDemoMode()) return;
       await api.delete(`/admin/users/${id}`);
     },
     onSuccess: invalidate,
@@ -79,7 +74,6 @@ export function useUserActions() {
 
   const verifyUser = useMutation({
     mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      if (isDemoMode()) return;
       await api.patch(`/admin/users/${id}/verify`, { verified });
     },
     onSuccess: invalidate,

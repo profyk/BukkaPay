@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient
 
+from tests.conftest import TEST_PIN
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -13,7 +15,7 @@ async def test_create_and_pay_full_amount(client: AsyncClient, user: dict, funde
     assert link["status"] == "pending"
     assert link["destination"] == "wallet"
 
-    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={}, headers=funded_user["headers"])
+    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, }, headers=funded_user["headers"])
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "paid"
@@ -27,7 +29,7 @@ async def test_partial_payment_leaves_link_open(client: AsyncClient, user: dict,
     }, headers=user["headers"])
     link = r.json()
 
-    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"amount": "100.00"}, headers=funded_user["headers"])
+    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, "amount": "100.00"}, headers=funded_user["headers"])
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "partial"
@@ -37,9 +39,9 @@ async def test_partial_payment_leaves_link_open(client: AsyncClient, user: dict,
 async def test_pay_already_paid_link_rejected(client: AsyncClient, user: dict, funded_user: dict):
     r = await client.post("/api/payment-links", json={"amount": "50.00"}, headers=user["headers"])
     link = r.json()
-    await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={}, headers=funded_user["headers"])
+    await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, }, headers=funded_user["headers"])
 
-    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={}, headers=funded_user["headers"])
+    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, }, headers=funded_user["headers"])
     assert r.status_code == 400
     assert "already been fully paid" in r.json()["error"].lower()
 
@@ -48,7 +50,7 @@ async def test_pay_insufficient_balance(client: AsyncClient, user: dict):
     r = await client.post("/api/payment-links", json={"amount": "50.00"}, headers=user["headers"])
     link = r.json()
 
-    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={}, headers=user["headers"])
+    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, }, headers=user["headers"])
     assert r.status_code == 400
     assert "insufficient" in r.json()["error"].lower()
 

@@ -7,7 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
+from app.ledger import accounts as ledger_accounts
+from app.ledger import posting
 from app.models.enums import NotificationType, PurchaseCategory, PurchaseStatus, TransactionType
+from app.models.ledger import JournalEntry
 from app.models.misc import PurchaseTransaction
 from app.models.travel import TravelDeparture, TravelOperator, TravelRoute
 from app.models.wallet import Transaction
@@ -127,7 +130,6 @@ async def book(
     if card.balance < total_amount:
         raise ApiError("Insufficient balance")
 
-    card.balance -= total_amount
     dep.seats_booked += passenger_count
     await db.flush()
 
@@ -154,6 +156,15 @@ async def book(
         amount=f"{total_amount:.2f}", currency=dep.currency, status=PurchaseStatus.SUCCESS.value, metadata=metadata,
     )
 
+    # Ticket money is owed to the operator until settled with them.
+    await posting.post(
+        db, kind="travel_booking", description=f"Ticket {transaction.id} with {operator.name}",
+        legs=[
+            posting.debit(await ledger_accounts.wallet_account(db, card), total_amount),
+            posting.credit(await _operator_payable(db, dep.currency), total_amount),
+        ],
+        details={"purchase_transaction_id": str(transaction.id), "operator_id": str(operator.id)},
+    )
     db.add(Transaction(
         user_id=user_id,
         card_id=card.id,
@@ -172,6 +183,13 @@ async def book(
     )
 
     return transaction
+
+
+async def _operator_payable(db: AsyncSession, currency: str):
+    return await ledger_accounts.system_account(
+        db, f"payable:travel_operators:{currency}", f"Owed to travel operators ({currency})",
+        "liability", currency,
+    )
 
 
 async def cancel_booking(db: AsyncSession, user_id: uuid.UUID, purchase_transaction_id: str) -> PurchaseTransaction:
@@ -205,7 +223,28 @@ async def cancel_booking(db: AsyncSession, user_id: uuid.UUID, purchase_transact
     card = next((c for c in cards if c.currency == transaction.currency), None)
     if card is None:
         card = await wallet_service.get_or_create_currency_card(db, user_id, transaction.currency)
-    card.balance += refund_amount
+    booked = (
+        await db.execute(
+            select(JournalEntry.id).where(
+                JournalEntry.kind == "travel_booking",
+                JournalEntry.details["purchase_transaction_id"].astext == str(transaction.id),
+            )
+        )
+    ).first()
+    # Bookings made before the ledger have no payable entry to unwind; their
+    # refund is funded from the migration suspense account instead.
+    source = (
+        await _operator_payable(db, transaction.currency) if booked
+        else await ledger_accounts.migration_suspense(db, transaction.currency)
+    )
+    await posting.post(
+        db, kind="travel_refund", description=f"Refund of ticket {transaction.id}",
+        legs=[
+            posting.debit(source, posting.money(refund_amount)),
+            posting.credit(await ledger_accounts.wallet_account(db, card), posting.money(refund_amount)),
+        ],
+        details={"purchase_transaction_id": str(transaction.id), "pre_ledger": not booked},
+    )
 
     transaction.status = PurchaseStatus.REFUNDED.value
     await db.flush()

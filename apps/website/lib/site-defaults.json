@@ -1,0 +1,138 @@
+{
+  "settings": {
+    "launchMode": "waitlist",
+    "announcement": {
+      "enabled": false,
+      "text": "",
+      "link": null,
+      "tone": "info"
+    },
+    "iosUrl": null,
+    "androidUrl": null,
+    "supportEmail": "hello@bukkapay.com",
+    "salesEmail": "hello@bukkapay.com",
+    "pressEmail": "marketing@bukkapay.com",
+    "socials": [],
+    "seoTitle": "BukkaPay — Get paid across Africa",
+    "seoDescription": "Payment links, invoices, QR payments and a multi-currency wallet with a Visa card — built for Africa."
+  },
+  "home": {
+    "eyebrow": "Launching across Africa",
+    "title": "Get paid. Pay anywhere.",
+    "subtitle": "Payment links, invoices and QR codes for your business — and a multi-currency wallet with a Visa card for everyone. Every fee and exchange rate is shown before you confirm.",
+    "benefits": [
+      "No more fake payment screenshots — links are marked paid only when the money arrives",
+      "Street vendors start with just their ID",
+      "Fees and exchange rates shown upfront"
+    ],
+    "features": [
+      {
+        "tag": "Business",
+        "title": "Payment links",
+        "body": "Create a link in seconds, share it on WhatsApp, SMS or email, and see it marked paid the moment the money arrives."
+      },
+      {
+        "tag": "Business",
+        "title": "Invoices & bills",
+        "body": "Send bills for school fees, levies, rent or services. Every payment is matched to the right bill automatically."
+      },
+      {
+        "tag": "Business",
+        "title": "QR codes",
+        "body": "Print a QR code for your counter or stall — no card machine needed. Dynamic QR codes are signed and can't be tampered with."
+      },
+      {
+        "tag": "Wallet",
+        "title": "Multi-currency wallet",
+        "body": "Hold separate balances in the currencies available in your country. Balances are never mixed."
+      },
+      {
+        "tag": "Wallet",
+        "title": "Visa card on every wallet",
+        "body": "Pay online and tap to pay with your phone wherever Visa is accepted, once your ID is verified and cards launch in your country."
+      },
+      {
+        "tag": "Community",
+        "title": "Contributions & bill splitting",
+        "body": "Pool money for a family event or stokvel, or split a bill — with a clear record of who paid."
+      }
+    ],
+    "useCases": [
+      {
+        "audience": "Freelancers",
+        "title": "Send a link, get paid",
+        "body": "Share a payment link with your client and get paid without sharing bank details."
+      },
+      {
+        "audience": "Street vendors & tuck shops",
+        "title": "Your phone is the till",
+        "body": "Show your QR code and get paid on the spot. Sign up with just your ID — no business registration needed to start."
+      },
+      {
+        "audience": "Landlords",
+        "title": "Collect rent on time",
+        "body": "Add your units and tenants, send rent links, and see who has paid."
+      },
+      {
+        "audience": "Schools & clubs",
+        "title": "Bills people actually pay",
+        "body": "Send fee bills that parents pay from their wallet or bank, matched automatically."
+      }
+    ]
+  },
+  "pricing": {
+    "enabled": false,
+    "intro": "Start free. You only pay a fee when you get paid.",
+    "plans": [],
+    "footnote": "Transaction fees are shown before every payment."
+  },
+  "faq": {
+    "items": [
+      {
+        "question": "What is BukkaPay?",
+        "answer": "BukkaPay is a payments app for Africa: payment links, invoices and QR codes for businesses, and a multi-currency wallet with a Visa card for everyone."
+      },
+      {
+        "question": "Is it available in my country?",
+        "answer": "See the Countries page — it shows exactly where BukkaPay is live, piloting or planned, straight from our live configuration."
+      },
+      {
+        "question": "Who holds my money?",
+        "answer": "Customer funds are held by licensed financial institutions in each country where BukkaPay operates. BukkaPay runs the technology on top."
+      },
+      {
+        "question": "How do I get a Visa card?",
+        "answer": "Every wallet gets its own virtual Visa card once you've verified your ID and cards are available in your country. You can add it to Apple Pay or Google Pay to tap to pay."
+      },
+      {
+        "question": "Can I accept payments without a registered business?",
+        "answer": "Yes. Street vendors, tuck shops and individual landlords can start with just their verified ID, up to individual seller limits. Registered businesses verify once and have higher limits."
+      },
+      {
+        "question": "What does it cost?",
+        "answer": "Every fee and exchange rate is shown before you confirm a payment. There are no hidden charges."
+      },
+      {
+        "question": "Is BukkaPay a bank?",
+        "answer": "No. BukkaPay is a payment technology company. Customer funds are held and settled by licensed local financial institutions in each country where we operate."
+      },
+      {
+        "question": "What happens if a cross-border transfer fails?",
+        "answer": "If it can't be delivered, the full amount, including the fee, is returned to your wallet."
+      },
+      {
+        "question": "Why do I need to verify my identity?",
+        "answer": "Regulations require it, and it protects you. Your limits increase as you complete verification."
+      },
+      {
+        "question": "How do businesses get paid out?",
+        "answer": "Businesses request payouts to a verified bank account. A payout shows as settled only once the bank confirms it."
+      },
+      {
+        "question": "Are community contributions an investment?",
+        "answer": "No. They collect money for a shared purpose and are not a savings, deposit or investment product."
+      }
+    ]
+  },
+  "versions": {}
+}

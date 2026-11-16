@@ -10,6 +10,7 @@ import { useTheme } from "../../lib/ThemeContext";
 import { API_BASE } from "../../lib/config";
 import { getAuthHeader } from "../../lib/auth";
 import AppBar from "../../components/AppBar";
+import PinPrompt from "../../components/PinPrompt";
 
 const STEPS = ["Recipient", "Amount", "Security PIN", "Review"];
 
@@ -60,26 +61,34 @@ export default function SendToAnyoneScreen() {
     setStep(s => s + 1);
   }
 
-  async function submit() {
+  const [pinOpen, setPinOpen] = useState(false);
+
+  // Opens the sender's own transaction-PIN prompt; the claim PIN above is
+  // the separate secret the recipient uses to claim.
+  function submit() {
     setInlineError("");
+    setPinOpen(true);
+  }
+
+  async function submitWithPin(transactionPin: string) {
     setLoading(true);
     try {
       const headers = await getAuthHeader();
       const res = await fetch(`${API_BASE}/api/claim-payments`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ recipientName, recipientContact, amount: parseFloat(amount), note, pin }),
+        body: JSON.stringify({
+          recipientName, recipientContact, amount: parseFloat(amount).toFixed(2), note, pin, transactionPin,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setInlineError(data.error || "Failed to create claim. Please try again.");
-        return;
+        throw new Error(data.error || "Failed to create claim. Please try again.");
       }
+      setPinOpen(false);
       setClaimUrl(data.claimUrl);
       setExpiresAt(new Date(data.expiresAt).toLocaleDateString());
       setStep(4);
-    } catch {
-      setInlineError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -120,6 +129,9 @@ export default function SendToAnyoneScreen() {
   const s = styles(colors);
 
   return (
+    <>
+    <PinPrompt visible={pinOpen} title="Confirm with your PIN" subtitle="This is your own transaction PIN"
+               onCancel={() => setPinOpen(false)} onSubmit={submitWithPin} />
     <View style={s.container}>
       <AppBar title="Send to Anyone" showBack />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -322,6 +334,7 @@ export default function SendToAnyoneScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
+    </>
   );
 }
 

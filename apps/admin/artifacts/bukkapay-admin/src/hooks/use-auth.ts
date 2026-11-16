@@ -6,6 +6,7 @@ import { z } from "zod";
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
+  otp: z.string().optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -19,7 +20,8 @@ export function useAuth() {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginInput) => {
-      const response = await api.post("/admin/auth/login", credentials);
+      const body = { ...credentials, otp: credentials.otp?.trim() || undefined };
+      const response = await api.post("/admin/auth/login", body);
       return response.data as { token: string };
     },
     onSuccess: (data) => {

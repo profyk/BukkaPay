@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id, get_optional_user_id
+from app.api.deps import get_current_user_id
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.db.deps import get_db
@@ -57,7 +57,7 @@ async def _accessible_merchant(db: AsyncSession, merchant_id: str, user_id, *, r
     staff = await merchant_service.get_staff_membership(db, merchant.id, user_id)
     if staff is None:
         raise ApiError("Forbidden", status_code=403)
-    if require_manager and staff.role != MerchantStaffRole.MANAGER:
+    if require_manager and staff.role not in (MerchantStaffRole.MANAGER, MerchantStaffRole.ADMIN):
         raise ApiError("Forbidden", status_code=403)
     return merchant
 
@@ -203,7 +203,9 @@ async def withdraw(
     user_id=Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> MerchantWithdrawResponse:
-    merchant = await _owned_merchant(db, merchant_id, user_id)
+    from app.api.merchant_platform import merchant_access
+
+    merchant, _ = await merchant_access(db, merchant_id, user_id, "finance")
     result = await merchant_service.withdraw(
         db, merchant, user_id, amount=body.amount, currency=body.currency, pin=body.pin,
     )
@@ -238,17 +240,20 @@ async def merchant_pay(
     merchant_id: str,
     body: MerchantPayRequest,
     db: AsyncSession = Depends(get_db),
-    user_id=Depends(get_optional_user_id),
+    user_id=Depends(get_current_user_id),
 ) -> MerchantPayResponse:
+    from app.services import pin_service
+
     if not body.amount:
         raise ApiError("Amount is required")
+    await pin_service.verify_pin(db, user_id, body.pin)
     merchant = await merchant_service.get_merchant(db, merchant_id)
     if merchant is None:
         raise ApiError("Merchant not found", status_code=404)
 
     transaction, new_balance = await merchant_service.merchant_pay(
         db, merchant, amount=body.amount, payer_id=user_id, payer_name=body.payer_name,
-        reference=body.reference,
+        reference=body.reference, qr_payload=body.qr_payload,
     )
     return MerchantPayResponse.model_validate({
         "transaction": transaction, "newBalance": f"{new_balance:.2f}",

@@ -3,6 +3,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from httpx import AsyncClient
 
+from tests.conftest import TEST_PIN
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -48,7 +50,7 @@ async def test_book_travel_creates_purchase_transaction_and_debits_wallet(
 ):
     seed = await _seed_bus_departure(client, admin)
 
-    r = await client.post("/api/travel/book", json={
+    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
         "departureId": seed["departure"]["id"],
         "fromCardId": funded_user["card_id"],
         "seatClass": "standard",
@@ -78,10 +80,10 @@ async def test_book_travel_creates_purchase_transaction_and_debits_wallet(
 
 async def test_book_travel_rejects_wrong_currency_card(client: AsyncClient, admin: dict, funded_user: dict):
     seed = await _seed_bus_departure(client, admin)
-    r = await client.post("/api/cards", json={"title": "USD Wallet", "currency": "USD"}, headers=funded_user["headers"])
+    r = await client.post("/api/cards", json={"pin": TEST_PIN, "title": "USD Wallet", "currency": "USD"}, headers=funded_user["headers"])
     usd_card_id = r.json()["id"]
 
-    r = await client.post("/api/travel/book", json={
+    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
         "departureId": seed["departure"]["id"], "fromCardId": usd_card_id,
         "passengers": [{"name": "Solo Traveler"}],
     }, headers=funded_user["headers"])
@@ -92,7 +94,7 @@ async def test_book_travel_rejects_wrong_currency_card(client: AsyncClient, admi
 async def test_book_travel_rejects_overbooking(client: AsyncClient, admin: dict, funded_user: dict):
     seed = await _seed_bus_departure(client, admin)  # 4 seats total
 
-    r = await client.post("/api/travel/book", json={
+    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
         "departureId": seed["departure"]["id"], "fromCardId": funded_user["card_id"],
         "passengers": [{"name": f"Passenger {i}"} for i in range(5)],
     }, headers=funded_user["headers"])
@@ -103,7 +105,7 @@ async def test_book_travel_rejects_overbooking(client: AsyncClient, admin: dict,
 async def test_cancel_booking_refunds_wallet_and_frees_seats(client: AsyncClient, admin: dict, funded_user: dict):
     seed = await _seed_bus_departure(client, admin)
 
-    r = await client.post("/api/travel/book", json={
+    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
         "departureId": seed["departure"]["id"], "fromCardId": funded_user["card_id"],
         "passengers": [{"name": "Solo Traveler"}],
     }, headers=funded_user["headers"])

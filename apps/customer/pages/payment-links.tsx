@@ -218,7 +218,7 @@ export default function PaymentLinks() {
             style={s.inboxBtn}
             onPress={() => router.push("/(screens)/received-links" as any)}
           >
-            <Ionicons name="inbox" size={17} color={PRIMARY} />
+            <Ionicons name="file-tray" size={17} color={PRIMARY} />
             {receivedLinks.length > 0 && (
               <View style={s.inboxBadge}>
                 <Text style={s.inboxBadgeText}>{receivedLinks.length}</Text>

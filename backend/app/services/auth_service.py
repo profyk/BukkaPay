@@ -14,9 +14,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
+from app.core.logging import log
 from app.core.redis import get_redis
 from app.core.security import generate_wallet_id, hash_secret, verify_secret
-from app.integrations import stitch
 from app.models.user import User
 from app.models.wallet import WalletCard
 from app.services import email_service, session_service
@@ -28,7 +28,16 @@ RESET_TOKEN_TTL_SECONDS = 60 * 60
 
 
 async def signup(db: AsyncSession, *, name: str, email: str, username: str, password: str,
-                  phone: str | None, country_code: str | None) -> User:
+                  phone: str | None, country_code: str | None, residence_country: str,
+                  accept_terms: bool, preferred_language: str = "en") -> User:
+    from datetime import UTC, datetime
+
+    from app.network import countries as country_service
+
+    if not accept_terms:
+        raise ApiError("You must accept the Terms of Service and Privacy Policy")
+    country = await country_service.require_operating(db, residence_country, what="BukkaPay")
+    email = email.strip().lower()
     existing_email = await db.execute(select(User).where(User.email == email))
     if existing_email.scalar_one_or_none() is not None:
         raise ApiError("Email already registered")
@@ -46,39 +55,43 @@ async def signup(db: AsyncSession, *, name: str, email: str, username: str, pass
         username=username,
         password=hash_secret(password),
         phone=phone,
-        country_code=country_code,
+        country_code=country_code or country.dial_code,
+        residence_country=country.code,
+        preferred_language=preferred_language,
+        terms_accepted_at=datetime.now(UTC),
+        kyc_level=0,
         wallet_id=generate_wallet_id(),
     )
     db.add(user)
     await db.flush()
 
-    await _issue_default_card(db, user)
+    await _issue_default_card(db, user, currency=country.default_currency)
     try:
-        await email_service.send_account_confirmation_email(user.email, name=user.name)
+        await send_email_code(user.email)
     except Exception:
-        # email delivery should not block onboarding; the user can retry confirmation later
-        pass
+        # Email delivery must not block onboarding; the app offers "resend code".
+        log.warning("signup_email_code_failed", user_id=str(user.id))
     return user
 
 
-async def _issue_default_card(db: AsyncSession, user: User) -> WalletCard:
-    card_ref = f"BUKKAPAY-{str(user.id)[:8].upper()}"
-    issued = await stitch.issue_virtual_card(user.name, card_ref)
+async def _issue_default_card(db: AsyncSession, user: User, *, currency: str) -> WalletCard:
+    from app.reference import currencies
+
+    await currencies.require_wallet_currency(db, currency)
     card = WalletCard(
         user_id=user.id,
         title="\U0001f4b3 BukkaPay",
         balance=Decimal("0.00"),
-        currency="ZAR",
+        currency=currency,
         icon="credit-card",
         color="blue",
-        card_number=issued.card_number,
-        expiry_date=issued.expiry_date,
-        cvv=issued.cvv,
-        stitch_card_id=issued.stitch_card_id,
         is_default=True,
     )
     db.add(card)
     await db.flush()
+    from app.cards import service as card_service
+
+    await card_service.request_card(db, card)
     return card
 
 
@@ -145,17 +158,37 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
         pass
 
 
-async def verify_email(db: AsyncSession, *, email: str, token: str) -> User:
-    valid = await email_service.verify_account_email(email, token)
-    if not valid:
-        raise ApiError("Invalid or expired email verification token", status_code=400)
+async def send_email_code(email: str) -> None:
+    """One-time email code via Supabase Auth (SMTP = Resend)."""
+    from app.integrations import supabase_auth
 
-    result = await db.execute(select(User).where(User.email == email))
+    if not supabase_auth.is_configured():
+        return
+    try:
+        await supabase_auth.send_email_otp(email.strip().lower())
+    except RuntimeError as e:
+        if str(e) == "rate_limited":
+            raise ApiError("Please wait a minute before requesting another code", status_code=429) from e
+        raise
+
+
+async def verify_email(db: AsyncSession, *, email: str, token: str) -> User:
+    from app.integrations import supabase_auth
+
+    email = email.strip().lower()
+    if not supabase_auth.is_configured():
+        raise ApiError("Email codes are not configured on this environment", status_code=503)
+    code = token.strip()
+    if not (code.isdigit() and 6 <= len(code) <= 10) or not await supabase_auth.verify_email_otp(email, code):
+        raise ApiError("Invalid or expired code", status_code=401)
+
+    result = await db.execute(select(User).where(User.email == email, User.deleted_at.is_(None)))
     user = result.scalar_one_or_none()
     if user is None:
         raise ApiError("User not found", status_code=404)
 
     user.verified = True
+    user.kyc_level = max(user.kyc_level or 0, 1)
     await db.flush()
     return user
 

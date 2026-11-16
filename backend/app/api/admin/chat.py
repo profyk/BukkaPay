@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.admin.deps import admin_auth
+from app.api.admin.deps import require
 from app.core.errors import ApiError
 from app.db.deps import get_db
 from app.schemas.admin import Pagination
@@ -28,7 +28,7 @@ def _parse_user_id(user_id: str) -> uuid.UUID:
 @router.get("/support-chats")
 async def list_conversations(
     page: int = Query(default=1, ge=1), limit: int = Query(default=30, ge=1, le=100),
-    _ctx=Depends(admin_auth), db: AsyncSession = Depends(get_db),
+    _ctx=Depends(require("support.view")), db: AsyncSession = Depends(get_db),
 ) -> ConversationsListResponse:
     conversations, total = await chat_service.list_conversations(db, page=page, limit=limit)
     return ConversationsListResponse.model_validate({
@@ -42,7 +42,7 @@ async def list_conversations(
 
 @router.get("/support-chats/{user_id}")
 async def get_conversation(
-    user_id: str, _ctx=Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, _ctx=Depends(require("support.view")), db: AsyncSession = Depends(get_db)
 ) -> list[ChatMessageResponse]:
     parsed_id = _parse_user_id(user_id)
     messages = await chat_service.get_messages(db, parsed_id)
@@ -52,7 +52,7 @@ async def get_conversation(
 
 @router.post("/support-chats/{user_id}", status_code=201)
 async def reply_to_conversation(
-    user_id: str, body: SendChatMessageRequest, _ctx=Depends(admin_auth), db: AsyncSession = Depends(get_db)
+    user_id: str, body: SendChatMessageRequest, _ctx=Depends(require("support.manage")), db: AsyncSession = Depends(get_db)
 ) -> ChatMessageResponse:
     message = await chat_service.send_admin_reply(db, _parse_user_id(user_id), body.message)
     return ChatMessageResponse.model_validate(message)

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { signup } from "../lib/auth";
 import { COUNTRY_CODES } from "../lib/countryData";
+import { fetchOperatingCountries, type PublicCountry } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 
 const logoImage = require("../assets/logo.png");
@@ -25,8 +26,24 @@ export default function Signup() {
     password: "",
     confirmPassword: "",
     phone: "",
-    countryCode: "+1",
+    countryCode: "+27",
   });
+  // Only countries where BukkaPay actually operates (from the API's
+  // admin-controlled configuration) can be chosen as country of residence.
+  const [countries, setCountries] = useState<PublicCountry[]>([]);
+  const [residence, setResidence] = useState<string>("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  useEffect(() => {
+    fetchOperatingCountries()
+      .then((list) => {
+        setCountries(list);
+        if (list.length) {
+          setResidence(list[0].code);
+          if (list[0].dialCode) setFormData((prev) => ({ ...prev, countryCode: list[0].dialCode! }));
+        }
+      })
+      .catch(() => setCountries([]));
+  }, []);
 
   const updateField = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -45,8 +62,18 @@ export default function Signup() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
+    if (formData.password.length < 8) {
+      toast({ title: "Error", description: "Password must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+
+    if (!residence) {
+      toast({ title: "Error", description: "Choose your country of residence", variant: "destructive" });
+      return;
+    }
+
+    if (!acceptTerms) {
+      toast({ title: "Error", description: "Please accept the Terms and Privacy Policy", variant: "destructive" });
       return;
     }
 
@@ -58,7 +85,9 @@ export default function Signup() {
         formData.password,
         formData.name,
         formData.phone,
-        formData.countryCode
+        formData.countryCode,
+        residence,
+        acceptTerms,
       );
       // Identity verification (KYC) is a required step of registration —
       // land here next instead of going straight into the app.
@@ -204,6 +233,47 @@ export default function Signup() {
               </TouchableOpacity>
             </View>
           </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { color: colors.text }]}>Country of residence</Text>
+            {countries.length === 0 ? (
+              <Text style={[styles.helperText, { color: colors.textMuted }]}>Loading available countries…</Text>
+            ) : (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {countries.map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    onPress={() => {
+                      setResidence(c.code);
+                      if (c.dialCode) updateField("countryCode", c.dialCode);
+                    }}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1,
+                      borderColor: residence === c.code ? "#7C3AED" : colors.border,
+                      backgroundColor: residence === c.code ? "#EDE9FE" : colors.surface,
+                    }}
+                  >
+                    <Text style={{ color: residence === c.code ? "#5B21B6" : colors.text, fontWeight: "600" }}>
+                      {c.name} · {c.currency}{c.status === "pilot" ? " (pilot)" : ""}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <Text style={[styles.helperText, { color: colors.textMuted }]}>
+              BukkaPay is available only where we've launched with a licensed local partner.
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}
+            onPress={() => setAcceptTerms(!acceptTerms)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptTerms }}
+          >
+            <Ionicons name={acceptTerms ? "checkbox" : "square-outline"} size={22} color={acceptTerms ? "#7C3AED" : colors.textMuted} />
+            <Text style={{ color: colors.text, flex: 1 }}>I agree to the Terms of Service and Privacy Policy</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.signupButton, loading && styles.disabledButton]}
