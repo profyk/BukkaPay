@@ -46,6 +46,14 @@ BEFORE INSERT OR UPDATE OR DELETE ON admin_users
 FOR EACH ROW EXECUTE FUNCTION bukkapay_admin_owner_guard()
 """
 
+# Migration 0025: the owner (and only the owner) can be invited as super
+# admin — used to set up or reset the owner's own password and MFA.
+INVITES_OWNER_ONLY_SUPER = [
+    "ALTER TABLE admin_invites DROP CONSTRAINT IF EXISTS ck_admin_invites_not_super",
+    f"ALTER TABLE admin_invites ADD CONSTRAINT ck_admin_invites_super_owner_only "
+    f"CHECK (role <> 'super_admin' OR lower(email) = '{OWNER}')",
+]
+
 INVITES_NOT_SUPER = (
     "ALTER TABLE admin_invites ADD CONSTRAINT ck_admin_invites_not_super CHECK (role <> 'super_admin')"
 )

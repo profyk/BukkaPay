@@ -64,6 +64,8 @@ async def _create_schema():
         await conn.execute(text(admin_guard.DROP_TRIGGER))
         await conn.execute(text(admin_guard.TRIGGER))
         await conn.execute(text(admin_guard.INVITES_NOT_SUPER))
+        for stmt in admin_guard.INVITES_OWNER_ONLY_SUPER:
+            await conn.execute(text(stmt))
     yield
     await engine.dispose()
 

@@ -131,3 +131,50 @@ async def test_database_refuses_bypassing_the_api(client: AsyncClient, admin: di
         with pytest.raises(DBAPIError):
             await db.execute(text(sql))
         await db.rollback()
+
+
+async def test_owner_invite_master_key_only_and_resets_owner(client: AsyncClient, admin: dict, monkeypatch):
+    from app.services import admin_auth_service as svc
+
+    captured = {}
+
+    async def fake_send(invite, link, inviter):
+        captured["link"] = link
+        return True
+
+    monkeypatch.setattr(svc, "_send_invite_email", fake_send)
+    # A super admin's session isn't enough; only the master key.
+    assert (await client.post("/api/admin/owner-invite", headers=admin["headers"])).status_code == 403
+    r = await client.post("/api/admin/owner-invite", headers=admin["master_headers"])
+    assert r.status_code == 201, r.text
+    assert r.json()["to"] == SUPER_ADMIN_EMAIL and "link" not in r.json()
+
+    try:
+        token = _token(captured["link"])
+        secret = (await client.post(f"/api/admin/invitations/{token}/mfa")).json()["secret"]
+        r = await client.post(f"/api/admin/invitations/{token}/accept",
+                              json={"password": "new-owner-pass-1", "otp": current_totp(secret)})
+        assert r.status_code == 201, r.text
+        assert r.json()["role"] == "super_admin"
+
+        # Old session revoked; new password + MFA required.
+        assert (await client.get("/api/admin/auth/me", headers=admin["headers"])).status_code == 401
+        r = await client.post("/api/admin/auth/login", json={"email": SUPER_ADMIN_EMAIL, "password": "new-owner-pass-1",
+                                                             "otp": current_totp(secret)})
+        assert r.status_code == 200, r.text
+    finally:
+        # Restore the shared fixture's credentials for other tests.
+        async with get_session_factory()() as db:
+            from app.core.security import hash_secret
+            await db.execute(text("UPDATE admin_users SET password = :p, mfa_enabled = false, mfa_secret = NULL "
+                                  "WHERE lower(email) = :e"), {"p": hash_secret("password123"), "e": SUPER_ADMIN_EMAIL})
+            await db.commit()
+
+
+async def test_database_refuses_super_admin_invite_for_anyone_else(client: AsyncClient, admin: dict):
+    async with get_session_factory()() as db:
+        with pytest.raises(DBAPIError):
+            await db.execute(text(
+                "INSERT INTO admin_invites (email, name, role, token_hash, expires_at) "
+                "VALUES ('x@example.com', 'X', 'super_admin', md5(random()::text), now() + interval '1 day')"))
+        await db.rollback()

@@ -277,6 +277,30 @@ async def create_invite(
     return invite, link, sent
 
 
+async def create_owner_invite(db: AsyncSession) -> tuple[AdminInvite, str, bool]:
+    """Super-admin invitation for the platform owner only: sets up the owner's
+    account, or resets the owner's password and MFA if it already exists.
+    Master key only (see the route); emailed to the owner's address."""
+    from app.governance.owner import OWNER_EMAIL
+
+    now = datetime.now(UTC)
+    for old in (await db.execute(select(AdminInvite).where(
+        AdminInvite.email == OWNER_EMAIL, AdminInvite.accepted_at.is_(None), AdminInvite.revoked_at.is_(None),
+    ))).scalars():
+        old.revoked_at = now
+    owner = (await db.execute(select(AdminUser).where(AdminUser.email == OWNER_EMAIL))).scalar_one_or_none()
+    token = secrets.token_urlsafe(32)
+    invite = AdminInvite(
+        email=OWNER_EMAIL, name=owner.name if owner else "Platform owner", role="super_admin",
+        token_hash=_hash_token(token), invited_by=None, expires_at=now + timedelta(hours=24),
+    )
+    db.add(invite)
+    await db.flush()
+    link = invite_link(token)
+    sent = await _send_invite_email(invite, link, "BukkaPay")
+    return invite, link, sent
+
+
 async def list_invites(db: AsyncSession) -> list[AdminInvite]:
     rows = await db.execute(
         select(AdminInvite).where(AdminInvite.accepted_at.is_(None)).order_by(AdminInvite.created_at.desc()).limit(100)
@@ -351,6 +375,23 @@ async def accept_invite(db: AsyncSession, *, token: str, password: str, name: st
         raise ApiError("Set up your authenticator app first", status_code=400)
     if not verify_totp(invite.mfa_secret, (otp or "").strip()):
         raise ApiError("That authenticator code is wrong or expired. Try the current code.", status_code=400)
+    if str(invite.role) == "super_admin":
+        if not is_owner_email(invite.email):  # the database also refuses this
+            raise ApiError("Invalid invitation", status_code=403)
+        owner = (await db.execute(select(AdminUser).where(AdminUser.email == invite.email))).scalar_one_or_none()
+        if owner is not None:
+            # Reset the owner's credentials; sign out everywhere.
+            owner.password = hash_secret(password)
+            owner.mfa_secret = invite.mfa_secret
+            owner.mfa_enabled = True
+            owner.is_active = True
+            if (name or "").strip():
+                owner.name = name.strip()
+            await admin_session_service.revoke_all_for_admin(db, owner.id)
+            invite.mfa_secret = None
+            invite.accepted_at = datetime.now(UTC)
+            await db.flush()
+            return owner
     if (await db.execute(select(AdminUser.id).where(AdminUser.email == invite.email))).first() is not None:
         raise ApiError("An admin with this email already exists", status_code=409)
     admin = AdminUser(

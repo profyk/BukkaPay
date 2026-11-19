@@ -53,3 +53,11 @@ async def verify_session(db: AsyncSession, token: str) -> uuid.UUID | None:
 async def revoke_session(db: AsyncSession, token: str) -> None:
     await db.execute(delete(AdminSession).where(AdminSession.token == token))
     await session_cache.cache_delete(token, admin=True)
+
+
+async def revoke_all_for_admin(db: AsyncSession, admin_id: uuid.UUID) -> None:
+    """Sign an admin out everywhere: database rows and the session cache."""
+    tokens = (await db.execute(select(AdminSession.token).where(AdminSession.admin_id == admin_id))).scalars().all()
+    await db.execute(delete(AdminSession).where(AdminSession.admin_id == admin_id))
+    for token in tokens:
+        await session_cache.cache_delete(token, admin=True)

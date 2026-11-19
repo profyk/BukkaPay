@@ -148,6 +148,18 @@ def _invite_out(invite) -> AdminInviteResponse:
     })
 
 
+@router.post("/owner-invite", status_code=201, dependencies=[Depends(rate_limit("owner-invite", 5, 3600))])
+async def owner_invite(ctx: AdminContext = Depends(admin_auth), db: AsyncSession = Depends(get_db)) -> dict:
+    """Email the platform owner a super-admin setup/reset link. Requires the
+    server's master key; the link is never returned, only emailed."""
+    if not ctx.is_master_key:
+        raise ApiError("Master key required", status_code=403)
+    invite, _link, sent = await svc.create_owner_invite(db)
+    if not sent:
+        raise ApiError("Email delivery failed; the invitation was not sent", status_code=502)
+    return {"sent": True, "to": invite.email, "expiresAt": invite.expires_at.isoformat()}
+
+
 @router.get("/invites")
 async def list_invites(
     _ctx: AdminContext = Depends(require("admins.manage")), db: AsyncSession = Depends(get_db),
