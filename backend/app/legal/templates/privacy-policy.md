@@ -29,7 +29,21 @@ This policy explains what personal information we collect when you use the Bukka
 
 We do not collect card numbers or CVVs on our own servers: card details are handled by our licensed payment providers and card issuer.
 
-## 3. Why we use it, and our lawful basis
+## 3. Google user data and Sign in with Google
+
+If you choose "Sign in with Google", BukkaPay asks Google only for the basic sign-in permissions — openid, email and profile. We do not request access to your Gmail, Google Drive, contacts, calendar or any other Google data.
+
+- **What we access:** your name, email address, whether Google has verified that email address, your profile picture (if you have one) and a Google account identifier.
+- **How we use it:** only to create your BukkaPay account or sign you in to it, to pre-fill your name and email, and to keep your account secure. We do not use Google user data for advertising, and we do not use it to build or train artificial intelligence or machine-learning models.
+- **How we store it:** with your other account information in our access-controlled, encrypted database. We never receive or store your Google password.
+- **Who we share it with:** we do not sell Google user data or share it with third parties, except with the technology providers that host our systems (listed in section 6) to run the Services, or where the law requires it.
+- **How to remove it:** you can disconnect BukkaPay at any time from your Google Account at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), and ask us to delete your account information by emailing {{privacy_email}}. Records we must keep by law are retained as described in section 8.
+
+BukkaPay's use and transfer of information received from Google APIs follows the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy), including the Limited Use requirements.
+
+Sign in with Apple works the same way: we receive only your name, email address (or an Apple private relay address) and an account identifier, and use them only to create and sign in to your account.
+
+## 4. Why we use it, and our lawful basis
 
 We use your information to:
 
@@ -43,11 +57,11 @@ We use your information to:
 
 We do not sell your personal information.
 
-## 4. Automated decisions
+## 5. Automated decisions
 
 We use automated systems to help detect fraud and set account limits. Where a decision based solely on automated processing has a significant effect on you — for example, blocking a payment — you can ask for a person to review it by contacting {{privacy_email}}.
 
-## 5. Who we share it with
+## 6. Who we share it with
 
 We share personal information only where needed for the purposes above:
 
@@ -62,11 +76,11 @@ We share personal information only where needed for the purposes above:
 
 Our service providers may only use your information to provide services to us and must protect it.
 
-## 6. Transfers to other countries
+## 7. Transfers to other countries
 
 Our systems and some of our providers are located outside your country, including in the European Union and the United States. When we transfer personal information across borders we make sure it is protected — for example, because the recipient's country has adequate data protection laws, or because the recipient is bound by a contract with data protection terms that meet the requirements of your country's law.
 
-## 7. How long we keep it
+## 8. How long we keep it
 
 We keep personal information only for as long as needed for the purposes above and to meet legal requirements. In particular:
 
@@ -76,11 +90,11 @@ We keep personal information only for as long as needed for the purposes above a
 
 When we no longer need information we delete it or de-identify it.
 
-## 8. How we protect it
+## 9. How we protect it
 
 We use technical and organisational measures appropriate to the risk, including encryption in transit and of sensitive data at rest, private storage with restricted access for identity documents, access controls and audit logs for staff, multi-factor authentication for administrators, and row-level security on our database. No system is perfectly secure; if a breach affects you we will tell you as described in our [Data Breach Response and Notification Policy](/legal/data-breach).
 
-## 9. Your rights
+## 10. Your rights
 
 Depending on the law that applies to you, you may have the right to:
 
@@ -94,19 +108,19 @@ Depending on the law that applies to you, you may have the right to:
 
 To exercise a right, email {{privacy_email}} or use the request process in our [PAIA and POPIA Manual](/legal/paia-manual). We will need to verify your identity, and we will respond within the time the law requires.
 
-## 10. Children
+## 11. Children
 
 The Services are not intended for anyone under 18, and we do not knowingly collect information about children except where a parent or guardian uses a feature such as family accounts that the law allows.
 
-## 11. Cookies
+## 12. Cookies
 
 Our website and web app use cookies and similar technologies as described in our [Cookie Policy](/legal/cookies).
 
-## 12. Changes to this policy
+## 13. Changes to this policy
 
 We may update this policy. We will tell you about material changes in the app or by email before they take effect. Previous versions are available on this page.
 
-## 13. Contact us
+## 14. Contact us
 
 Information Officer: {{information_officer}}
 Email: {{privacy_email}}
