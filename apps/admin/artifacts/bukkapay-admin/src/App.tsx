@@ -37,6 +37,7 @@ import AuditLogsPage from "@/pages/audit-logs"
 import WalletsPage from "@/pages/wallets"
 import CardsPage from "@/pages/cards"
 import WebsitePage from "@/pages/website"
+import LegalPage from "@/pages/legal"
 import PaymentLinksPage from "@/pages/payment-links"
 import MerchantsPage from "@/pages/merchants"
 import BroadcastPage from "@/pages/broadcast"
@@ -81,6 +82,7 @@ function Router() {
       <Route path="/wallets"        component={WalletsPage} />
       <Route path="/cards"          component={CardsPage} />
       <Route path="/website"        component={WebsitePage} />
+      <Route path="/legal"          component={LegalPage} />
       <Route path="/payment-links"  component={PaymentLinksPage} />
       <Route path="/merchants"      component={MerchantsPage} />
       <Route path="/broadcast"         component={BroadcastPage} />

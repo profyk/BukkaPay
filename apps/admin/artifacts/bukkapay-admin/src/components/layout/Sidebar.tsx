@@ -5,7 +5,7 @@ import {
   Link2, Store, Megaphone, ChevronRight,
   ShieldCheck, Settings2, Globe2, PlaneTakeoff, Route as RouteIcon,
   MessageCircle, Stamp, BookOpen, Scale, BadgeCheck, Map as MapIcon, Coins, Landmark, PlugZap, Waypoints,
-  ShieldAlert,
+  ShieldAlert, Gavel,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -79,6 +79,7 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
     links: [
       { href: "/broadcast",        label: "Broadcast",        icon: Megaphone,    perm: "broadcast.send" },
       { href: "/website",          label: "Website",          icon: Globe2,       perm: "website.view" },
+      { href: "/legal",            label: "Legal Documents",  icon: Gavel,        perm: "legal.view" },
       { href: "/travel-operators", label: "Travel Operators", icon: PlaneTakeoff, perm: "travel.manage" },
       { href: "/travel-routes",    label: "Travel Routes",    icon: RouteIcon,    perm: "travel.manage" },
     ],

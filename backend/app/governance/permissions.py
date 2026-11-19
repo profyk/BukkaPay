@@ -27,6 +27,9 @@ ALL_PERMISSIONS = {
     "broadcast.send",
     "travel.manage",
     "website.view", "website.manage",
+    # Drafting legal documents is separate from publishing them: publishing
+    # changes what customers agree to.
+    "legal.view", "legal.manage", "legal.publish",
 }
 
 _VIEW_ALL = {p for p in ALL_PERMISSIONS if p.endswith(".view")}
@@ -40,11 +43,11 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     },
     "compliance_officer": _VIEW_ALL | {
         "kyc.review", "merchants.kyb_review", "compliance.manage", "users.freeze", "wallets.restrict",
-        "approvals.decide",
+        "approvals.decide", "legal.manage", "legal.publish",
     },
     "operations_admin": _VIEW_ALL | {
         "network.manage", "users.manage", "merchants.manage", "wallets.restrict", "users.freeze",
-        "broadcast.send", "travel.manage", "support.manage", "website.manage",
+        "broadcast.send", "travel.manage", "support.manage", "website.manage", "legal.manage",
     },
     "customer_support": {
         "dashboard.view", "users.view", "kyc.view", "wallets.view", "transactions.view", "support.view",

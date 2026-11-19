@@ -53,7 +53,7 @@ export function Header({ settings }: { settings: Site["settings"] }) {
 const FOOTER = [
   { title: "Product", links: [["/wallet", "Customer wallet"], ["/merchants", "Merchant solutions"], ["/cross-border", "Cross-border payments"], ["/payment-links", "Payment links"], ["/contributions", "Community contributions"]] },
   { title: "Company", links: [["/about", "About BukkaPay"], ["/how-it-works", "How it works"], ["/pricing", "Pricing"], ["/countries", "Countries & currencies"], ["/partners", "Partnerships"], ["/contact", "Contact"]] },
-  { title: "Trust", links: [["/security", "Security"], ["/faq", "FAQ"], ["/legal/terms", "Terms of service"], ["/legal/privacy-policy", "Privacy policy"], ["/legal/cookies", "Cookie policy"], ["/legal/aml-risk", "AML & risk"]] },
+  { title: "Trust", links: [["/security", "Security"], ["/faq", "FAQ"], ["/legal/terms", "Terms and conditions"], ["/legal/privacy-policy", "Privacy policy"], ["/legal/cookies", "Cookie policy"], ["/legal/data-breach", "Data breach policy"], ["/legal", "All legal documents"]] },
 ]
 
 export function Footer({ settings }: { settings: Site["settings"] }) {

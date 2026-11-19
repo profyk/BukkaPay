@@ -9,6 +9,13 @@ body { background: #ffffff; color: #1A1A2E; font-family: "DM Sans", system-ui, s
 h1, h2, h3 { font-family: "Outfit", system-ui, sans-serif; letter-spacing: -0.01em; }
 :focus-visible { outline: 2px solid #7C3AED; outline-offset: 2px; }
 
-.prose-legal h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.5rem; }
+.prose-legal h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.5rem; scroll-margin-top: 6rem; }
+.prose-legal h3 { font-size: 1.05rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.25rem; }
 .prose-legal p, .prose-legal li { color: #4B5563; line-height: 1.7; }
+.prose-legal p { margin: 0.75rem 0; }
 .prose-legal ul { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
+.prose-legal ol { list-style: decimal; padding-left: 1.25rem; margin: 0.5rem 0; }
+.prose-legal li { margin: 0.25rem 0; }
+.prose-legal strong { color: #1A1A2E; font-weight: 600; }
+.prose-legal a { color: #6D28D9; text-decoration: underline; text-underline-offset: 2px; }
+.prose-legal blockquote { border-left: 3px solid #DDD6FE; background: #F5F3FF; padding: 0.75rem 1rem; margin: 1rem 0; color: #4B5563; border-radius: 0 0.5rem 0.5rem 0; }

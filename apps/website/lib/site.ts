@@ -16,7 +16,7 @@ export const NAV = [
 export const PAGES = [
   "", "/about", "/how-it-works", "/wallet", "/merchants", "/cross-border", "/payment-links", "/contributions",
   "/countries", "/pricing", "/partners", "/security", "/faq", "/contact",
-  "/legal/terms", "/legal/privacy-policy", "/legal/cookies", "/legal/aml-risk",
+  "/legal",
 ]
 
 export type PublicCountry = { code: string; name: string; region: string; status: "planned" | "pilot" | "live" | "suspended"; currency: string }

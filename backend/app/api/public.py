@@ -76,6 +76,22 @@ async def public_site(db: AsyncSession = Depends(get_db)):
     return await website_service.get_site(db)
 
 
+@router.get("/public/legal")
+async def public_legal(db: AsyncSession = Depends(get_db)):
+    """Published legal documents (or their drafts awaiting review), for the website."""
+    from app.legal import service as legal_service
+
+    return await legal_service.public_list(db)
+
+
+@router.get("/public/legal/{slug}")
+async def public_legal_document(slug: str, version: int | None = None, db: AsyncSession = Depends(get_db)):
+    """One legal document with company details filled in; ?version=n for an archived version."""
+    from app.legal import service as legal_service
+
+    return await legal_service.public_get(db, slug, version)
+
+
 class WaitlistIn(CamelModel):
     email: str = Field(min_length=5, max_length=200)
     name: str | None = Field(default=None, max_length=120)

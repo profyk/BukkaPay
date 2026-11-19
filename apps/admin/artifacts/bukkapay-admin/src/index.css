@@ -82,3 +82,15 @@
     @apply font-bold tracking-tight text-foreground;
   }
 }
+
+/* Legal document preview: mirrors .prose-legal on the website. */
+.legal-preview h2 { font-size: 1.2rem; font-weight: 600; margin: 1.75rem 0 0.5rem; }
+.legal-preview h2:first-child { margin-top: 0; }
+.legal-preview h3 { font-size: 1.02rem; font-weight: 600; margin: 1.25rem 0 0.25rem; }
+.legal-preview p, .legal-preview li { color: #4B5563; line-height: 1.7; font-size: 0.925rem; }
+.legal-preview p { margin: 0.6rem 0; }
+.legal-preview ul { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
+.legal-preview ol { list-style: decimal; padding-left: 1.25rem; margin: 0.5rem 0; }
+.legal-preview strong { color: #1A1A2E; font-weight: 600; }
+.legal-preview a { color: #6D28D9; text-decoration: underline; }
+.legal-preview blockquote { border-left: 3px solid #DDD6FE; background: #F5F3FF; padding: 0.6rem 1rem; margin: 0.75rem 0; }

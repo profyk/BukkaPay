@@ -60,6 +60,7 @@ from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLi
 from app.models.travel import TravelDeparture, TravelOperator, TravelRoute
 from app.models.user import User, UserSession
 from app.models.website import SiteContent, WaitlistSignup
+from app.models.legal import LegalDocument, LegalDocumentVersion
 from app.models.virtual_card import VirtualCard
 from app.models.wallet import CurrencyCorridor, InternationalTransfer, Transaction, WalletCard
 from app.models.webauthn import WebauthnCredential
@@ -69,6 +70,8 @@ register_create_all_hooks(JournalLine.__table__)
 __all__ = [
     "SiteContent",
     "WaitlistSignup",
+    "LegalDocument",
+    "LegalDocumentVersion",
     "CardAuthorization",
     "CardClearing",
     "CardWalletToken",
