@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ApiError
 from app.models.gamification import Challenge
 from app.models.loyalty import AutoPay, Beneficiary, LoyaltyReward
-from app.models.virtual_card import VirtualCard
 
 
 async def get_loyalty_reward(db: AsyncSession, user_id: uuid.UUID) -> LoyaltyReward | None:
@@ -70,6 +69,3 @@ async def create_challenge(
     return challenge
 
 
-async def get_virtual_cards(db: AsyncSession, user_id: uuid.UUID) -> list[VirtualCard]:
-    result = await db.execute(select(VirtualCard).where(VirtualCard.user_id == user_id))
-    return list(result.scalars().all())

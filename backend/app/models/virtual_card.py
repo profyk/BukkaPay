@@ -14,7 +14,8 @@ class VirtualCard(Base, TimestampMixin):
     user_id: Mapped[UUIDFk] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    card_number: Mapped[str] = mapped_column(EncryptedText, unique=True, index=True)
+    # Legacy, wiped by migration 0021; never written or read.
+    card_number: Mapped[str | None] = mapped_column(EncryptedText, unique=True, index=True)
     # Present (NOT NULL) in the real deployed schema (bukkapay_supabase.sql)
     # but absent from the newer shared/schema.ts, whose insertVirtualCardSchema
     # never supplies it — the live insert path can't satisfy a NOT NULL

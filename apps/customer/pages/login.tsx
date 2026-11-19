@@ -12,6 +12,7 @@ import {
   enableBiometricLogin,
 } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
+import SocialSignIn from "../components/SocialSignIn";
 
 const logoImage = require("../assets/logo.png");
 
@@ -99,6 +100,14 @@ export default function Login() {
 
         <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>Sign in to your BukkaPay account</Text>
+
+        <SocialSignIn onSignedIn={() => router.replace((returnTo || "/(tabs)") as any)} />
+
+        <View style={styles.dividerContainer}>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.dividerText, { color: colors.textMuted }]}>or sign in with email</Text>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        </View>
 
         {biometricReady && (
           <TouchableOpacity
@@ -208,7 +217,6 @@ export default function Login() {
       <View style={styles.brandingFooter}>
         <Text style={[styles.brandingTitle, { color: colors.text }]}>BukkaPay</Text>
         <Text style={[styles.brandingSubtitle, { color: colors.textMuted }]}>The Pulse of African Finance</Text>
-        <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 8 }}>monorepo-deploy-check-20260716</Text>
       </View>
     </ScrollView>
   );

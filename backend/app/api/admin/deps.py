@@ -3,6 +3,7 @@ a master API key via `x-admin-token` (machine-to-machine, e.g. ops
 scripts), or a personal admin session via `Authorization: Bearer <token>`.
 """
 
+import hmac
 from dataclasses import dataclass
 
 from fastapi import Depends, Header, Request
@@ -59,7 +60,7 @@ async def admin_auth(
     if x_admin_token:
         if not settings.admin_api_key:
             raise ApiError("Admin API not configured", status_code=503)
-        if x_admin_token != settings.admin_api_key:
+        if not hmac.compare_digest(x_admin_token.encode(), settings.admin_api_key.encode()):
             raise ApiError("Invalid admin token", status_code=401)
         return AdminContext(is_master_key=True, ip=_client_ip(request))
 
@@ -141,13 +142,19 @@ async def super_admin_or_master_key(ctx: AdminContext = Depends(admin_auth)) -> 
 
 
 def is_allowed_admin_origin(request: Request) -> bool:
+    """Admin sign-in is only accepted from the admin panel's own origin(s).
+
+    Exact origin match only: a prefix match would let
+    https://admin.bukkapay.com.attacker.example through, and a blanket
+    *.vercel.app rule would let anyone's Vercel deployment through. Preview
+    deployments that need admin access are listed in ADMIN_ALLOWED_ORIGINS."""
     settings = get_settings()
     if not settings.is_production:
         return True
-    origin = request.headers.get("origin", "")
+    origin = request.headers.get("origin", "").rstrip("/")
     if not origin:
+        # Non-browser clients (scripts with the master key, tests) send none;
+        # a browser always sends Origin on a cross-site POST.
         return True
     allowed = settings.admin_allowed_origins_list or ["https://admin.bukkapay.com"]
-    if origin.endswith((".vercel.app", ".netlify.app")):
-        return True
-    return any(origin.startswith(o) for o in allowed)
+    return origin in {o.rstrip("/") for o in allowed}

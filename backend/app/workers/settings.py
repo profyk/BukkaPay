@@ -16,7 +16,6 @@ from app.workers.tasks import (
     charge_monthly_card_maintenance_fees,
     collect_card_overdrafts,
     daily_reconciliation,
-    encrypt_legacy_card_data,
     expire_card_holds,
     expire_fx_quotes,
     issue_pending_cards,
@@ -30,7 +29,6 @@ from app.workers.tasks import (
 async def on_startup(ctx: dict) -> None:
     configure_logging(get_settings().env)
     log.info("worker_startup")
-    await encrypt_legacy_card_data(ctx)
 
 
 async def on_shutdown(ctx: dict) -> None:

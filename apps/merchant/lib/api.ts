@@ -38,7 +38,7 @@ export async function api<T = any>(path: string, init: RequestInit & { json?: un
     body = JSON.stringify(init.json)
   }
   const res = await fetch(`${API_URL}/api/v1${path}`, { ...init, headers, body })
-  if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/login")) {
+  if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/")) {
     setToken(null)
     window.location.href = "/login"
   }

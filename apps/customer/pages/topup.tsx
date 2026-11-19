@@ -25,7 +25,10 @@ export default function TopUp() {
   const { toast } = useToast();
   const { colors, darkMode } = useTheme();
 
-  const [section, setSection] = useState<Section>((params.section as Section) || "select");
+  const SECTIONS: Section[] = ["select", "stitch", "withdraw", "pending"];
+  const [section, setSection] = useState<Section>(
+    SECTIONS.includes(params.section as Section) ? (params.section as Section) : "select",
+  );
 
   // Dynamic colors from theme
   const NAVY = colors.text;
@@ -35,7 +38,6 @@ export default function TopUp() {
   const SURFACE = colors.surface;
   const INPUT_BG = colors.inputBg;
   const [amount, setAmount] = useState("");
-  const [voucherCode, setVoucherCode] = useState("");
   const [withdrawPin, setWithdrawPin] = useState("");
 
   /** Bank (EFT) top-ups and withdrawals run through Stitch, which settles in ZAR. */
@@ -196,12 +198,6 @@ export default function TopUp() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleVoucherTopUp = async () => {
-    // No voucher provider is connected; never pretend a redemption worked.
-    toast({ title: "Not available yet", description: "Voucher top-ups aren't available in your country yet.", variant: "destructive" });
-    setSection("select");
   };
 
   // ─── Select Screen ────────────────────────────────────────────────────────
@@ -478,39 +474,7 @@ export default function TopUp() {
     );
   }
 
-  // ─── Voucher ──────────────────────────────────────────────────────────────
-  return (
-    <ScrollView style={[s.container, { backgroundColor: BG }]} contentContainerStyle={s.scrollContent}>
-      <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => setSection("select")}>
-          <Ionicons name="arrow-back" size={24} color={NAVY} />
-        </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: NAVY }]}>Redeem Voucher</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <View style={[s.heroBanner, { backgroundColor: GREEN }]}>
-        <Ionicons name="ticket" size={32} color="#fff" />
-        <Text style={s.heroSub}>Voucher Redemption</Text>
-        <Text style={s.heroTitle}>Instant Credit</Text>
-      </View>
-
-      <Text style={[s.label, { color: NAVY }]}>Voucher Code</Text>
-      <TextInput
-        style={[s.input, { backgroundColor: INPUT_BG, borderColor: BORDER, color: NAVY, textAlign: "center", letterSpacing: 4, fontFamily: "monospace" }]}
-        value={voucherCode}
-        onChangeText={(t) => setVoucherCode(t.toUpperCase())}
-        placeholder="Enter voucher code"
-        placeholderTextColor={MUTED}
-        autoCapitalize="characters"
-      />
-
-      <TouchableOpacity style={[s.primaryBtn, { backgroundColor: GREEN }]} onPress={handleVoucherTopUp}>
-        <Ionicons name="checkmark-circle" size={20} color="#fff" />
-        <Text style={s.primaryBtnText}>Redeem Voucher</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
+  return null;
 }
 
 const s = StyleSheet.create({

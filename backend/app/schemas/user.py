@@ -97,6 +97,16 @@ class GoogleSignInRequest(CamelModel):
     accept_terms: bool | None = None
 
 
+class AppleSignInRequest(CamelModel):
+    identity_token: str
+    # The raw nonce; Apple was given its SHA-256.
+    nonce: str | None = None
+    # Apple shares the name only on the first authorization, to the app.
+    name: str | None = None
+    residence_country: str | None = None
+    accept_terms: bool | None = None
+
+
 class ForgotPasswordRequest(CamelModel):
     email: str
 

@@ -274,26 +274,6 @@ class AdminMerchantsListResponse(CamelModel):
     pagination: Pagination
 
 
-class AdminVirtualCardRow(CamelModel):
-    id: UUID
-    user_id: UUID
-    card_number: str
-    expiry_date: str
-    is_active: bool
-    created_at: JsDateTime
-    user: TransactionUserSummary
-
-    @field_validator("card_number", mode="before")
-    @classmethod
-    def _mask(cls, v: str) -> str:
-        return _mask_card_number(v)
-
-
-class AdminVirtualCardsListResponse(CamelModel):
-    virtual_cards: list[AdminVirtualCardRow]
-    pagination: Pagination
-
-
 class SavingsGroupRow(CamelModel):
     id: UUID
     title: str

@@ -72,11 +72,3 @@ class CreateChallengeRequest(CamelModel):
     completed: bool | None = None
 
 
-class VirtualCardResponse(CamelModel):
-    id: UUID
-    user_id: UUID
-    card_number: str
-    expiry_date: str
-    spending_limit: OptionalMoneyStr
-    is_active: bool
-    created_at: JsDateTime

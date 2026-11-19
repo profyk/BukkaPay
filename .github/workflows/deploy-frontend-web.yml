@@ -30,6 +30,11 @@ jobs:
         env:
           EXPO_NO_TELEMETRY: '1'
           CI: '1'
+          # Public OAuth client IDs (GitHub → Settings → Variables), baked into the web bundle.
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+          EXPO_PUBLIC_APPLE_SERVICES_ID: ${{ vars.EXPO_PUBLIC_APPLE_SERVICES_ID }}
 
       - name: Package for Vercel prebuilt deploy
         run: |

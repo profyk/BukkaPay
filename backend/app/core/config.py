@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     bank_partner_webhook_secret: str | None = Field(default=None, alias="BANK_PARTNER_WEBHOOK_SECRET")
     google_client_id: str | None = Field(default=None, alias="GOOGLE_CLIENT_ID")
     google_client_secret: str | None = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
+    # Extra Google OAuth client IDs accepted as token audience (comma-separated):
+    # the Android, iOS and web clients each sign tokens for their own ID.
+    google_client_ids: str | None = Field(default=None, alias="GOOGLE_CLIENT_IDS")
+    # Sign in with Apple audiences (comma-separated): the iOS bundle ID and
+    # the web Services ID.
+    apple_client_ids: str | None = Field(default=None, alias="APPLE_CLIENT_IDS")
 
     # Encryption / signing
     card_data_key: str | None = Field(default=None, alias="CARD_DATA_KEY")  # Fernet key

@@ -9,7 +9,6 @@ from app.models.contribution import ContributionGroup
 from app.models.enums import KycStatus
 from app.models.merchant import Merchant
 from app.models.user import User
-from app.models.virtual_card import VirtualCard
 
 PRICING_REDIS_KEY = "admin:pricing_config"
 
@@ -75,16 +74,6 @@ async def list_merchants(db: AsyncSession, *, page: int, limit: int) -> tuple[li
     )
     rows = (await db.execute(stmt)).all()
     total = (await db.execute(select(func.count()).select_from(Merchant))).scalar_one()
-    return rows, total
-
-
-async def list_virtual_cards(db: AsyncSession, *, page: int, limit: int) -> tuple[list[tuple[VirtualCard, User]], int]:
-    stmt = (
-        select(VirtualCard, User).join(User, VirtualCard.user_id == User.id)
-        .order_by(VirtualCard.created_at.desc()).limit(limit).offset((page - 1) * limit)
-    )
-    rows = (await db.execute(stmt)).all()
-    total = (await db.execute(select(func.count()).select_from(VirtualCard))).scalar_one()
     return rows, total
 
 

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { api, setToken } from "@/lib/api"
 import { Button, Field, Input, Notice } from "@/components/ui"
+import { SocialSignIn } from "@/components/social-sign-in"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -49,6 +50,7 @@ export default function LoginPage() {
             <p className="text-sm text-ink-muted mt-1">Use your BukkaPay account. Owners and invited staff use the same login.</p>
           </div>
           {error && <Notice tone="error">{error}</Notice>}
+          <SocialSignIn onSignedIn={() => router.replace("/businesses")} onError={setError} />
           <Field label="Email"><Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
           <Field label="Password"><Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>

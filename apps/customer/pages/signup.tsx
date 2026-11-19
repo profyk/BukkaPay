@@ -7,6 +7,7 @@ import { signup } from "../lib/auth";
 import { COUNTRY_CODES } from "../lib/countryData";
 import { fetchOperatingCountries, type PublicCountry } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
+import SocialSignIn from "../components/SocialSignIn";
 
 const logoImage = require("../assets/logo.png");
 
@@ -111,6 +112,18 @@ export default function Signup() {
 
         <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>Join BukkaPay and manage your finances</Text>
+
+        {/* A social sign-up still goes through KYC next, like an email sign-up. */}
+        <SocialSignIn
+          mode="signup"
+          onSignedIn={() => router.replace({ pathname: "/(auth)/kyc-verification" as any, params: returnTo ? { returnTo } : {} })}
+        />
+
+        <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 20 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          <Text style={{ paddingHorizontal: 12, color: colors.textMuted, fontSize: 14 }}>or sign up with email</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+        </View>
 
         <View style={styles.form}>
           <View style={styles.fieldGroup}>

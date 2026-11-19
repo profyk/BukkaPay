@@ -189,24 +189,36 @@ export async function biometricLogin(): Promise<any> {
   return login(email, password);
 }
 
-export async function signInWithGoogle(idToken: string, email?: string, name?: string) {
-  if (!idToken) throw new Error("Google sign-in requires a valid ID token");
+export type SocialProvider = "google" | "apple";
 
-  const res = await fetch(API_BASE + "/api/auth/google", {
+export type SocialSignInBody =
+  | { provider: "google"; idToken: string; name?: string }
+  | { provider: "apple"; identityToken: string; nonce: string; name?: string };
+
+export type SocialSignInResult = { status: "signed_in"; data: any } | { status: "needs_profile" };
+
+/** Exchange a Google or Apple ID token for a BukkaPay session. A brand-new
+ * account first needs a country of residence and accepted terms; the API
+ * answers 428 for that and the caller retries with `profile` filled in. */
+export async function socialSignIn(
+  body: SocialSignInBody,
+  profile?: { residenceCountry: string; acceptTerms: boolean },
+): Promise<SocialSignInResult> {
+  const { provider, ...rest } = body;
+  const res = await fetch(API_BASE + `/api/auth/${provider}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, email, name }),
+    body: JSON.stringify({ ...rest, ...(profile ?? {}) }),
   });
-
+  if (res.status === 428) return { status: "needs_profile" };
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Google sign-in failed");
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || `${provider === "google" ? "Google" : "Apple"} sign-in failed`);
   }
-
   const data = await res.json();
   await setAuthToken(data.token);
   await setCurrentUser(data.user);
-  return data;
+  return { status: "signed_in", data };
 }
 
 export async function requestOtp(email: string) {

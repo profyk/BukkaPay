@@ -24,6 +24,7 @@ dependencies = [
     "python-slugify>=8.0.4",
     "supabase>=2.9.0",
     "google-auth>=2.36.0",
+    "pyjwt[crypto]>=2.8.0",
 ]
 
 [project.optional-dependencies]

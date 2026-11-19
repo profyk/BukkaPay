@@ -7,7 +7,6 @@ from app.schemas.admin import (
     AdminClaimsListResponse,
     AdminMerchantsListResponse,
     AdminStatsResponse,
-    AdminVirtualCardsListResponse,
     AuditLogsResponse,
     PlatformWalletResponse,
     SavingsGroupsListResponse,
@@ -41,22 +40,6 @@ async def list_merchants(
     ]
     return AdminMerchantsListResponse.model_validate({
         "merchants": merchants,
-        "pagination": {"page": page, "limit": limit, "total": total, "pages": _pages(total, limit)},
-    })
-
-
-@router.get("/virtual-cards")
-async def list_virtual_cards(
-    page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=100),
-    _ctx: AdminContext = Depends(require("wallets.view")), db: AsyncSession = Depends(get_db),
-) -> AdminVirtualCardsListResponse:
-    rows, total = await svc.list_virtual_cards(db, page=page, limit=limit)
-    cards = [
-        {**{c.name: getattr(vc, c.name) for c in vc.__table__.columns}, "user": user}
-        for vc, user in rows
-    ]
-    return AdminVirtualCardsListResponse.model_validate({
-        "virtualCards": cards,
         "pagination": {"page": page, "limit": limit, "total": total, "pages": _pages(total, limit)},
     })
 

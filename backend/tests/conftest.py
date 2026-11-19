@@ -44,6 +44,18 @@ async def _create_schema():
 
     async with engine.begin() as conn:
         await seed_reference_data(conn)
+    from sqlalchemy import text
+
+    from app.db import rls
+
+    async with engine.begin() as conn:
+        # Same deny-by-default RLS as production (migration 0022).
+        await conn.execute(text(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+            "THEN CREATE ROLE anon NOLOGIN; END IF; END $$"
+        ))
+        await conn.execute(text(rls.FUNCTION))
+        await conn.execute(text(rls.ENABLE))
     yield
     await engine.dispose()
 

@@ -6,7 +6,17 @@ is unsafe, and the order of work. It is kept up to date as phases finish.
 
 ## Progress
 
-**Status 2026-11-16 (not yet committed).** Phases 2–7 are built. Phases 8–10 are partly done; the open items are listed below.
+**Status 2026-11-19.** Phases 2–7 are built. Phases 8–10 are partly done; the open items are listed below and in `docs/launch-checklist.md`.
+
+### Launch hardening pass (2026-11-19)
+
+- **Sign in with Google and Apple** at the top of the customer app's sign-in and sign-up screens and the merchant dashboard sign-in, in each brand's official button style. The API verifies the provider's signed ID token (signature, audience, issuer and, for Apple, a nonce) and uses only the provider's verified email. Apple's stable subject is stored (`users.apple_sub`), so customers who hide their email still get back into the same account. A new account answers 428 until the app has collected a country and accepted terms. Google sign-in also gained the frozen-account and closed-account checks that password login already had. New config: `GOOGLE_CLIENT_IDS`, `APPLE_CLIENT_IDS`, `EXPO_PUBLIC_GOOGLE_*`, `EXPO_PUBLIC_APPLE_SERVICES_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_APPLE_SERVICES_ID`.
+- **Row-level security** (migration `0022_rls`): RLS is enabled on every public table with no policies, so the Supabase `anon` and `authenticated` roles (the anon key ships in apps) can't read or write anything. The API runs as the table owner, which bypasses RLS. An event trigger covers tables added later, and the test suite runs with RLS on.
+- **Defect 10 closed** (migration `0021`): the locally generated card numbers and CVVs are wiped from `wallet_cards` and `virtual_cards`. The legacy `/api/virtual-cards` and `/api/admin/virtual-cards` endpoints and the worker job that re-encrypted those values are gone.
+- **Admin auth:** the master key is compared in constant time. Admin sign-in now needs an exact origin match: the old prefix match accepted `https://admin.bukkapay.com.attacker.example`, and any `*.vercel.app` or `*.netlify.app` origin passed too.
+- **Email codes (Supabase dashboard):** codes are now 6 digits, valid 10 minutes. They were 8 digits, which the app's 6-digit field could never accept. Branded code-only templates, production site URL and redirect allow-list are set. See `docs/launch-checklist.md`.
+- **Removed:** the voucher top-up screen; Replit leftovers in the admin workspace (mockup sandbox, unused Express proxy, unused generated API client, Drizzle schema, Replit plugins and config); unused customer screens and components; the customer app's unused Supabase client.
+- **Launch checklist:** `docs/launch-checklist.md` lists everything still open before the pilot.
 
 ### Cards: a Visa card on every wallet (2026-11-16)
 
@@ -63,7 +73,7 @@ is unsafe, and the order of work. It is kept up to date as phases finish.
 - Tests: `tests/test_ledger.py` (17 tests). Full suite: 89 passed, 1 pre-existing unrelated failure (`test_otp_request_and_verify_round_trip`).
 - Migration 0016 was rehearsed upgrade → downgrade → upgrade on a production-shaped 0015 database with live-like balances.
 
-Still open from 2a–2c: defect 10 (plaintext PAN/CVV); the community-contribution pledge counter (records contributions without moving money); PIN not required for withdrawals, merchant pay, travel or claims; the hard-coded `countries.py` directory; ledger reconciliation reports.
+Since closed: defect 10 (2026-11-19), PINs on withdrawals, merchant pay, travel and claims, the DB-backed country directory (`app/network/countries.py`), contributions moving real money through ledger escrow, and ledger reconciliation (`app/reconciliation/`).
 
 ## 1. Repository audit
 

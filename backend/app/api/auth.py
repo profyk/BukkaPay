@@ -1,19 +1,16 @@
-import secrets
 
 from fastapi import APIRouter, Depends, Header
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token as google_id_token
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
-from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.rate_limit import rate_limit
-from app.core.security import generate_wallet_id, hash_secret
 from app.db.deps import get_db
+from app.integrations import supabase_auth
 from app.models.user import User
 from app.schemas.user import (
+    AppleSignInRequest,
     AuthTokenResponse,
     ForgotPasswordRequest,
     GoogleSignInRequest,
@@ -30,8 +27,7 @@ from app.schemas.user import (
     UserProfilePayload,
     VerifyEmailRequest,
 )
-from app.integrations import supabase_auth
-from app.services import auth_service, pin_service
+from app.services import auth_service, pin_service, social_auth_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -63,64 +59,22 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthT
     )
 
 
-@router.post("/google")
+@router.post("/google", dependencies=[Depends(rate_limit("auth-social", 30, 900))])
 async def google_login(body: GoogleSignInRequest, db: AsyncSession = Depends(get_db)) -> AuthTokenResponse:
-    settings = get_settings()
-    if not settings.google_client_id:
-        raise ApiError("Google sign-in is not configured on this environment", status_code=503)
+    identity = social_auth_service.verify_google(body.id_token)
+    user = await social_auth_service.sign_in(
+        db, identity, name=body.name, residence_country=body.residence_country, accept_terms=body.accept_terms,
+    )
+    token, _ = await auth_service.create_session_for_user(db, user.id)
+    return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
 
-    try:
-        payload = google_id_token.verify_oauth2_token(
-            body.id_token,
-            google_requests.Request(),
-            settings.google_client_id,
-        )
-    except ValueError as exc:
-        raise ApiError("Invalid Google token", status_code=401) from exc
 
-    # Only Google's own, verified email identifies the account — never a
-    # client-supplied one.
-    email = (payload.get("email") or "").strip().lower()
-    if not email or payload.get("email_verified") is not True:
-        raise ApiError("Your Google account email is not verified", status_code=401)
-
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    if user is None:
-        from datetime import UTC, datetime
-
-        from app.network import countries as country_service
-
-        if not body.residence_country or not body.accept_terms:
-            raise ApiError("New accounts must choose a country and accept the terms", status_code=422)
-        country = await country_service.require_operating(db, body.residence_country)
-        username = email.split("@")[0]
-        safe_username = username
-        suffix = 1
-        while True:
-            existing = await db.execute(select(User).where(User.username == safe_username))
-            if existing.scalar_one_or_none() is None:
-                break
-            safe_username = f"{username}{suffix}"
-            suffix += 1
-
-        user = User(
-            name=(body.name or payload.get("name") or safe_username).strip(),
-            email=email,
-            username=safe_username,
-            password=hash_secret(secrets.token_urlsafe(32)),
-            phone=None,
-            country_code=country.dial_code,
-            residence_country=country.code,
-            terms_accepted_at=datetime.now(UTC),
-            kyc_level=1,
-            wallet_id=generate_wallet_id(),
-            verified=True,
-        )
-        db.add(user)
-        await db.flush()
-        await auth_service._issue_default_card(db, user, currency=country.default_currency)
-
+@router.post("/apple", dependencies=[Depends(rate_limit("auth-social", 30, 900))])
+async def apple_login(body: AppleSignInRequest, db: AsyncSession = Depends(get_db)) -> AuthTokenResponse:
+    identity = social_auth_service.verify_apple(body.identity_token, body.nonce)
+    user = await social_auth_service.sign_in(
+        db, identity, name=body.name, residence_country=body.residence_country, accept_terms=body.accept_terms,
+    )
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
 

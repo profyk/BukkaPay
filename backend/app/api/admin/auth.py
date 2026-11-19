@@ -1,3 +1,5 @@
+import hmac
+
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +12,6 @@ from app.api.admin.deps import (
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.db.deps import get_db
-from app.schemas.base import CamelModel
 from app.schemas.admin import (
     AdminLoginRequest,
     AdminLoginResponse,
@@ -20,6 +21,7 @@ from app.schemas.admin import (
     CreateAdminRequest,
     UpdateAdminRequest,
 )
+from app.schemas.base import CamelModel
 from app.services import admin_auth_service as svc
 
 router = APIRouter(tags=["admin-auth"])
@@ -33,7 +35,7 @@ async def setup(
     settings = get_settings()
     if not settings.admin_api_key:
         raise ApiError("ADMIN_API_KEY not configured", status_code=503)
-    if not x_admin_token or x_admin_token != settings.admin_api_key:
+    if not x_admin_token or not hmac.compare_digest(x_admin_token.encode(), settings.admin_api_key.encode()):
         raise ApiError("Invalid master key", status_code=401)
 
     admin = await svc.create_first_super_admin(db, email=body.email, name=body.name, password=body.password)

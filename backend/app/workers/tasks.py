@@ -213,42 +213,6 @@ async def expire_fx_quotes(ctx: dict) -> int:
         return result.rowcount or 0
 
 
-async def encrypt_legacy_card_data(ctx: dict) -> int:
-    """Re-encrypt PAN/CVV rows written before encryption at rest. Reads go
-    through EncryptedText (which decrypts or passes legacy plaintext through);
-    rewriting the value stores it encrypted."""
-    from sqlalchemy import text
-
-    from app.core import crypto
-
-    async with get_session_factory()() as db:
-        rows = (await db.execute(text(
-            "SELECT id, card_number, cvv FROM wallet_cards "
-            "WHERE card_number NOT LIKE 'enc:v1:%' OR (cvv IS NOT NULL AND cvv NOT LIKE 'enc:v1:%')"
-        ))).all()
-        for row in rows:
-            await db.execute(
-                text("UPDATE wallet_cards SET card_number = :pan, cvv = :cvv WHERE id = :id"),
-                {"id": row.id, "pan": crypto.encrypt(crypto.decrypt(row.card_number)),
-                 "cvv": crypto.encrypt(crypto.decrypt(row.cvv))},
-            )
-        vrows = (await db.execute(text(
-            "SELECT id, card_number, cvv FROM virtual_cards "
-            "WHERE card_number NOT LIKE 'enc:v1:%' OR (cvv IS NOT NULL AND cvv NOT LIKE 'enc:v1:%')"
-        ))).all()
-        for row in vrows:
-            await db.execute(
-                text("UPDATE virtual_cards SET card_number = :pan, cvv = :cvv WHERE id = :id"),
-                {"id": row.id, "pan": crypto.encrypt(crypto.decrypt(row.card_number)),
-                 "cvv": crypto.encrypt(crypto.decrypt(row.cvv))},
-            )
-        await db.commit()
-    count = len(rows) + len(vrows)
-    if count:
-        log.info("legacy_card_data_encrypted", count=count)
-    return count
-
-
 async def daily_reconciliation(ctx: dict) -> None:
     from app.reconciliation import engine
 

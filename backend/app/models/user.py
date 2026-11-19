@@ -51,6 +51,9 @@ class User(Base, CreatedOnlyMixin):
     transaction_pin: Mapped[str | None] = mapped_column(Text)
     pin_failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     pin_locked_until: Mapped[OptionalTimestamp]
+    # Stable Sign in with Apple subject; customers who hide their email get a
+    # relay address, so the subject is what identifies them on return.
+    apple_sub: Mapped[str | None] = mapped_column(String(255), unique=True)
 
 
 class UserSession(Base, CreatedOnlyMixin):
