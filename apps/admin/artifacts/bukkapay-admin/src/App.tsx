@@ -58,6 +58,7 @@ import NetworkCorridorsPage from "@/pages/network-corridors"
 import TravelOperatorsPage from "@/pages/travel-operators"
 import TravelRoutesPage from "@/pages/travel-routes"
 import SupportChatPage from "@/pages/support-chat"
+import AcceptInvitePage from "@/pages/accept-invite"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -74,6 +75,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login"          component={Login} />
+      <Route path="/accept-invite"  component={AcceptInvitePage} />
       <Route path="/"               component={DashboardPage} />
       <Route path="/users"          component={UsersPage} />
       <Route path="/transactions"   component={TransactionsPage} />

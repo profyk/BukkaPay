@@ -202,7 +202,7 @@ export type SocialSignInResult = { status: "signed_in"; data: any } | { status: 
  * answers 428 for that and the caller retries with `profile` filled in. */
 export async function socialSignIn(
   body: SocialSignInBody,
-  profile?: { residenceCountry: string; acceptTerms: boolean },
+  profile?: { residenceCountry: string; acceptTerms: boolean; username: string; phone: string },
 ): Promise<SocialSignInResult> {
   const { provider, ...rest } = body;
   const res = await fetch(API_BASE + `/api/auth/${provider}`, {

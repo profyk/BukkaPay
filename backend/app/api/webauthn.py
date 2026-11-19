@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
 from app.core.errors import ApiError
+from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
 from app.schemas.webauthn import (
     AuthenticationOptionsRequest,
@@ -28,12 +29,12 @@ async def register_verify(
     return SuccessResponse.model_validate({"success": True, "message": "Biometric credential registered successfully"})
 
 
-@router.post("/authenticate/options")
+@router.post("/authenticate/options", dependencies=[Depends(rate_limit("webauthn-auth", 30, 900))])
 async def authenticate_options(body: AuthenticationOptionsRequest, db: AsyncSession = Depends(get_db)) -> dict:
     return await svc.generate_authentication_options_for_email(db, body.email)
 
 
-@router.post("/authenticate/verify")
+@router.post("/authenticate/verify", dependencies=[Depends(rate_limit("webauthn-auth", 30, 900))])
 async def authenticate_verify(body: dict = Body(...), db: AsyncSession = Depends(get_db)) -> AuthenticationVerifyResponse:
     response = body.get("response")
     user_id_str = body.get("userId")

@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.admin.deps import require
 from app.api.deps import get_current_user_id
 from app.core.errors import ApiError
+from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
 from app.schemas.claim_payment import (
     ClaimBankRequest,
+    ClaimCashRequest,
     ClaimCashResponse,
     ClaimPaymentMineResponse,
     ClaimPaymentPublicResponse,
@@ -59,7 +62,7 @@ async def cancel_claim(
     return {"success": True, "message": "Claim cancelled and refunded"}
 
 
-@router.get("/claim-payments/{claim_id}/public")
+@router.get("/claim-payments/{claim_id}/public", dependencies=[Depends(rate_limit("claim-public", 60, 900))])
 async def get_claim_public(claim_id: str, db: AsyncSession = Depends(get_db)) -> ClaimPaymentPublicResponse:
     claim = await svc.get_claim(db, claim_id)
     if claim is None:
@@ -68,7 +71,7 @@ async def get_claim_public(claim_id: str, db: AsyncSession = Depends(get_db)) ->
     return ClaimPaymentPublicResponse.model_validate(claim)
 
 
-@router.post("/claim-payments/{claim_id}/verify-pin")
+@router.post("/claim-payments/{claim_id}/verify-pin", dependencies=[Depends(rate_limit("claim-public", 60, 900))])
 async def verify_pin(claim_id: str, body: VerifyPinRequest, db: AsyncSession = Depends(get_db)) -> dict:
     claim = await svc.get_claim(db, claim_id)
     if claim is None:
@@ -77,39 +80,40 @@ async def verify_pin(claim_id: str, body: VerifyPinRequest, db: AsyncSession = D
     return {"success": True, "message": "PIN verified"}
 
 
-@router.post("/claim-payments/{claim_id}/claim-bank")
+@router.post("/claim-payments/{claim_id}/claim-bank", dependencies=[Depends(rate_limit("claim-public", 60, 900))])
 async def claim_bank(claim_id: str, body: ClaimBankRequest, db: AsyncSession = Depends(get_db)) -> dict:
     claim = await svc.get_claim(db, claim_id)
     if claim is None:
         raise ApiError("Claim not found", status_code=404)
     message = await svc.claim_via_bank(
-        db, claim, account_name=body.account_name, bank_name=body.bank_name,
+        db, claim, pin=body.pin, account_name=body.account_name, bank_name=body.bank_name,
         account_number=body.account_number, branch_code=body.branch_code,
     )
     return {"success": True, "message": message}
 
 
-@router.post("/claim-payments/{claim_id}/claim-wallet")
+@router.post("/claim-payments/{claim_id}/claim-wallet", dependencies=[Depends(rate_limit("claim-public", 60, 900))])
 async def claim_wallet(claim_id: str, body: ClaimWalletRequest, db: AsyncSession = Depends(get_db)) -> dict:
     claim = await svc.get_claim(db, claim_id)
     if claim is None:
         raise ApiError("Claim not found", status_code=404)
-    message = await svc.claim_via_wallet(db, claim, email=body.email)
+    message = await svc.claim_via_wallet(db, claim, pin=body.pin, email=body.email)
     return {"success": True, "message": message}
 
 
-@router.post("/claim-payments/{claim_id}/claim-cash")
-async def claim_cash(claim_id: str, db: AsyncSession = Depends(get_db)) -> ClaimCashResponse:
+@router.post("/claim-payments/{claim_id}/claim-cash", dependencies=[Depends(rate_limit("claim-public", 60, 900))])
+async def claim_cash(claim_id: str, body: ClaimCashRequest, db: AsyncSession = Depends(get_db)) -> ClaimCashResponse:
     claim = await svc.get_claim(db, claim_id)
     if claim is None:
         raise ApiError("Claim not found", status_code=404)
-    pickup_code = await svc.claim_via_cash(db, claim)
+    pickup_code = await svc.claim_via_cash(db, claim, pin=body.pin)
     return ClaimCashResponse.model_validate({
         "success": True, "pickupCode": pickup_code, "amount": claim.amount, "currency": claim.currency,
     })
 
 
-@router.post("/pickup/claim")
+# Confirming a cash hand-over is a staff action: an admin with users.manage.
+@router.post("/pickup/claim", dependencies=[Depends(require("users.manage"))])
 async def pickup_claim(body: PickupClaimRequest, db: AsyncSession = Depends(get_db)) -> PickupClaimResponse:
     claim = await svc.redeem_pickup_code(db, body.pickup_code)
     return PickupClaimResponse.model_validate({

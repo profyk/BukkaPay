@@ -11,14 +11,20 @@ from app.api.admin.deps import (
 )
 from app.core.config import get_settings
 from app.core.errors import ApiError
+from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
 from app.schemas.admin import (
+    AcceptInviteRequest,
+    AdminInviteResponse,
     AdminLoginRequest,
     AdminLoginResponse,
     AdminMeResponse,
     AdminSetupRequest,
     AdminUserResponse,
     CreateAdminRequest,
+    CreateInviteRequest,
+    InviteLinkResponse,
+    PublicInviteResponse,
     UpdateAdminRequest,
 )
 from app.schemas.base import CamelModel
@@ -27,7 +33,7 @@ from app.services import admin_auth_service as svc
 router = APIRouter(tags=["admin-auth"])
 
 
-@router.post("/setup", status_code=201)
+@router.post("/setup", status_code=201, dependencies=[Depends(rate_limit("admin-setup", 5, 3600))])
 async def setup(
     body: AdminSetupRequest, x_admin_token: str | None = Header(default=None, alias="x-admin-token"),
     db: AsyncSession = Depends(get_db),
@@ -42,7 +48,7 @@ async def setup(
     return {"message": "Super admin created successfully", "admin": AdminUserResponse.model_validate(admin).model_dump(by_alias=True, mode="json")}
 
 
-@router.post("/auth/login")
+@router.post("/auth/login", dependencies=[Depends(rate_limit("admin-login", 10, 900))])
 async def login(body: AdminLoginRequest, request: Request, db: AsyncSession = Depends(get_db)) -> AdminLoginResponse:
     if not is_allowed_admin_origin(request):
         raise ApiError("Admin login is only available from admin.bukkapay.com", status_code=403)
@@ -130,3 +136,75 @@ async def delete_admin(
 ) -> dict:
     admin = await svc.delete_admin(db, admin_id)
     return {"success": True, "message": f"Admin {admin.email} deleted"}
+
+
+# ─── Invitations ────────────────────────────────────────────────────────────
+
+
+def _invite_out(invite) -> AdminInviteResponse:
+    return AdminInviteResponse.model_validate({
+        "id": invite.id, "email": invite.email, "name": invite.name, "role": str(invite.role),
+        "status": svc.invite_status(invite), "expiresAt": invite.expires_at, "createdAt": invite.created_at,
+    })
+
+
+@router.get("/invites")
+async def list_invites(
+    _ctx: AdminContext = Depends(require("admins.manage")), db: AsyncSession = Depends(get_db),
+) -> list[AdminInviteResponse]:
+    return [_invite_out(i) for i in await svc.list_invites(db)]
+
+
+@router.post("/invites", status_code=201)
+async def create_invite(
+    body: CreateInviteRequest, ctx: AdminContext = Depends(require("admins.manage")),
+    db: AsyncSession = Depends(get_db),
+) -> InviteLinkResponse:
+    invite, link, sent = await svc.create_invite(
+        db, email=body.email, name=body.name, role=body.role, invited_by=ctx.admin,
+    )
+    return InviteLinkResponse.model_validate({"invite": _invite_out(invite), "link": link, "emailSent": sent})
+
+
+@router.post("/invites/{invite_id}/resend")
+async def resend_invite(
+    invite_id: str, ctx: AdminContext = Depends(require("admins.manage")), db: AsyncSession = Depends(get_db),
+) -> InviteLinkResponse:
+    invite, link, sent = await svc.resend_invite(db, invite_id, by=ctx.admin)
+    return InviteLinkResponse.model_validate({"invite": _invite_out(invite), "link": link, "emailSent": sent})
+
+
+@router.delete("/invites/{invite_id}")
+async def revoke_invite(
+    invite_id: str, _ctx: AdminContext = Depends(require("admins.manage")), db: AsyncSession = Depends(get_db),
+) -> AdminInviteResponse:
+    return _invite_out(await svc.revoke_invite(db, invite_id))
+
+
+# Public: the invited person opens the emailed link (no session yet).
+
+
+@router.get("/invitations/{token}", dependencies=[Depends(rate_limit("admin-invite", 30, 900))])
+async def view_invitation(token: str, db: AsyncSession = Depends(get_db)) -> PublicInviteResponse:
+    from app.governance.permissions import ROLE_LABELS
+
+    invite = await svc.invite_for_token(db, token)
+    return PublicInviteResponse.model_validate({
+        "email": invite.email, "name": invite.name, "role": str(invite.role),
+        "roleLabel": ROLE_LABELS.get(str(invite.role), str(invite.role)), "expiresAt": invite.expires_at,
+    })
+
+
+@router.post("/invitations/{token}/mfa", dependencies=[Depends(rate_limit("admin-invite", 30, 900))])
+async def invitation_mfa(token: str, db: AsyncSession = Depends(get_db)) -> dict:
+    data = await svc.start_invite_mfa(db, token)
+    return {"secret": data["secret"], "otpauthUri": data["otpauth_uri"]}
+
+
+@router.post("/invitations/{token}/accept", status_code=201,
+             dependencies=[Depends(rate_limit("admin-invite", 30, 900))])
+async def accept_invitation(
+    token: str, body: AcceptInviteRequest, db: AsyncSession = Depends(get_db),
+) -> AdminUserResponse:
+    admin = await svc.accept_invite(db, token=token, password=body.password, name=body.name, otp=body.otp)
+    return AdminUserResponse.model_validate(admin)

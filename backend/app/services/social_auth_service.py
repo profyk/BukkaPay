@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -115,6 +116,7 @@ def identity_from_apple_claims(payload: dict, raw_nonce: str | None) -> Verified
 async def sign_in(
     db: AsyncSession, identity: VerifiedIdentity, *, name: str | None,
     residence_country: str | None, accept_terms: bool | None,
+    username: str | None = None, phone: str | None = None,
 ) -> User:
     user: User | None = None
     if identity.provider == "apple":
@@ -132,10 +134,13 @@ async def sign_in(
             # missing one here means the customer must sign in another way once.
             raise ApiError("Apple didn't share an email. Sign up with email first, then link Apple.",
                            status_code=400)
-        if not residence_country or not accept_terms:
-            raise ApiError("New accounts must choose a country and accept the terms",
+        username = (username or "").strip().lstrip("@")
+        phone = normalize_phone(phone)
+        if not residence_country or not accept_terms or not username or not phone:
+            raise ApiError("New accounts must choose a username, phone number and country, and accept the terms",
                            status_code=NEEDS_PROFILE_STATUS)
-        user = await _create(db, identity, name=name, residence_country=residence_country)
+        user = await _create(db, identity, name=name, residence_country=residence_country,
+                             username=username, phone=phone)
 
     if user.deleted_at is not None:
         raise ApiError("This account has been closed", status_code=403)
@@ -149,22 +154,25 @@ async def sign_in(
     return user
 
 
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._]{3,30}$")
+
+
+def normalize_phone(phone: str | None) -> str | None:
+    """Digits only (a leading + is dropped); None when blank or implausible."""
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    return digits if 6 <= len(digits) <= 15 else None
+
+
 async def _create(db: AsyncSession, identity: VerifiedIdentity, *, name: str | None,
-                  residence_country: str) -> User:
+                  residence_country: str, username: str, phone: str) -> User:
     from app.network import countries as country_service
     from app.services.auth_service import _issue_default_card
 
     country = await country_service.require_operating(db, residence_country, what="BukkaPay")
-    base = "".join(ch for ch in identity.email.split("@")[0].lower() if ch.isalnum() or ch in "._")[:24] or "user"
-    username = base
-    for _ in range(20):
-        taken = (await db.execute(select(User.id).where(User.username == username))).first()
-        if taken is None:
-            break
-        username = f"{base}{secrets.randbelow(10_000)}"
-    else:
-        username = f"{base}{secrets.token_hex(4)}"
-
+    if not USERNAME_RE.match(username):
+        raise ApiError("Usernames are 3-30 letters, numbers, dots or underscores")
+    if (await db.execute(select(User.id).where(User.username == username))).first() is not None:
+        raise ApiError("Username already taken")
     user = User(
         name=((name or identity.name or "").strip() or username)[:120],
         email=identity.email,
@@ -172,7 +180,7 @@ async def _create(db: AsyncSession, identity: VerifiedIdentity, *, name: str | N
         # No usable password: social accounts sign in through the provider
         # (or set a password later through "forgot password").
         password=hash_secret(secrets.token_urlsafe(32)),
-        phone=None,
+        phone=phone,
         country_code=country.dial_code,
         residence_country=country.code,
         terms_accepted_at=datetime.now(UTC),

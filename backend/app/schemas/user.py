@@ -95,6 +95,8 @@ class GoogleSignInRequest(CamelModel):
     # Required the first time (account creation), ignored afterwards.
     residence_country: str | None = None
     accept_terms: bool | None = None
+    username: str | None = None
+    phone: str | None = None
 
 
 class AppleSignInRequest(CamelModel):
@@ -105,6 +107,8 @@ class AppleSignInRequest(CamelModel):
     name: str | None = None
     residence_country: str | None = None
     accept_terms: bool | None = None
+    username: str | None = None
+    phone: str | None = None
 
 
 class ForgotPasswordRequest(CamelModel):

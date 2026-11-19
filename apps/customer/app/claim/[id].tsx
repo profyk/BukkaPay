@@ -108,7 +108,7 @@ export default function ClaimPage() {
       const res = await fetch(`${API_BASE}/api/claim-payments/${id}/claim-bank`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountName, bankName, accountNumber, branchCode }),
+        body: JSON.stringify({ pin, accountName, bankName, accountNumber, branchCode }),
       });
       const data = await res.json();
       if (!res.ok) { setInlineError(data.error || "Failed to submit bank details."); return; }
@@ -128,6 +128,7 @@ export default function ClaimPage() {
       const res = await fetch(`${API_BASE}/api/claim-payments/${id}/claim-cash`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
       });
       const data = await res.json();
       if (!res.ok) { setInlineError(data.error || "Failed to generate pickup code."); return; }
@@ -145,9 +146,12 @@ export default function ClaimPage() {
     setSubmitting(true);
     try {
       const headers = await getAuthHeader();
+      const me = await getCurrentUser();
+      if (!me?.email) { setInlineError("Sign in to your BukkaPay account first."); return; }
       const res = await fetch(`${API_BASE}/api/claim-payments/${id}/claim-wallet`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ pin, email: me.email }),
       });
       const data = await res.json();
       if (!res.ok) { setInlineError(data.error || "Wallet claim failed."); return; }

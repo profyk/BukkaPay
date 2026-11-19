@@ -196,20 +196,28 @@ async def verify_pin(db: AsyncSession, claim: ClaimPayment, pin: str) -> None:
     if claim.attempts >= MAX_PIN_ATTEMPTS:
         raise ApiError("Too many attempts. Contact the sender.", status_code=429)
 
-    valid, _ = verify_secret(pin, claim.pin_hash)
+    valid, _ = verify_secret(pin or "", claim.pin_hash)
     if not valid:
         claim.attempts += 1
-        await db.flush()
+        await db.commit()  # keep the failed attempt even though the request errors
         remaining = MAX_PIN_ATTEMPTS - claim.attempts
         raise ApiError(f"Incorrect PIN. {remaining} attempt(s) remaining.", status_code=401)
 
 
-async def claim_via_bank(
-    db: AsyncSession, claim: ClaimPayment, *, account_name: str, bank_name: str,
-    account_number: str, branch_code: str | None,
-) -> str:
+async def _authorize_payout(db: AsyncSession, claim: ClaimPayment, pin: str) -> ClaimPayment:
+    """Lock the claim, then require it to be live and the PIN to be right —
+    in the same transaction that pays out, so the PIN can't be skipped."""
     claim = await _lock_claim(db, claim.id)
     ensure_claimable(claim)
+    await verify_pin(db, claim, pin)
+    return claim
+
+
+async def claim_via_bank(
+    db: AsyncSession, claim: ClaimPayment, *, pin: str, account_name: str, bank_name: str,
+    account_number: str, branch_code: str | None,
+) -> str:
+    claim = await _authorize_payout(db, claim, pin)
     # No automatic bank payout exists for claims yet: the money moves to the
     # pending-payouts account, where operations pays it out and reconciles.
     await _release_escrow(
@@ -227,16 +235,13 @@ async def claim_via_bank(
     return f"R{claim.amount} will be transferred to your {bank_name} account within 1–2 business days."
 
 
-async def claim_via_wallet(db: AsyncSession, claim: ClaimPayment, *, email: str) -> str:
-    ensure_claimable(claim)
+async def claim_via_wallet(db: AsyncSession, claim: ClaimPayment, *, pin: str, email: str) -> str:
+    claim = await _authorize_payout(db, claim, pin)
 
-    receiver_result = await db.execute(select(User).where(User.email == email))
+    receiver_result = await db.execute(select(User).where(User.email == (email or "").strip().lower()))
     receiver = receiver_result.scalar_one_or_none()
     if receiver is None:
         raise ApiError("No BukkaPay account found for this email. Please sign up first.", status_code=404)
-
-    claim = await _lock_claim(db, claim.id)
-    ensure_claimable(claim)
     from app.services.wallet_service import get_or_create_currency_card
 
     card = await get_or_create_currency_card(db, receiver.id, claim.currency)
@@ -255,8 +260,8 @@ async def claim_via_wallet(db: AsyncSession, claim: ClaimPayment, *, email: str)
     return f"R{claim.amount} has been added to your BukkaPay wallet!"
 
 
-async def claim_via_cash(db: AsyncSession, claim: ClaimPayment) -> str:
-    ensure_claimable(claim)
+async def claim_via_cash(db: AsyncSession, claim: ClaimPayment, *, pin: str) -> str:
+    claim = await _authorize_payout(db, claim, pin)
     if claim.pickup_code:
         return claim.pickup_code
 

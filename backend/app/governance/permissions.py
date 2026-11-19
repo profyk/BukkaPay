@@ -34,6 +34,13 @@ ALL_PERMISSIONS = {
 
 _VIEW_ALL = {p for p in ALL_PERMISSIONS if p.endswith(".view")}
 
+ROLE_LABELS: dict[str, str] = {
+    "super_admin": "Super Admin", "ceo": "CEO", "admin": "Admin", "finance_admin": "Finance Admin",
+    "compliance_officer": "Compliance Officer", "operations_admin": "Operations Admin",
+    "customer_support": "Customer Support", "merchant_support": "Merchant Support",
+    "technical_admin": "Technical Admin", "auditor": "Auditor",
+}
+
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "super_admin": set(ALL_PERMISSIONS),
     "ceo": _VIEW_ALL | {"approvals.decide"},

@@ -3,7 +3,7 @@ Alembic autogenerate/FK resolution, so everything is re-exported here.
 """
 
 from app.ledger.ddl import register_create_all_hooks
-from app.models.admin import AdminSession, AdminUser
+from app.models.admin import AdminInvite, AdminSession, AdminUser
 from app.models.cards import CardAuthorization, CardClearing, CardWalletToken, IssuedCard
 from app.models.chat import ChatMessage
 from app.models.claim_payment import ClaimPayment
@@ -110,6 +110,7 @@ __all__ = [
     "Achievement",
     "AdminSession",
     "AdminUser",
+    "AdminInvite",
     "AutoPay",
     "Beneficiary",
     "BillingLink",

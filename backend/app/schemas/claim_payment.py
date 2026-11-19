@@ -57,6 +57,7 @@ class VerifyPinRequest(CamelModel):
 
 
 class ClaimBankRequest(CamelModel):
+    pin: str
     account_name: str
     bank_name: str
     account_number: str
@@ -64,7 +65,12 @@ class ClaimBankRequest(CamelModel):
 
 
 class ClaimWalletRequest(CamelModel):
+    pin: str
     email: str
+
+
+class ClaimCashRequest(CamelModel):
+    pin: str
 
 
 class ClaimCashResponse(CamelModel):

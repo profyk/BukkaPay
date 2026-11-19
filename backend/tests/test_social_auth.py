@@ -44,14 +44,22 @@ async def test_apple_new_account_needs_country_then_signs_in(client: AsyncClient
     r = await client.post("/api/auth/apple", json={"identityToken": token, "nonce": "n0nce"})
     assert r.status_code == 428, r.text
 
+    # Country and terms alone are not enough: username and phone are required too.
+    r = await client.post("/api/auth/apple", json={
+        "identityToken": token, "nonce": "n0nce", "residenceCountry": "ZA", "acceptTerms": True})
+    assert r.status_code == 428, r.text
+
+    username = unique_username()
     r = await client.post("/api/auth/apple", json={
         "identityToken": token, "nonce": "n0nce", "name": "Ama Mensah",
-        "residenceCountry": "ZA", "acceptTerms": True,
+        "residenceCountry": "ZA", "acceptTerms": True, "username": username, "phone": "082 123 4567",
     })
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["user"]["email"] == email
     assert body["user"]["name"] == "Ama Mensah"
+    assert body["user"]["username"] == username
+    assert body["user"]["phone"] == "0821234567"
 
     # Returning without an email (Apple only sends it once): matched by subject.
     r = await client.post("/api/auth/apple", json={
@@ -92,6 +100,23 @@ async def test_apple_rejects_wrong_nonce(client: AsyncClient):
     r = await client.post("/api/auth/apple", json={"identityToken": token, "nonce": "different",
                                                    "residenceCountry": "ZA", "acceptTerms": True})
     assert r.status_code == 401
+
+
+async def test_google_new_account_rejects_taken_or_invalid_username(client: AsyncClient, monkeypatch):
+    taken = unique_username()
+    r = await client.post("/api/auth/signup", json={
+        "name": "Taken", "email": unique_email(), "username": taken, "password": "password123",
+        "residenceCountry": "ZA", "acceptTerms": True})
+    assert r.status_code == 201
+    monkeypatch.setattr(social, "verify_google",
+                        lambda _t: social.VerifiedIdentity("google", "g-new", unique_email(), "New Person"))
+    base = {"idToken": "x", "residenceCountry": "ZA", "acceptTerms": True, "phone": "0821234567"}
+    r = await client.post("/api/auth/google", json={**base, "username": taken})
+    assert r.status_code == 400 and "taken" in r.json()["error"]
+    r = await client.post("/api/auth/google", json={**base, "username": "no spaces!"})
+    assert r.status_code == 400
+    r = await client.post("/api/auth/google", json={**base, "username": unique_username(), "phone": "12"})
+    assert r.status_code == 428
 
 
 async def test_google_frozen_account_refused(client: AsyncClient, monkeypatch):

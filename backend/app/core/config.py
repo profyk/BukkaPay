@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     sandbox_settlement_delay_seconds: int = Field(default=5, alias="SANDBOX_SETTLEMENT_DELAY_SECONDS")
     public_web_url: str = Field(default="http://localhost:3000", alias="PUBLIC_WEB_URL")
     merchant_web_url: str = Field(default="http://localhost:3001", alias="MERCHANT_WEB_URL")
+    # Admin panel origin, used in admin invitation links.
+    admin_web_url: str = Field(default="https://admin.bukkapay.com", alias="ADMIN_WEB_URL")
 
     # CORS
     allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")

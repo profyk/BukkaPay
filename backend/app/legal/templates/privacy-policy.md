@@ -10,7 +10,7 @@ This policy explains what personal information we collect when you use the Bukka
 
 **Information you give us**
 
-- **Identity and contact details:** name, date of birth, ID or passport number, nationality, phone number, email address and home address.
+- **Identity and contact details:** name, username, date of birth, ID or passport number, nationality, phone number, email address and home address.
 - **Verification information:** photos of your identity document, a selfie or liveness check, proof of address and, for businesses, company registration documents, directors' and owners' details.
 - **Financial information:** your balances, payments, payment links, invoices, contributions, withdrawals, beneficiaries and verified bank account details.
 - **Communications:** messages you send us, support chats, complaints and survey answers.
@@ -35,7 +35,9 @@ If you choose "Sign in with Google", BukkaPay asks Google only for the basic sig
 
 - **What we access:** your name, email address, whether Google has verified that email address, your profile picture (if you have one) and a Google account identifier.
 - **How we use it:** only to create your BukkaPay account or sign you in to it, to pre-fill your name and email, and to keep your account secure. We do not use Google user data for advertising, and we do not use it to build or train artificial intelligence or machine-learning models.
-- **How we store it:** with your other account information in our access-controlled, encrypted database. We never receive or store your Google password.
+- **What we ask you for in addition:** when you create an account with Google we also ask you to choose a username, enter your phone number and choose your country of residence. This information comes from you, not from Google.
+- **How we store it:** with your other account information in our access-controlled database, encrypted in transit (TLS) and at rest, hosted by our cloud providers. Only staff who need it to support your account can see it, and staff actions on customer accounts are recorded in an audit log. We never receive or store your Google password, and we do not keep Google access or refresh tokens: we check Google's signed ID token once, when you sign in, and then discard it.
+- **How long we keep it:** for as long as your BukkaPay account is open. When you close your account we delete or de-identify your Google account identifier and profile picture within 30 days; your name and email address are kept only as part of the identity and transaction records the law requires us to keep (see section 8).
 - **Who we share it with:** we do not sell Google user data or share it with third parties, except with the technology providers that host our systems (listed in section 6) to run the Services, or where the law requires it.
 - **How to remove it:** you can disconnect BukkaPay at any time from your Google Account at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), and ask us to delete your account information by emailing {{privacy_email}}. Records we must keep by law are retained as described in section 8.
 
@@ -106,7 +108,16 @@ Depending on the law that applies to you, you may have the right to:
 - receive certain information in a portable format;
 - lodge a complaint with a data protection regulator, such as the Information Regulator in South Africa, the Nigeria Data Protection Commission or the Office of the Data Protection Commissioner in Kenya.
 
-To exercise a right, email {{privacy_email}} or use the request process in our [PAIA and POPIA Manual](/legal/paia-manual). We will need to verify your identity, and we will respond within the time the law requires.
+To exercise a right, email {{privacy_email}} or use the request process in our [PAIA and POPIA Manual](/legal/paia-manual). We will need to verify your identity, and we will respond within the time the law requires — and in any case within 30 days.
+
+**Deleting your account and your data**
+
+1. Withdraw or transfer any remaining balance, because a closed account cannot hold money.
+2. Email {{privacy_email}} from the email address on your BukkaPay account with the subject "Delete my account".
+3. We confirm the request, close the account and stop using your information for any purpose other than the legal record-keeping described in section 8.
+4. Within 30 days we delete your profile, contacts, preferences, device information and any data received from Google or Apple. Identity verification and transaction records are kept, securely and with restricted access, for the period the law requires and then deleted.
+
+You can also disconnect Google from BukkaPay at any time at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), and Apple at Settings → your name → Sign in with Apple on your Apple device.
 
 ## 11. Children
 

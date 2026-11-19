@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id, get_optional_user_id
+from app.api.deps import get_current_user_id
 from app.core.errors import ApiError
 from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
@@ -135,12 +135,12 @@ async def download_invoice_pdf(link_id: str, db: AsyncSession = Depends(get_db))
 
 @router.get("/payment-links/{link_id}/payments")
 async def list_link_payments(
-    link_id: str, user_id=Depends(get_optional_user_id), db: AsyncSession = Depends(get_db)
+    link_id: str, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> list[InvoicePaymentResponse]:
     link = await payment_link_service.get_payment_link(db, link_id)
     if link is None:
         raise ApiError("Payment link not found", status_code=404)
-    if user_id and link.sender_id != user_id:
+    if link.sender_id != user_id:
         raise ApiError("Access denied", status_code=403)
     payments = await payment_link_service.get_payments_by_link(db, link.id)
     return [InvoicePaymentResponse.model_validate(p) for p in payments]

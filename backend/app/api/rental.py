@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
 from app.core.errors import ApiError
+from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
 from app.schemas.rental import (
     CreatePropertyRequest,
@@ -106,7 +107,7 @@ async def create_tenant(
     return TenantResponse.model_validate(tenant)
 
 
-@router.get("/tenant-lookup/{tenant_code}")
+@router.get("/tenant-lookup/{tenant_code}", dependencies=[Depends(rate_limit("tenant-lookup", 30, 900))])
 async def tenant_lookup(tenant_code: str, db: AsyncSession = Depends(get_db)) -> TenantLookupResponse:
     tenant = await rental_service.get_tenant_by_tenant_code(db, tenant_code)
     if tenant is None:

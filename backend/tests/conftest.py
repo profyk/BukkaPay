@@ -56,6 +56,14 @@ async def _create_schema():
         ))
         await conn.execute(text(rls.FUNCTION))
         await conn.execute(text(rls.ENABLE))
+        # Same sole-super-admin guard as production (migration 0024).
+        from app.db import admin_guard
+
+        await conn.execute(text(admin_guard.SINGLE_SUPER_ADMIN_INDEX))
+        await conn.execute(text(admin_guard.FUNCTION))
+        await conn.execute(text(admin_guard.DROP_TRIGGER))
+        await conn.execute(text(admin_guard.TRIGGER))
+        await conn.execute(text(admin_guard.INVITES_NOT_SUPER))
     yield
     await engine.dispose()
 
@@ -149,7 +157,7 @@ async def other_user(client: AsyncClient) -> dict:
     return {"token": body["token"], "user": body["user"], "headers": headers}
 
 
-SUPER_ADMIN_EMAIL = "super-admin@example.com"
+SUPER_ADMIN_EMAIL = "profykersha18@gmail.com"  # the platform owner (sole super admin)
 SUPER_ADMIN_PASSWORD = "password123"
 
 

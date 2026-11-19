@@ -16,7 +16,7 @@
  * Apple on iOS needs only the "Sign in with Apple" capability.
  */
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -145,9 +145,9 @@ export default function SocialSignIn({ onSignedIn, mode = "signin" }: Props) {
       <CompleteProfileSheet
         visible={pending !== null}
         onCancel={() => setPending(null)}
-        onSubmit={async (residenceCountry) => {
+        onSubmit={async ({ residenceCountry, username, phone }) => {
           if (!pending) return;
-          const result = await socialSignIn(pending, { residenceCountry, acceptTerms: true });
+          const result = await socialSignIn(pending, { residenceCountry, acceptTerms: true, username, phone });
           if (result.status === "signed_in") {
             setPending(null);
             onSignedIn();
@@ -257,14 +257,21 @@ async function appleWebSignIn(hashedNonce: string): Promise<{ idToken: string; n
 }
 
 function CompleteProfileSheet({ visible, onCancel, onSubmit }: {
-  visible: boolean; onCancel: () => void; onSubmit: (country: string) => Promise<void>;
+  visible: boolean; onCancel: () => void;
+  onSubmit: (profile: { residenceCountry: string; username: string; phone: string }) => Promise<void>;
 }) {
   const { colors } = useTheme();
   const { toast } = useToast();
   const [countries, setCountries] = useState<PublicCountry[]>([]);
   const [country, setCountry] = useState<string | null>(null);
+  const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const usernameOk = /^[A-Za-z0-9._]{3,30}$/.test(username.trim().replace(/^@/, ""));
+  const phoneOk = phone.replace(/\D/g, "").length >= 6;
+  const ready = !!country && accepted && usernameOk && phoneOk;
+  const dial = countries.find((c) => c.code === country)?.dialCode;
 
   useEffect(() => {
     if (!visible) return;
@@ -274,10 +281,10 @@ function CompleteProfileSheet({ visible, onCancel, onSubmit }: {
   }, [visible]);
 
   const submit = async () => {
-    if (!country || !accepted) return;
+    if (!ready || !country) return;
     setSaving(true);
     try {
-      await onSubmit(country);
+      await onSubmit({ residenceCountry: country, username: username.trim().replace(/^@/, ""), phone });
     } catch (e: any) {
       toast({ title: "Couldn't create your account", description: e?.message, variant: "destructive" });
     } finally {
@@ -290,8 +297,35 @@ function CompleteProfileSheet({ visible, onCancel, onSubmit }: {
       <Pressable style={styles.backdrop} onPress={onCancel} />
       <View style={[styles.sheet, { backgroundColor: colors.card }]}>
         <Text style={[styles.sheetTitle, { color: colors.text }]}>One last step</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Username</Text>
+        <TextInput
+          style={[styles.field, { color: colors.text, borderColor: colors.border }]}
+          value={username}
+          onChangeText={setUsername}
+          placeholder="e.g. ama.mensah"
+          placeholderTextColor={colors.textMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="Username"
+        />
+        {username.length > 0 && !usernameOk && (
+          <Text style={styles.hint}>3–30 letters, numbers, dots or underscores</Text>
+        )}
+        <Text style={[styles.label, { color: colors.text }]}>Phone number</Text>
+        <View style={styles.phoneRow}>
+          {!!dial && <Text style={[styles.dial, { color: colors.text, borderColor: colors.border }]}>{dial}</Text>}
+          <TextInput
+            style={[styles.field, { color: colors.text, borderColor: colors.border, flex: 1 }]}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="82 123 4567"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="phone-pad"
+            accessibilityLabel="Phone number"
+          />
+        </View>
         <Text style={[styles.sheetSub, { color: colors.textMuted }]}>Where do you live? Your wallet opens in that country's currency.</Text>
-        <ScrollView style={{ maxHeight: 260 }}>
+        <ScrollView style={{ maxHeight: 200 }}>
           {countries.map((c) => (
             <TouchableOpacity
               key={c.code}
@@ -310,8 +344,8 @@ function CompleteProfileSheet({ visible, onCancel, onSubmit }: {
           <Text style={{ color: colors.text, flex: 1 }}>I agree to the Terms of Service and Privacy Policy</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.primary, (!country || !accepted || saving) && { opacity: 0.5 }]}
-          disabled={!country || !accepted || saving}
+          style={[styles.primary, (!ready || saving) && { opacity: 0.5 }]}
+          disabled={!ready || saving}
           onPress={submit}
         >
           {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>Create my account</Text>}
@@ -339,6 +373,11 @@ const styles = StyleSheet.create({
   sheetTitle: { fontSize: 20, fontWeight: "700" },
   sheetSub: { fontSize: 14, marginBottom: 4 },
   countryRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 8 },
+  label: { fontSize: 14, fontWeight: "600" },
+  field: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
+  hint: { color: "#DC2626", fontSize: 12, marginTop: -6 },
+  phoneRow: { flexDirection: "row", gap: 8 },
+  dial: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16 },
   termsRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   primary: { backgroundColor: "#7C3AED", borderRadius: 12, paddingVertical: 16, alignItems: "center" },
   primaryText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },

@@ -71,6 +71,42 @@ class CreateAdminRequest(CamelModel):
     role: str | None = None
 
 
+class CreateInviteRequest(CamelModel):
+    email: str
+    name: str
+    role: str
+
+
+class AdminInviteResponse(CamelModel):
+    id: UUID
+    email: str
+    name: str
+    role: str
+    status: str
+    expires_at: JsDateTime
+    created_at: JsDateTime
+
+
+class InviteLinkResponse(CamelModel):
+    invite: AdminInviteResponse
+    link: str
+    email_sent: bool
+
+
+class PublicInviteResponse(CamelModel):
+    email: str
+    name: str
+    role: str
+    role_label: str
+    expires_at: JsDateTime
+
+
+class AcceptInviteRequest(CamelModel):
+    password: str
+    otp: str
+    name: str | None = None
+
+
 class UpdateAdminRequest(CamelModel):
     name: str | None = None
     email: str | None = None
