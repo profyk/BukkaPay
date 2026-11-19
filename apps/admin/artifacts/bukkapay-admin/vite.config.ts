@@ -55,17 +55,21 @@ export default defineConfig({
           },
         ],
       },
+      // Always serve the newest deploy: the page itself comes from the network
+      // (cache only as an offline fallback), a new worker takes over at once,
+      // and old precaches are removed. Admin API responses are never cached —
+      // they contain personal and financial data.
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,ico,png,svg,woff2}"],
+        navigateFallback: null,
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/api\.bukkapay\.com\/.*/i,
+            urlPattern: ({ request }) => request.mode === "navigate",
             handler: "NetworkFirst",
-            options: {
-              cacheName: "bukkapay-api",
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 },
-              networkTimeoutSeconds: 10,
-            },
+            options: { cacheName: "bukkapay-admin-pages", networkTimeoutSeconds: 5 },
           },
         ],
       },
