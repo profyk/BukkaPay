@@ -8,6 +8,8 @@ Create Date: 2026-11-19
 
 from alembic import op
 
+from app.db import rls
+
 revision = "0023_legal_documents"
 down_revision = "0022_rls"
 branch_labels = None
@@ -66,6 +68,9 @@ def upgrade() -> None:
         BEFORE UPDATE OR DELETE ON legal_document_versions
         FOR EACH ROW EXECUTE FUNCTION legal_versions_append_only()
     """)
+    # Supabase doesn't allow the RLS event trigger, so lock the new tables
+    # down explicitly (RLS on, nothing granted to anon/authenticated).
+    op.execute(rls.ENABLE)
 
 
 def downgrade() -> None:

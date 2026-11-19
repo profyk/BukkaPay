@@ -14,8 +14,20 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_database_url)
+settings = get_settings()
+# ConfigParser treats "%" as interpolation; percent-encoded passwords need "%%".
+config.set_main_option("sqlalchemy.url", settings.sqlalchemy_database_url.replace("%", "%%"))
 target_metadata = Base.metadata
+
+
+def _connect_args() -> dict:
+    """Same connection rules as the app (app/db/base.py): TLS in production,
+    and no prepared-statement cache behind a transaction pooler (Supabase
+    Supavisor on port 6543)."""
+    args: dict = {"ssl": "require"} if settings.is_production else {}
+    if settings.db_pgbouncer:
+        args |= {"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    return args
 
 
 def run_migrations_offline() -> None:
@@ -41,6 +53,7 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=_connect_args(),
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
