@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,7 @@ from app.services import session_service
 
 
 async def get_current_user_id(
+    request: Request,
     authorization: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> uuid.UUID:
@@ -21,6 +22,16 @@ async def get_current_user_id(
     user_id = await session_service.verify_session(db, token)
     if user_id is None:
         raise ApiError("Unauthorized", status_code=401)
+
+    # Personal accounts only reach personal routes, Business accounts only
+    # business routes — whatever app the token came from.
+    from app.governance.account_types import required_account_type, wrong_app_message
+
+    needed = required_account_type(request.url.path)
+    if needed is not None:
+        actual = (await db.execute(select(User.account_type).where(User.id == user_id))).scalar_one_or_none()
+        if actual is not None and actual != needed:
+            raise ApiError(wrong_app_message(actual), status_code=403)
     return user_id
 
 

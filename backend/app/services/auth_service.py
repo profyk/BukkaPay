@@ -29,7 +29,7 @@ RESET_TOKEN_TTL_SECONDS = 60 * 60
 
 async def signup(db: AsyncSession, *, name: str, email: str, username: str, password: str,
                   phone: str | None, country_code: str | None, residence_country: str,
-                  accept_terms: bool, preferred_language: str = "en") -> User:
+                  accept_terms: bool, preferred_language: str = "en", app: str | None = None) -> User:
     from datetime import UTC, datetime
 
     from app.network import countries as country_service
@@ -38,6 +38,8 @@ async def signup(db: AsyncSession, *, name: str, email: str, username: str, pass
         raise ApiError("You must accept the Terms of Service and Privacy Policy")
     country = await country_service.require_operating(db, residence_country, what="BukkaPay")
     email = email.strip().lower()
+    if await is_admin_email(db, email):
+        raise ApiError("This email belongs to a BukkaPay admin account and can't be used here.", status_code=403)
     existing_email = await db.execute(select(User).where(User.email == email))
     if existing_email.scalar_one_or_none() is not None:
         raise ApiError("Email already registered")
@@ -58,6 +60,7 @@ async def signup(db: AsyncSession, *, name: str, email: str, username: str, pass
         country_code=country_code or country.dial_code,
         residence_country=country.code,
         preferred_language=preferred_language,
+        account_type=_account_type(app),
         terms_accepted_at=datetime.now(UTC),
         kyc_level=0,
         wallet_id=generate_wallet_id(),
@@ -233,3 +236,27 @@ async def update_profile(
         user.avatar = avatar
     await db.flush()
     return user
+
+
+
+async def is_admin_email(db: AsyncSession, email: str) -> bool:
+    from app.models.admin import AdminUser
+
+    email = (email or "").strip().lower()
+    return (await db.execute(select(AdminUser.id).where(AdminUser.email == email))).first() is not None
+
+
+async def ensure_account_allowed(db: AsyncSession, user: User, *, app: str | None) -> None:
+    """Refuse sign-in from the wrong app, and for admin emails."""
+    from app.governance.account_types import account_type_for_app, wrong_app_message
+
+    if await is_admin_email(db, user.email):
+        raise ApiError("This email belongs to a BukkaPay admin account and can't be used here.", status_code=403)
+    if user.account_type != account_type_for_app(app):
+        raise ApiError(wrong_app_message(user.account_type), status_code=403)
+
+
+def _account_type(app: str | None) -> str:
+    from app.governance.account_types import account_type_for_app
+
+    return account_type_for_app(app)

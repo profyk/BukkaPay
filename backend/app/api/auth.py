@@ -45,6 +45,7 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)) -> Aut
         residence_country=body.residence_country,
         accept_terms=body.accept_terms,
         preferred_language=body.preferred_language,
+        app=body.app,
     )
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate({"token": token, "user": user})
@@ -53,6 +54,7 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)) -> Aut
 @router.post("/login", dependencies=[Depends(rate_limit("auth-login", 20, 900))])
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthTokenResponse:
     user, _ = await auth_service.login(db, email=body.email, password=body.password)
+    await auth_service.ensure_account_allowed(db, user, app=body.app)
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate(
         {"token": token, "user": UserLoginPayload.model_validate(user)}
@@ -64,7 +66,7 @@ async def google_login(body: GoogleSignInRequest, db: AsyncSession = Depends(get
     identity = social_auth_service.verify_google(body.id_token)
     user = await social_auth_service.sign_in(
         db, identity, name=body.name, residence_country=body.residence_country, accept_terms=body.accept_terms,
-        username=body.username, phone=body.phone,
+        username=body.username, phone=body.phone, app=body.app,
     )
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
@@ -75,7 +77,7 @@ async def apple_login(body: AppleSignInRequest, db: AsyncSession = Depends(get_d
     identity = social_auth_service.verify_apple(body.identity_token, body.nonce)
     user = await social_auth_service.sign_in(
         db, identity, name=body.name, residence_country=body.residence_country, accept_terms=body.accept_terms,
-        username=body.username, phone=body.phone,
+        username=body.username, phone=body.phone, app=body.app,
     )
     token, _ = await auth_service.create_session_for_user(db, user.id)
     return AuthTokenResponse.model_validate({"token": token, "user": UserLoginPayload.model_validate(user)})
@@ -107,6 +109,8 @@ async def verify_otp(body: OtpVerifyRequest, db: AsyncSession = Depends(get_db))
     if existing is not None and existing.verified:
         raise ApiError("This email is already confirmed. Sign in with your password.", status_code=400)
     user = await auth_service.verify_email(db, email=body.email, token=body.code)
+    if body.app is not None:
+        await auth_service.ensure_account_allowed(db, user, app=body.app)
     if user.frozen:
         raise ApiError("Your account is restricted", status_code=403)
     token, _ = await auth_service.create_session_for_user(db, user.id)

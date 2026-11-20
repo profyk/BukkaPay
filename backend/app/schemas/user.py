@@ -19,6 +19,7 @@ class UserAuthPayload(CamelModel):
     kyc_level: int = 0
     kyc_status: str | None = None
     preferred_language: str = "en"
+    account_type: str = "personal"
 
 
 class UserLoginPayload(UserAuthPayload):
@@ -81,11 +82,13 @@ class SignupRequest(CamelModel):
     residence_country: str  # ISO-3166 alpha-2; must be a country BukkaPay operates in
     accept_terms: bool
     preferred_language: str = "en"
+    app: str | None = None  # 'merchant' creates a Business account
 
 
 class LoginRequest(CamelModel):
     email: str
     password: str
+    app: str | None = None  # 'customer' (default) or 'merchant'
 
 
 class GoogleSignInRequest(CamelModel):
@@ -97,6 +100,7 @@ class GoogleSignInRequest(CamelModel):
     accept_terms: bool | None = None
     username: str | None = None
     phone: str | None = None
+    app: str | None = None
 
 
 class AppleSignInRequest(CamelModel):
@@ -109,6 +113,7 @@ class AppleSignInRequest(CamelModel):
     accept_terms: bool | None = None
     username: str | None = None
     phone: str | None = None
+    app: str | None = None
 
 
 class ForgotPasswordRequest(CamelModel):
@@ -132,6 +137,7 @@ class OtpRequestRequest(CamelModel):
 class OtpVerifyRequest(CamelModel):
     email: str
     code: str
+    app: str | None = None
 
 
 class UpdateProfileRequest(CamelModel):

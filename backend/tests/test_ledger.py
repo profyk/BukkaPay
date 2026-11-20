@@ -215,10 +215,10 @@ async def test_removed_balance_endpoints_are_gone(client: AsyncClient, funded_us
 
 
 async def test_merchant_pay_requires_login_and_debits_payer(client: AsyncClient, funded_user: dict,
-                                                           other_user: dict):
+                                                           business_user: dict):
     r = await client.post("/api/merchants", json={
         "businessName": "Ledger Shop", "businessType": "retail",
-    }, headers=other_user["headers"])
+    }, headers=business_user["headers"])
     assert r.status_code in (200, 201), r.text
     merchant_id = r.json()["id"]
     async with get_session_factory()() as db:  # verified business (KYB approved)

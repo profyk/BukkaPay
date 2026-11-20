@@ -116,11 +116,15 @@ def identity_from_apple_claims(payload: dict, raw_nonce: str | None) -> Verified
 async def sign_in(
     db: AsyncSession, identity: VerifiedIdentity, *, name: str | None,
     residence_country: str | None, accept_terms: bool | None,
-    username: str | None = None, phone: str | None = None,
+    username: str | None = None, phone: str | None = None, app: str | None = None,
 ) -> User:
     user: User | None = None
     if identity.provider == "apple":
         user = (await db.execute(select(User).where(User.apple_sub == identity.subject))).scalar_one_or_none()
+    from app.services.auth_service import ensure_account_allowed, is_admin_email
+
+    if identity.email and await is_admin_email(db, identity.email):
+        raise ApiError("This email belongs to a BukkaPay admin account and can't be used here.", status_code=403)
     if user is None and identity.email:
         user = (await db.execute(select(User).where(User.email == identity.email))).scalar_one_or_none()
         if user is not None and identity.provider == "apple":
@@ -140,7 +144,9 @@ async def sign_in(
             raise ApiError("New accounts must choose a username, phone number and country, and accept the terms",
                            status_code=NEEDS_PROFILE_STATUS)
         user = await _create(db, identity, name=name, residence_country=residence_country,
-                             username=username, phone=phone)
+                             username=username, phone=phone, app=app)
+    else:
+        await ensure_account_allowed(db, user, app=app)
 
     if user.deleted_at is not None:
         raise ApiError("This account has been closed", status_code=403)
@@ -164,7 +170,8 @@ def normalize_phone(phone: str | None) -> str | None:
 
 
 async def _create(db: AsyncSession, identity: VerifiedIdentity, *, name: str | None,
-                  residence_country: str, username: str, phone: str) -> User:
+                  residence_country: str, username: str, phone: str, app: str | None = None) -> User:
+    from app.governance.account_types import account_type_for_app
     from app.network import countries as country_service
     from app.services.auth_service import _issue_default_card
 
@@ -188,6 +195,7 @@ async def _create(db: AsyncSession, identity: VerifiedIdentity, *, name: str | N
         wallet_id=generate_wallet_id(),
         verified=True,
         apple_sub=identity.subject if identity.provider == "apple" else None,
+        account_type=account_type_for_app(app),
     )
     db.add(user)
     await db.flush()

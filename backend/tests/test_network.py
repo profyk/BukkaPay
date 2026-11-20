@@ -27,10 +27,11 @@ pytestmark = pytest.mark.asyncio
 # ─── helpers ────────────────────────────────────────────────────────────────
 
 
-async def signup(client: AsyncClient, country: str = "ZA", kyc_level: int | None = None) -> dict:
+async def signup(client: AsyncClient, country: str = "ZA", kyc_level: int | None = None,
+                 app: str | None = None) -> dict:
     r = await client.post("/api/auth/signup", json={
         "name": "Net User", "email": unique_email(), "username": unique_username(), "password": "password123",
-        "residenceCountry": country, "acceptTerms": True,
+        "residenceCountry": country, "acceptTerms": True, **({"app": app} if app else {}),
     })
     assert r.status_code == 201, r.text
     body = r.json()
@@ -40,6 +41,13 @@ async def signup(client: AsyncClient, country: str = "ZA", kyc_level: int | None
         async with get_session_factory()() as db:
             await db.execute(update(User).where(User.id == uuid.UUID(body["user"]["id"])).values(kyc_level=kyc_level))
             await db.commit()
+    if app == "merchant":  # business accounts can't call personal wallet routes
+        from app.models.wallet import WalletCard
+
+        async with get_session_factory()() as db:
+            card = (await db.execute(select(WalletCard).where(
+                WalletCard.user_id == uuid.UUID(body["user"]["id"])))).scalars().first()
+        return {"user": body["user"], "headers": headers, "card_id": str(card.id), "currency": card.currency}
     cards = (await client.get("/api/cards", headers=headers)).json()
     return {"user": body["user"], "headers": headers, "card_id": cards[0]["id"], "currency": cards[0]["currency"]}
 
@@ -357,7 +365,7 @@ async def _approved_merchant(client, admin, owner):
 
 
 async def test_unverified_merchant_cannot_take_payments(client: AsyncClient):
-    owner = await signup(client)
+    owner = await signup(client, app="merchant")
     payer = await signup(client)
     await fund_card(payer["card_id"], "100.00")
     merchant_id = (await client.post("/api/merchants", json={"businessName": "Unverified", "businessType": "retail"},
@@ -368,7 +376,7 @@ async def test_unverified_merchant_cannot_take_payments(client: AsyncClient):
 
 
 async def test_merchant_dynamic_qr_pay_refund(client: AsyncClient, admin: dict):
-    owner = await signup(client)
+    owner = await signup(client, app="merchant")
     payer = await signup(client)
     await fund_card(payer["card_id"], "300.00")
     merchant_id = await _approved_merchant(client, admin, owner)
@@ -407,7 +415,7 @@ async def test_merchant_dynamic_qr_pay_refund(client: AsyncClient, admin: dict):
 
 
 async def test_merchant_checkout_link_settles_to_merchant(client: AsyncClient, admin: dict):
-    owner = await signup(client)
+    owner = await signup(client, app="merchant")
     payer = await signup(client)
     await fund_card(payer["card_id"], "300.00")
     merchant_id = await _approved_merchant(client, admin, owner)
@@ -422,7 +430,7 @@ async def test_merchant_checkout_link_settles_to_merchant(client: AsyncClient, a
 
 
 async def test_merchant_api_key_creates_checkout_link(client: AsyncClient, admin: dict):
-    owner = await signup(client)
+    owner = await signup(client, app="merchant")
     merchant_id = await _approved_merchant(client, admin, owner)
     key = (await client.post(f"/api/merchants/{merchant_id}/api-keys", json={"label": "web"},
                              headers=owner["headers"])).json()["key"]

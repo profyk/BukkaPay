@@ -16,10 +16,10 @@ async def _approve_kyb(merchant_id: str) -> None:
         await db.commit()
 
 
-async def test_create_merchant_and_pay(client: AsyncClient, user: dict, funded_user: dict):
+async def test_create_merchant_and_pay(client: AsyncClient, business_user: dict, funded_user: dict):
     r = await client.post("/api/merchants", json={
         "businessName": "Alice's Shop", "businessType": "retail",
-    }, headers=user["headers"])
+    }, headers=business_user["headers"])
     assert r.status_code == 201
     merchant = r.json()
     assert merchant["subscriptionPlan"] == "starter"
@@ -32,39 +32,39 @@ async def test_create_merchant_and_pay(client: AsyncClient, user: dict, funded_u
     assert r.json()["newBalance"] == "147.75"  # 150 less the 1.5% merchant fee
 
 
-async def test_merchant_forbidden_for_non_owner(client: AsyncClient, user: dict, other_user: dict):
+async def test_merchant_forbidden_for_non_owner(client: AsyncClient, business_user: dict,
+                                               other_business_user: dict):
     r = await client.post("/api/merchants", json={
         "businessName": "Bob's Shop", "businessType": "retail",
-    }, headers=user["headers"])
+    }, headers=business_user["headers"])
     merchant_id = r.json()["id"]
 
-    r = await client.get(f"/api/merchants/{merchant_id}", headers=other_user["headers"])
+    r = await client.get(f"/api/merchants/{merchant_id}", headers=other_business_user["headers"])
     assert r.status_code == 403
 
 
-async def test_merchant_withdraw_uses_real_auth(client: AsyncClient, user: dict, monkeypatch):
+async def test_merchant_withdraw_uses_real_auth(client: AsyncClient, business_user: dict, funded_user: dict,
+                                               monkeypatch):
     """Regression test: the original Node handler read req.userId, which
     nothing ever set — this endpoint was permanently 401 no matter who
     called it. Confirm the fixed version actually works for the owner."""
     from app.integrations import stitch
-    from tests.conftest import fund_card
 
+    owner = business_user
     r = await client.post("/api/merchants", json={
         "businessName": "Withdraw Test Co", "businessType": "services",
-    }, headers=user["headers"])
+    }, headers=owner["headers"])
     merchant_id = r.json()["id"]
 
     # Merchant revenue comes from a real, ledger-backed customer payment.
-    cards = (await client.get("/api/cards", headers=user["headers"])).json()
-    await fund_card(cards[0]["id"], "200.00")
     await _approve_kyb(merchant_id)
     paid = await client.post(f"/api/merchant-pay/{merchant_id}", json={"amount": "200.00", "pin": TEST_PIN},
-                             headers=user["headers"])
+                             headers=funded_user["headers"])
     assert paid.status_code == 201, paid.text
 
     r = await client.patch(f"/api/merchants/{merchant_id}/banking", json={
         "bankId": "fnb", "accountHolder": "Owner", "accountNumber": "12345", "accountType": "savings",
-    }, headers=user["headers"])
+    }, headers=owner["headers"])
     assert r.status_code == 200, r.text
 
     async def fake_disbursement(**kwargs):
@@ -74,16 +74,17 @@ async def test_merchant_withdraw_uses_real_auth(client: AsyncClient, user: dict,
     monkeypatch.setattr(stitch, "create_disbursement", fake_disbursement)
     r = await client.post(f"/api/merchants/{merchant_id}/withdraw", json={
         "pin": TEST_PIN, "amount": "100.00", "currency": "ZAR",
-    }, headers=user["headers"])
+    }, headers=owner["headers"])
     assert r.status_code == 200, r.text
     assert r.json()["newBalance"] == "88.50"  # 200 - 1.5% fee - 100 payout - R8.50 payout fee
 
 
-async def test_merchant_subscribe_invalid_plan(client: AsyncClient, user: dict):
+async def test_merchant_subscribe_invalid_plan(client: AsyncClient, business_user: dict):
     r = await client.post("/api/merchants", json={
         "businessName": "Sub Test", "businessType": "retail",
-    }, headers=user["headers"])
+    }, headers=business_user["headers"])
     merchant_id = r.json()["id"]
 
-    r = await client.post(f"/api/merchants/{merchant_id}/subscribe", json={"plan": "enterprise"}, headers=user["headers"])
+    r = await client.post(f"/api/merchants/{merchant_id}/subscribe", json={"plan": "enterprise"},
+                          headers=business_user["headers"])
     assert r.status_code == 400

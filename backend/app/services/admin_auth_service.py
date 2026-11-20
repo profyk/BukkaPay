@@ -100,6 +100,7 @@ async def create_admin(db: AsyncSession, *, email: str, name: str, password: str
     existing = await db.execute(select(AdminUser).where(AdminUser.email == email.lower().strip()))
     if existing.scalar_one_or_none() is not None:
         raise ApiError("An admin with this email already exists", status_code=409)
+    await _ensure_not_customer_email(db, email)
 
     admin = AdminUser(email=email.lower().strip(), name=name, password=hash_secret(password), role=role)
     db.add(admin)
@@ -257,6 +258,7 @@ async def create_invite(
     _check_assignable_role(role, ROLE_PERMISSIONS)
     if (await db.execute(select(AdminUser.id).where(AdminUser.email == email))).first() is not None:
         raise ApiError("An admin with this email already exists", status_code=409)
+    await _ensure_not_customer_email(db, email)
 
     # Any earlier open invitation for this email stops working.
     now = datetime.now(UTC)
@@ -403,3 +405,12 @@ async def accept_invite(db: AsyncSession, *, token: str, password: str, name: st
     invite.accepted_at = datetime.now(UTC)
     await db.flush()
     return admin
+
+
+async def _ensure_not_customer_email(db: AsyncSession, email: str) -> None:
+    """Admins are separate people: a customer or merchant email can't be an admin."""
+    from app.models.user import User
+
+    if (await db.execute(select(User.id).where(User.email == email.strip().lower()))).first() is not None:
+        raise ApiError("This email already has a BukkaPay customer or business account. "
+                       "Admins need their own, separate email.", status_code=409)

@@ -12,7 +12,7 @@ from tests.test_network import signup
 
 
 async def vendor(client: AsyncClient, kyc_level: int = 2, business_type: str = "street_vendor") -> tuple[dict, str]:
-    owner = await signup(client, kyc_level=kyc_level)
+    owner = await signup(client, kyc_level=kyc_level, app="merchant")
     r = await client.post("/api/merchants", json={"businessName": "Mama's Kota", "businessType": business_type},
                           headers=owner["headers"])
     assert r.status_code in (200, 201), r.text

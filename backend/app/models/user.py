@@ -21,6 +21,10 @@ class User(Base, CreatedOnlyMixin):
     avatar: Mapped[str | None] = mapped_column(Text)
     biometric_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 'personal' (BukkaPay app) or 'business' (merchant dashboard); see
+    # app.governance.account_types. Fixed at sign-up.
+    account_type: Mapped[str] = mapped_column(String(16), default="personal", server_default="personal",
+                                              nullable=False)
     frozen: Mapped[bool] = mapped_column(Boolean, default=False)
     role: Mapped[str] = mapped_column(String(20), default="user")
     loyalty_points: Mapped[int] = mapped_column(Integer, default=0)

@@ -66,6 +66,13 @@ async def _create_schema():
         await conn.execute(text(admin_guard.INVITES_NOT_SUPER))
         for stmt in admin_guard.INVITES_OWNER_ONLY_SUPER:
             await conn.execute(text(stmt))
+        # Admin and customer/business emails never overlap (migration 0027).
+        from app.db import account_guard
+
+        await conn.execute(text(account_guard.ACCOUNT_TYPE_CHECK))
+        await conn.execute(text(account_guard.FUNCTION))
+        for stmt in account_guard.TRIGGERS:
+            await conn.execute(text(stmt))
     yield
     await engine.dispose()
 
@@ -111,6 +118,30 @@ async def user(client: AsyncClient) -> dict:
     headers = {"Authorization": f"Bearer {body['token']}"}
     await set_test_pin(client, headers)
     return {"token": body["token"], "user": body["user"], "headers": headers}
+
+
+async def signup_business(client: AsyncClient, name: str = "Biz Owner") -> dict:
+    """A Business account (merchant dashboard sign-up), with a PIN set."""
+    r = await client.post("/api/auth/signup", json={
+        "name": name, "email": unique_email(), "username": unique_username(),
+        "password": "password123", "residenceCountry": "ZA", "acceptTerms": True, "app": "merchant",
+    })
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["user"]["accountType"] == "business"
+    headers = {"Authorization": f"Bearer {body['token']}"}
+    await set_test_pin(client, headers)
+    return {"token": body["token"], "user": body["user"], "headers": headers}
+
+
+@pytest_asyncio.fixture
+async def business_user(client: AsyncClient) -> dict:
+    return await signup_business(client)
+
+
+@pytest_asyncio.fixture
+async def other_business_user(client: AsyncClient) -> dict:
+    return await signup_business(client, "Other Biz")
 
 
 @pytest_asyncio.fixture
