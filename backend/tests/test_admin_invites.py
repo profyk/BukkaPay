@@ -66,8 +66,14 @@ async def test_invite_accept_with_password_and_mfa_then_login(client: AsyncClien
     # Link is single-use.
     assert (await client.get(f"/api/admin/invitations/{token}")).status_code == 404
 
-    # MFA is on: password alone isn't enough.
+    # MFA is on: the right password alone asks for the code (428) ...
     r = await client.post("/api/admin/auth/login", json={"email": email, "password": "a-long-password"})
+    assert r.status_code == 428
+    # ... a wrong password never reveals that step ...
+    r = await client.post("/api/admin/auth/login", json={"email": email, "password": "wrong-password"})
+    assert r.status_code == 401
+    # ... and a wrong code is refused.
+    r = await client.post("/api/admin/auth/login", json={"email": email, "password": "a-long-password", "otp": "000000"})
     assert r.status_code == 401
     r = await client.post("/api/admin/auth/login",
                           json={"email": email, "password": "a-long-password", "otp": current_totp(secret)})
@@ -178,3 +184,16 @@ async def test_database_refuses_super_admin_invite_for_anyone_else(client: Async
                 "INSERT INTO admin_invites (email, name, role, token_hash, expires_at) "
                 "VALUES ('x@example.com', 'X', 'super_admin', md5(random()::text), now() + interval '1 day')"))
         await db.rollback()
+
+
+def test_every_email_is_branded():
+    """Raw content passed to the sender is wrapped in the BukkaPay layout, and
+    the Supabase auth templates carry the brand plus Supabase's token."""
+    from app.integrations import email_brand as eb
+
+    wrapped = eb.layout("<p>hi</p>")
+    assert eb.is_branded(wrapped) and "<p>hi</p>" in wrapped
+    for name, t in eb.supabase_templates().items():
+        assert eb.is_branded(t["content"]), name
+        assert "{{ .Token }}" in t["content"], name
+        assert t["subject"]

@@ -7,6 +7,7 @@ import { Loader2, Eye, EyeOff, ShieldCheck, AlertCircle, Lock, ArrowRightLeft, U
 import { loginSchema, type LoginInput, useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 const FEATURES = [
   { icon: Users,           text: "Full user lifecycle management" },
@@ -20,17 +21,41 @@ export default function Login() {
   const [, setLocation] = useLocation()
   const [showPassword, setShowPassword] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  // Step 2: shown only after the password is accepted and MFA is on.
+  const [pending, setPending] = useState<LoginInput | null>(null)
+  const [code, setCode] = useState("")
+  const [codeError, setCodeError] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
   })
 
+  const errText = (err: any) =>
+    err?.response?.data?.error || err?.response?.data?.message || err?.message || "Invalid credentials. Please try again."
+
+  const submitCode = async (value = code) => {
+    if (!pending || value.length !== 6 || isLoggingIn) return
+    setCodeError(null)
+    try {
+      await login({ ...pending, otp: value })
+      setPending(null)
+      setLocation("/")
+    } catch (err: any) {
+      setCodeError(errText(err))
+      setCode("")
+    }
+  }
+
   const onSubmit = async (data: LoginInput) => {
     setLoginError(null)
     try {
-      await login(data)
+      await login({ email: data.email, password: data.password })
       setLocation("/")
     } catch (err: any) {
+      if (err?.response?.status === 428) {
+        setCode(""); setCodeError(null); setPending({ email: data.email, password: data.password })
+        return
+      }
       const msg =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
@@ -205,11 +230,6 @@ export default function Login() {
               {errors.password && <p className="text-xs text-destructive font-medium">{errors.password.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Authenticator code</label>
-              <Input inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code (if MFA is on)" {...register("otp")} />
-            </div>
-
             <Button
               type="submit"
               className="w-full h-12 text-base font-semibold"
@@ -231,8 +251,23 @@ export default function Login() {
             </p>
           </div>
 
-          <p className="mt-4 text-center text-[10px] text-muted-foreground/50">monorepo-deploy-check-20260716</p>
         </motion.div>
+
+        <Dialog open={pending !== null} onOpenChange={(o) => { if (!o) { setPending(null); setCode("") } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Enter your authenticator code</DialogTitle>
+              <DialogDescription>Open your authenticator app and enter the 6-digit code for BukkaPay ({pending?.email}).</DialogDescription>
+            </DialogHeader>
+            {codeError && <p className="text-sm text-destructive font-medium">{codeError}</p>}
+            <Input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456"
+              aria-label="Authenticator code" className="text-center text-2xl tracking-[0.5em] h-14" value={code}
+              onChange={(e) => { const v = e.target.value.replace(/D/g, "").slice(0, 6); setCode(v); if (v.length === 6) submitCode(v) }} />
+            <Button className="w-full h-11" disabled={code.length !== 6 || isLoggingIn} onClick={() => submitCode()}>
+              {isLoggingIn ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying…</> : <><ShieldCheck className="w-4 h-4 mr-2" />Verify and sign in</>}
+            </Button>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

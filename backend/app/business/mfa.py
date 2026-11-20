@@ -15,7 +15,9 @@ def _totp(secret: str, timestamp: int, digits: int = 6, period: int = 30) -> str
     msg = counter.to_bytes(length=8, byteorder="big")
     digest = hmac.new(key, msg, hashlib.sha1).digest()
     offset = digest[-1] & 0x0F
-    truncated = ((digest[offset] & 0x7F) << 24) | ((digest[offset + 1] & 0x7F) << 16) | ((digest[offset + 2] & 0x7F) << 8) | (digest[offset + 3] & 0x7F)
+    # RFC 4226 dynamic truncation: only the top bit of the first byte is masked.
+    truncated = (((digest[offset] & 0x7F) << 24) | (digest[offset + 1] << 16)
+                 | (digest[offset + 2] << 8) | digest[offset + 3])
     code = truncated % (10 ** digits)
     return str(code).zfill(digits)
 

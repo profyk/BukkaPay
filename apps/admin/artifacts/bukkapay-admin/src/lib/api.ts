@@ -25,7 +25,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const url: string = error.config?.url ?? "";
+    // A wrong password or code on the sign-in / invitation pages is shown
+    // in place; only an expired session elsewhere sends you to sign in.
+    const isAuthCall = url.includes("/admin/auth/login") || url.includes("/admin/invitations/");
+    if (error.response?.status === 401 && !isAuthCall) {
       localStorage.removeItem("bukkapay_token");
       const base = import.meta.env.BASE_URL ?? "/";
       window.location.href = base.endsWith("/") ? `${base}login` : `${base}/login`;

@@ -1,5 +1,4 @@
 import hashlib
-import html
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -49,8 +48,12 @@ async def login(db: AsyncSession, *, email: str, password: str, otp: str | None 
     if admin.mfa_enabled:
         if not admin.mfa_secret:
             raise ApiError("MFA is enabled but no secret is configured", status_code=403)
-        if otp is None or not verify_totp(admin.mfa_secret, otp):
-            raise ApiError("MFA verification required", status_code=401)
+        # Only reached with the right password: the panel then asks for the
+        # authenticator code in a second step (428 = code needed).
+        if not (otp or "").strip():
+            raise ApiError("Enter the 6-digit code from your authenticator app", status_code=428)
+        if not verify_totp(admin.mfa_secret, otp):
+            raise ApiError("That authenticator code is wrong or expired. Try the current code.", status_code=401)
 
     token, expires_at = await admin_session_service.issue_session(db, admin.id)
     admin.last_login_at = datetime.now(UTC)
@@ -220,24 +223,35 @@ async def _send_invite_email(invite: AdminInvite, link: str, inviter: str | None
 
     if not get_settings().resend_api_key:
         return False
+    from app.integrations import email_brand as eb
+
     role = ROLE_LABELS.get(str(invite.role), str(invite.role))
-    who = html.escape(inviter or "The BukkaPay team")
-    name = html.escape(invite.name)
+    hours = max(1, round((invite.expires_at - datetime.now(UTC)).total_seconds() / 3600))
+    expiry = f"{hours} hours" if hours < 48 else f"{round(hours / 24)} days"
+    owner = str(invite.role) == "super_admin"
+    title = "Set up your BukkaPay owner account" if owner else "You're invited to the BukkaPay admin panel"
+    intro = ("Use this link to set your password and connect your authenticator app for the BukkaPay admin panel."
+             if owner else f"{eb.esc(inviter or 'The BukkaPay team')} has invited you to join the BukkaPay admin "
+             f"panel as <strong>{eb.esc(role)}</strong>.")
+    content = (
+        eb.heading(title)
+        + eb.paragraph(f"Hello {eb.esc(invite.name)},")
+        + eb.paragraph(intro)
+        + eb.paragraph("You'll choose a password, then add BukkaPay to an authenticator app (Google Authenticator, "
+                       "Microsoft Authenticator or 1Password). Every admin signs in with both.")
+        + eb.button("Accept and set your password", link)
+        + eb.note(f"This link works once and expires in {expiry}. If you weren't expecting it, ignore this email "
+                  "&mdash; nothing happens until the link is used.")
+    )
+    plain_intro = ("Set your password and connect your authenticator app for the BukkaPay admin panel." if owner
+                   else f"{inviter or 'The BukkaPay team'} has invited you to join the BukkaPay admin panel as {role}.")
     try:
         await send_resend_email(
             to=invite.email,
-            subject="You're invited to the BukkaPay admin panel",
-            html=(
-                f"<p>Hello {name},</p>"
-                f"<p>{who} has invited you to join the BukkaPay admin panel as <strong>{html.escape(role)}</strong>.</p>"
-                f"<p><a href='{link}'>Accept the invitation and set your password</a></p>"
-                "<p>This link works once and expires in 7 days. If you weren't expecting it, ignore this email.</p>"
-            ),
-            text=(
-                f"Hello {invite.name},\n\n{inviter or 'The BukkaPay team'} has invited you to join the BukkaPay "
-                f"admin panel as {role}.\n\nAccept and set your password: {link}\n\n"
-                "This link works once and expires in 7 days."
-            ),
+            subject=title,
+            html=eb.layout(content, preheader=title),
+            text=(f"Hello {invite.name},\n\n{plain_intro}\n\nAccept and set your password: {link}\n\n"
+                  f"This link works once and expires in {expiry}."),
         )
     except Exception:  # the link is still shown to the inviter to share another way
         return False

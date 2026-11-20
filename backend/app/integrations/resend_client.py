@@ -17,6 +17,13 @@ async def send_resend_email(
     if not settings.resend_api_key or not settings.resend_from_email:
         return {"status": "skipped"}
 
+    # Every BukkaPay email is branded: anything not already in the layout is
+    # wrapped in it here, so no sender can skip it.
+    from app.integrations.email_brand import is_branded, layout
+
+    if not is_branded(html):
+        html = layout(html, preheader=subject)
+
     payload = {
         "from": f"{from_name} <{settings.resend_from_email}>",
         "to": [to],

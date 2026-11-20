@@ -16,14 +16,20 @@ async def send_password_reset_email(email: str, *, token: str | None = None, nam
 
     reset_token = token or secrets.token_urlsafe(32)
     reset_link = build_password_reset_link(reset_token)
+    from app.integrations import email_brand as eb
+
+    content = (
+        eb.heading("Reset your password")
+        + eb.paragraph(f"Hello {eb.esc(name or 'there')},")
+        + eb.paragraph("We received a request to reset your BukkaPay password. Choose a new one here:")
+        + eb.button("Reset my password", reset_link)
+        + eb.note("This link expires in 1 hour. If you didn't ask for it, ignore this email &mdash; "
+                  "your password won't change.")
+    )
     await send_resend_email(
         to=email,
         subject="Reset your BukkaPay password",
-        html=(
-            f"<h1>Hello {name or 'there'}!</h1>"
-            "<p>We received a request to reset your BukkaPay password.</p>"
-            f"<p><a href='{reset_link}'>Reset my password</a></p>"
-        ),
+        html=eb.layout(content, preheader="Reset your BukkaPay password"),
         text=(
             f"Hello {name or 'there'}!\n\n"
             "We received a request to reset your BukkaPay password.\n\n"
