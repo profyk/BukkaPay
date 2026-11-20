@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import {
   login,
+  requestOtp,
   isBiometricAvailable,
   isBiometricLoginEnabled,
   getBiometricType,
@@ -13,6 +14,7 @@ import {
 } from "../lib/auth";
 import { useTheme } from "../lib/ThemeContext";
 import SocialSignIn from "../components/SocialSignIn";
+import EmailCodeModal from "../components/EmailCodeModal";
 
 const logoImage = require("../assets/logo.png");
 
@@ -22,6 +24,8 @@ export default function Login() {
   const { colors, darkMode } = useTheme();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [loading, setLoading] = useState(false);
+  // Accounts that never confirmed their email do it now (code pop-up).
+  const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
   const [biometricLoading, setBiometricLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [biometricReady, setBiometricReady] = useState(false);
@@ -67,11 +71,19 @@ export default function Login() {
     }
 
     setLoading(true);
+    let signedIn: any;
     try {
-      await login(formData.email, formData.password);
+      signedIn = await login(formData.email, formData.password);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
       setLoading(false);
+      return;
+    }
+    if (signedIn?.user && signedIn.user.verified === false) {
+      const email = String(signedIn.user.email || formData.email).trim().toLowerCase();
+      requestOtp(email).catch(() => {});
+      setLoading(false);
+      setConfirmEmail(email);
       return;
     }
 
@@ -192,14 +204,6 @@ export default function Login() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={[styles.googleButton, { borderColor: colors.border, backgroundColor: colors.card }]}
-          onPress={() => router.push({ pathname: "/(auth)/otp-confirm", params: { email: formData.email } } as any)}
-        >
-          <Ionicons name="mail-outline" size={20} color={colors.primary} />
-          <Text style={[styles.googleButtonText, { color: colors.text }]}>Email me a sign-in code</Text>
-        </TouchableOpacity>
-
         <View style={styles.dividerContainer}>
           <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
           <Text style={[styles.dividerText, { color: colors.textMuted }]}>or</Text>
@@ -218,6 +222,11 @@ export default function Login() {
         <Text style={[styles.brandingTitle, { color: colors.text }]}>BukkaPay</Text>
         <Text style={[styles.brandingSubtitle, { color: colors.textMuted }]}>The Pulse of African Finance</Text>
       </View>
+      <EmailCodeModal
+        visible={confirmEmail !== null}
+        email={confirmEmail ?? ""}
+        onVerified={() => { setConfirmEmail(null); router.replace((returnTo || "/(tabs)") as any); }}
+      />
     </ScrollView>
   );
 }

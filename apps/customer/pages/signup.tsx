@@ -8,6 +8,7 @@ import { COUNTRY_CODES } from "../lib/countryData";
 import { fetchOperatingCountries, type PublicCountry } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 import SocialSignIn from "../components/SocialSignIn";
+import EmailCodeModal from "../components/EmailCodeModal";
 
 const logoImage = require("../assets/logo.png");
 
@@ -17,6 +18,8 @@ export default function Signup() {
   const { colors, darkMode } = useTheme();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [loading, setLoading] = useState(false);
+  // After sign-up we confirm the email with the code we just sent.
+  const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -90,12 +93,8 @@ export default function Signup() {
         residence,
         acceptTerms,
       );
-      // Identity verification (KYC) is a required step of registration —
-      // land here next instead of going straight into the app.
-      router.replace({
-        pathname: "/(auth)/kyc-verification" as any,
-        params: returnTo ? { returnTo } : {},
-      });
+      // Next: confirm the email with the code, then identity verification.
+      setConfirmEmail(formData.email.trim().toLowerCase());
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -312,6 +311,18 @@ export default function Signup() {
           <Text style={[styles.termsText, { color: colors.textMuted }]}>By signing up, you agree to our Terms & Conditions</Text>
         </View>
       </View>
+      <EmailCodeModal
+        visible={confirmEmail !== null}
+        email={confirmEmail ?? ""}
+        onVerified={() => {
+          setConfirmEmail(null);
+          // Identity verification (KYC) is a required step of registration.
+          router.replace({
+            pathname: "/(auth)/kyc-verification" as any,
+            params: returnTo ? { returnTo } : {},
+          });
+        }}
+      />
     </ScrollView>
   );
 }

@@ -68,3 +68,20 @@ async def test_unconfigured_environment_says_so(client, monkeypatch) -> None:
     monkeypatch.setattr(supabase_auth, "is_configured", lambda: False)
     r = await client.post("/api/auth/otp/request", json={"email": unique_email()})
     assert r.status_code == 503
+
+
+async def test_codes_cannot_sign_in_a_verified_account(client, fake_supabase) -> None:
+    """Codes confirm a new sign-up; they're never a password replacement."""
+    email = unique_email()
+    await _signup(client, email)
+    r = await client.post("/api/auth/otp/verify", json={"email": email, "code": "482913"})
+    assert r.status_code == 200  # first confirmation signs in
+
+    fake_supabase.clear()
+    r = await client.post("/api/auth/otp/request", json={"email": email})
+    assert r.status_code == 200
+    assert email not in fake_supabase  # no code sent to a verified account
+
+    fake_supabase[email] = "482913"  # even with a valid code in hand
+    r = await client.post("/api/auth/otp/verify", json={"email": email, "code": "482913"})
+    assert r.status_code == 400

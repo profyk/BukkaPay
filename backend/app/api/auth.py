@@ -88,17 +88,24 @@ async def request_otp(body: OtpRequestRequest, db: AsyncSession = Depends(get_db
         raise ApiError("Email codes are not configured on this environment", status_code=503)
     email = body.email.strip().lower()
     result = await db.execute(select(User).where(User.email == email, User.deleted_at.is_(None)))
-    # Same answer whether or not the account exists (no account enumeration);
-    # a code is only sent for real accounts.
-    if result.scalar_one_or_none() is not None:
+    user = result.scalar_one_or_none()
+    # Codes only confirm an email (a new sign-up); they are not a way to sign
+    # in. Same answer either way, so this can't be used to find accounts.
+    if user is not None and not user.verified:
         await auth_service.send_email_code(email)
-    return {"success": True, "message": "If an account exists for this email, a code has been sent."}
+    return {"success": True, "message": "If this email is waiting for confirmation, a code has been sent."}
 
 
 @router.post("/otp/verify", dependencies=[Depends(rate_limit("auth-otp-verify", 10, 600))])
 async def verify_otp(body: OtpVerifyRequest, db: AsyncSession = Depends(get_db)) -> AuthTokenResponse:
-    """Verify the emailed code. Confirms the email (KYC level 1) and signs the
-    customer in, like a magic link."""
+    """Confirm a new sign-up's email with the emailed code, then sign in.
+    Only for accounts that are not verified yet: a verified account signs in
+    with its password, Google or Apple, never with an emailed code."""
+    existing = (await db.execute(select(User).where(
+        User.email == body.email.strip().lower(), User.deleted_at.is_(None),
+    ))).scalar_one_or_none()
+    if existing is not None and existing.verified:
+        raise ApiError("This email is already confirmed. Sign in with your password.", status_code=400)
     user = await auth_service.verify_email(db, email=body.email, token=body.code)
     if user.frozen:
         raise ApiError("Your account is restricted", status_code=403)
