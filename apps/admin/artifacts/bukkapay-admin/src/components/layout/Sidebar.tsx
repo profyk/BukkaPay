@@ -80,8 +80,8 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
       { href: "/broadcast",        label: "Broadcast",        icon: Megaphone,    perm: "broadcast.send" },
       { href: "/website",          label: "Website",          icon: Globe2,       perm: "website.view" },
       { href: "/legal",            label: "Legal Documents",  icon: Gavel,        perm: "legal.view" },
-      { href: "/travel-operators", label: "Travel Operators", icon: PlaneTakeoff, perm: "travel.manage" },
-      { href: "/travel-routes",    label: "Travel Routes",    icon: RouteIcon,    perm: "travel.manage" },
+      { href: "/travel-operators", label: "Airlines",         icon: PlaneTakeoff, perm: "travel.manage" },
+      { href: "/travel-routes",    label: "Flight Routes",    icon: RouteIcon,    perm: "travel.manage" },
     ],
   },
 ]

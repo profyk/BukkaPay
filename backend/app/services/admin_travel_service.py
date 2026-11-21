@@ -17,6 +17,8 @@ async def list_operators(db: AsyncSession) -> list[TravelOperator]:
 async def create_operator(db: AsyncSession, *, name: str, mode: str, logo_url: str | None) -> TravelOperator:
     if not name.strip():
         raise ApiError("Operator name is required")
+    if mode != "flight":
+        raise ApiError("Only airlines can be added: BukkaPay no longer sells bus tickets")
     operator = TravelOperator(name=name.strip(), mode=mode, logo_url=logo_url)
     db.add(operator)
     await db.flush()
@@ -61,6 +63,16 @@ async def create_route(db: AsyncSession, *, operator: TravelOperator, values: di
     for field in required:
         if not values.get(field):
             raise ApiError(f"{field} is required")
+    if operator.mode != "flight":
+        raise ApiError("Bus routes are no longer supported")
+    import re
+
+    for f in ("origin_code", "destination_code"):
+        values[f] = str(values[f]).strip().upper()
+        if not re.fullmatch(r"[A-Z]{3}", values[f]):
+            raise ApiError(f"{f} must be a 3-letter IATA airport code (e.g. JNB)")
+    if values["origin_code"] == values["destination_code"]:
+        raise ApiError("Origin and destination airports must differ")
     route = TravelRoute(
         operator_id=operator.id,
         mode=operator.mode,

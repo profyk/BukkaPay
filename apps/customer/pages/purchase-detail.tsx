@@ -140,7 +140,7 @@ function TravelTicket({ transaction, onToggleUsed, onCancel, cancelling }: {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={t.heroOperator}>{operatorName}</Text>
-            <Text style={t.heroClass}>{meta.seatClass}</Text>
+            <Text style={t.heroClass}>{meta.seatClass}{meta.bookingReference ? `  ·  Ref ${meta.bookingReference}` : ""}</Text>
           </View>
           <View style={[t.usedBadge, { backgroundColor: isUsed || isRefunded ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.2)" }]}>
             <Text style={t.usedBadgeText}>{isRefunded ? "CANCELLED" : isUsed ? "USED" : "UNUSED"}</Text>

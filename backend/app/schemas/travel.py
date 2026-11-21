@@ -134,3 +134,70 @@ class UpdateDepartureRequest(CamelModel):
     currency: str | None = None
     total_seats: int | None = None
     is_active: bool | None = None
+
+
+# ─── Flights (all providers) ────────────────────────────────────────────────
+
+
+class AirportResponse(CamelModel):
+    iata: str
+    name: str
+    city: str
+    country_code: str
+
+
+class FlightSegmentResponse(CamelModel):
+    flight_number: str
+    carrier_name: str
+    origin: str
+    destination: str
+    departing_at: JsDateTime
+    arriving_at: JsDateTime
+
+
+class FlightOfferResponse(CamelModel):
+    id: str
+    provider: str
+    airline_name: str
+    airline_code: str | None = None
+    origin: str
+    destination: str
+    departing_at: JsDateTime
+    arriving_at: JsDateTime
+    duration_minutes: int
+    stops: int
+    cabin: str
+    total_amount: MoneyStr
+    currency: str
+    passengers: int
+    seats_left: int | None = None
+    refundable: bool | None = None
+    segments: list[FlightSegmentResponse] = []
+
+
+class PassportInput(CamelModel):
+    number: str
+    issuing_country: str
+    expires_on: str
+    nationality: str | None = None
+
+
+class TravellerInput(CamelModel):
+    title: str
+    given_name: str
+    family_name: str
+    born_on: str
+    gender: str
+    email: str
+    phone: str
+    document: PassportInput | None = None
+
+
+class BookFlightRequest(CamelModel):
+    offer_id: str
+    from_card_id: str
+    pin: str | None = None
+    adults: int = 1
+    children: int = 0
+    infants: int = 0
+    travellers: list[TravellerInput]

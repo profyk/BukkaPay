@@ -7,13 +7,12 @@ import { useTravelOperators, useCreateOperator, useUpdateOperator, type TravelOp
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { formatDate } from "@/lib/utils"
 
 type FormState = { name: string; mode: "bus" | "flight"; logoUrl: string }
-const BLANK: FormState = { name: "", mode: "bus", logoUrl: "" }
+const BLANK: FormState = { name: "", mode: "flight", logoUrl: "" }
 
 function ModeBadge({ mode }: { mode: string }) {
   return mode === "bus" ? (
@@ -84,7 +83,7 @@ export default function TravelOperatorsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-display">Travel Operators</h1>
-            <p className="text-muted-foreground mt-1">Bus and flight operators available for booking in the app.</p>
+            <p className="text-muted-foreground mt-1">Airlines whose flights customers can book in the app. Fares from connected airline APIs (e.g. Duffel) appear automatically; bus tickets are no longer sold.</p>
           </div>
           <Button onClick={() => { setForm(BLANK); setCreateOpen(true) }}>
             <Plus className="w-4 h-4 mr-2" />New Operator
@@ -156,22 +155,12 @@ export default function TravelOperatorsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Travel Operator</DialogTitle>
-            <DialogDescription>Bus companies and airlines whose routes users can book.</DialogDescription>
+            <DialogDescription>An airline whose routes and departures you load yourself.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-1.5">
               <label className="text-sm font-semibold">Name</label>
-              <Input placeholder="Intercape" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold">Mode</label>
-              <Select value={form.mode} onValueChange={(v: any) => setForm((f) => ({ ...f, mode: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bus"><span className="flex items-center gap-2"><Bus className="w-4 h-4" />Bus</span></SelectItem>
-                  <SelectItem value="flight"><span className="flex items-center gap-2"><Plane className="w-4 h-4" />Flight</span></SelectItem>
-                </SelectContent>
-              </Select>
+              <Input placeholder="Airlink" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-semibold">Logo URL (optional)</label>
