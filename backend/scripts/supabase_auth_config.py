@@ -42,9 +42,12 @@ def _token() -> str:
     tok = os.environ.get("SUPABASE_ACCESS_TOKEN", "").strip()
     if not tok and os.environ.get("SUPABASE_ACCESS_TOKEN_FILE"):
         tok = Path(os.environ["SUPABASE_ACCESS_TOKEN_FILE"]).read_text(encoding="utf-8").strip()
-    if not tok:
-        sys.exit("Set SUPABASE_ACCESS_TOKEN or SUPABASE_ACCESS_TOKEN_FILE")
-    return tok
+    import re
+
+    m = re.search(r"sbp_[A-Za-z0-9]+", tok)  # tolerate extra words around the token
+    if not m:
+        sys.exit("No Supabase access token (sbp_...) found in SUPABASE_ACCESS_TOKEN(_FILE)")
+    return m.group(0)
 
 
 def _call(method: str, body: dict | None = None) -> dict:
