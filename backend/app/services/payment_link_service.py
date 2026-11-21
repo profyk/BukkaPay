@@ -10,11 +10,11 @@ from app.core.errors import ApiError
 from app.integrations import stitch
 from app.ledger import accounts as ledger_accounts
 from app.ledger import posting
-from app.network import fees
 from app.models.enums import PaymentLinkStatus, TransactionType
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.user import User
 from app.models.wallet import Transaction, WalletCard
+from app.network import fees
 from app.services.stitch_service import STITCH_BANKS
 
 PAYMENT_URL_BASE = "https://app.bukkapay.com/pay"
@@ -228,9 +228,7 @@ async def settle_link_payment(
     elif link.merchant_id is not None:
         from app.merchants import webhooks_out
         from app.models.merchant import Merchant
-        from app.services.merchant_service import require_can_transact
-
-        from app.services.merchant_service import check_collection_cap
+        from app.services.merchant_service import check_collection_cap, require_can_transact
 
         merchant = await db.get(Merchant, link.merchant_id)
         require_can_transact(merchant)

@@ -51,8 +51,8 @@ async def list_payment_links(
     created = await payment_link_service.get_links_by_user(db, user_id)
     received = await payment_link_service.get_saved_links(db, user_id)
     return [
-        *[_to_response(l, direction="sent") for l in created],
-        *[_to_response(l, direction="received") for l in received],
+        *[_to_response(link, direction="sent") for link in created],
+        *[_to_response(link, direction="received") for link in received],
     ]
 
 

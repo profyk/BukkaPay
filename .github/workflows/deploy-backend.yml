@@ -22,11 +22,10 @@ jobs:
       - name: Deploy API service
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service=${{ secrets.RAILWAY_API_SERVICE_NAME || 'bukkapay-api' }} --ci
-        working-directory: backend
+        # The Railway services' root directory is `backend`, so upload the repo root.
+        run: railway up --service="${{ secrets.RAILWAY_API_SERVICE_NAME || 'BukkaPay-Backend' }}" --ci
 
       - name: Deploy worker service
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service=${{ secrets.RAILWAY_WORKER_SERVICE_NAME || 'bukkapay-worker' }} --ci
-        working-directory: backend
+        run: railway up --service="${{ secrets.RAILWAY_WORKER_SERVICE_NAME || 'worker' }}" --ci

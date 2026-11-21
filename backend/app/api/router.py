@@ -58,14 +58,14 @@ api_router.include_router(public.router)
 
 from app.api.admin import auth as admin_auth
 from app.api.admin import cards as admin_cards
-from app.api.admin import website as admin_website
-from app.api.admin import legal as admin_legal
 from app.api.admin import chat as admin_chat
 from app.api.admin import finance as admin_finance
+from app.api.admin import legal as admin_legal
 from app.api.admin import network as admin_network
 from app.api.admin import platform as admin_platform
 from app.api.admin import travel as admin_travel
 from app.api.admin import users as admin_users
+from app.api.admin import website as admin_website
 
 admin_router = APIRouter(prefix="/api/admin")
 admin_router.include_router(admin_auth.router)

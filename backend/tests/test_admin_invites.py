@@ -197,3 +197,23 @@ def test_every_email_is_branded():
         assert eb.is_branded(t["content"]), name
         assert "{{ .Token }}" in t["content"], name
         assert t["subject"]
+
+
+async def test_master_key_is_limited_to_owner_recovery_in_production(client: AsyncClient, admin: dict, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "env", "production")
+    for method, path in (("get", "/api/admin/users"), ("get", "/api/admin/admins"), ("post", "/api/admin/setup")):
+        r = await getattr(client, method)(path, headers=admin["master_headers"])
+        assert r.status_code == 403, (path, r.text)
+
+
+async def test_only_the_owner_appoints_a_ceo(client: AsyncClient, admin: dict):
+    # The master key (no owner session) can't appoint a CEO.
+    r = await client.post("/api/admin/invites", json={"email": _email(), "name": "C", "role": "ceo"},
+                          headers=admin["master_headers"])
+    assert r.status_code == 403 and "owner" in r.json()["error"].lower()
+    # The owner can.
+    r = await client.post("/api/admin/invites", json={"email": _email(), "name": "C", "role": "ceo"},
+                          headers=admin["headers"])
+    assert r.status_code == 201, r.text

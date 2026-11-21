@@ -28,7 +28,7 @@ async def list_billing_links(
     if not merchants:
         return []
     links = await svc.get_links_by_merchant_ids(db, [m.id for m in merchants])
-    return [_to_response(l) for l in links]
+    return [_to_response(link) for link in links]
 
 
 @router.post("", status_code=201)

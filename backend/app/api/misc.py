@@ -11,8 +11,8 @@ from app.schemas.misc import (
     CreateContactRequest,
     CreatePaymentRequestRequest,
     PaymentRequestResponse,
-    PublicUser,
     PayPaymentRequestRequest,
+    PublicUser,
 )
 from app.services import misc_service
 

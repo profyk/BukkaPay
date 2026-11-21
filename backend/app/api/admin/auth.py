@@ -33,6 +33,13 @@ from app.services import admin_auth_service as svc
 router = APIRouter(tags=["admin-auth"])
 
 
+def _only_owner_appoints_ceo(ctx: AdminContext, role: str | None) -> None:
+    from app.governance.owner import is_owner_email
+
+    if role == "ceo" and not (ctx.admin is not None and is_owner_email(ctx.admin.email)):
+        raise ApiError("Only the platform owner can appoint a CEO", status_code=403)
+
+
 @router.post("/setup", status_code=201, dependencies=[Depends(rate_limit("admin-setup", 5, 3600))])
 async def setup(
     body: AdminSetupRequest, x_admin_token: str | None = Header(default=None, alias="x-admin-token"),
@@ -114,6 +121,7 @@ async def create_admin(
     body: CreateAdminRequest, _ctx: AdminContext = Depends(require("admins.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserResponse:
+    _only_owner_appoints_ceo(_ctx, body.role)
     admin = await svc.create_admin(db, email=body.email, name=body.name, password=body.password, role=body.role)
     return AdminUserResponse.model_validate(admin)
 
@@ -123,6 +131,7 @@ async def update_admin(
     admin_id: str, body: UpdateAdminRequest, _ctx: AdminContext = Depends(require("admins.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> AdminUserResponse:
+    _only_owner_appoints_ceo(_ctx, body.role)
     admin = await svc.update_admin(
         db, admin_id, name=body.name, email=body.email, password=body.password, role=body.role,
         is_active=body.is_active,
@@ -172,6 +181,7 @@ async def create_invite(
     body: CreateInviteRequest, ctx: AdminContext = Depends(require("admins.manage")),
     db: AsyncSession = Depends(get_db),
 ) -> InviteLinkResponse:
+    _only_owner_appoints_ceo(ctx, body.role)
     invite, link, sent = await svc.create_invite(
         db, email=body.email, name=body.name, role=body.role, invited_by=ctx.admin,
     )

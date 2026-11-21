@@ -30,7 +30,9 @@ export function useAuth() {
     },
   });
 
-  const logout = () => {
+  const logout = async () => {
+    // End the session on the server too, not just in this browser.
+    try { await api.post("/admin/auth/logout"); } catch { /* already expired */ }
     localStorage.removeItem("bukkapay_token");
     setIsAuthenticated(false);
     queryClient.clear();

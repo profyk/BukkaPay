@@ -62,6 +62,11 @@ async def admin_auth(
             raise ApiError("Admin API not configured", status_code=503)
         if not hmac.compare_digest(x_admin_token.encode(), settings.admin_api_key.encode()):
             raise ApiError("Invalid admin token", status_code=401)
+        # The master key skips login and MFA, so in production it can do one
+        # thing only: email the owner a recovery invite. Everything else needs
+        # a real admin session.
+        if settings.is_production and not request.url.path.rstrip("/").endswith("/owner-invite"):
+            raise ApiError("The master key can only send the owner's recovery invite", status_code=403)
         return AdminContext(is_master_key=True, ip=_client_ip(request))
 
     bearer = (authorization or "").removeprefix("Bearer ").strip()

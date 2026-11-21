@@ -1,11 +1,10 @@
 name: Build and Deploy Customer Web to Vercel
 
+# Production for app.bukkapay.com is built by Vercel's Git integration from
+# `main` (with the env vars set in Vercel). This workflow is a manual fallback
+# only, so the two never race to overwrite each other.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "apps/customer/**"
-      - ".github/workflows/deploy-frontend-web.yml"
+  workflow_dispatch:
 
 defaults:
   run:

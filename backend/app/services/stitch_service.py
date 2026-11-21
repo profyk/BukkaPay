@@ -34,8 +34,8 @@ from app.ledger import posting
 from app.models.enums import TransactionType
 from app.models.ledger import FundingRequest, WithdrawalRequest
 from app.models.user import User
-from app.network import fees, limits
 from app.models.wallet import Transaction, WalletCard
+from app.network import fees, limits
 
 STITCH_BANKS = [
     {"id": "absa", "name": "Absa Bank"},

@@ -40,6 +40,18 @@ dev = [
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint]
+# Explicit, so CI doesn't change behaviour when ruff's defaults change:
+# real errors (pyflakes, syntax/indentation, imports) + import order.
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*" = ["I001"]
+"tests/*" = ["E402", "E731", "E741"]
+"scripts/*" = ["E402"]
+"app/api/router.py" = ["E402"]  # admin routers imported after the public router is built
+"app/services/claim_payment_service.py" = ["E731"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
