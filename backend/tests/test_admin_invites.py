@@ -203,9 +203,12 @@ async def test_master_key_is_limited_to_owner_recovery_in_production(client: Asy
     from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "env", "production")
-    for method, path in (("get", "/api/admin/users"), ("get", "/api/admin/admins"), ("post", "/api/admin/setup")):
+    for method, path in (("get", "/api/admin/users"), ("get", "/api/admin/admins")):
         r = await getattr(client, method)(path, headers=admin["master_headers"])
         assert r.status_code == 403, (path, r.text)
+    r = await client.post("/api/admin/setup", json={"email": SUPER_ADMIN_EMAIL, "name": "X", "password": "password123"},
+                          headers=admin["master_headers"])
+    assert r.status_code == 403, r.text
 
 
 async def test_only_the_owner_appoints_a_ceo(client: AsyncClient, admin: dict):

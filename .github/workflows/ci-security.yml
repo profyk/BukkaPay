@@ -8,6 +8,8 @@ on:
 permissions:
   contents: read
   security-events: write
+  actions: read          # code-scanning upload reads the workflow run
+  pull-requests: read    # gitleaks lists the PR's commits
 
 # A newer push to the same branch/PR supersedes the running checks.
 concurrency:
