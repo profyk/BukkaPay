@@ -11,6 +11,7 @@ from app.api import (
     auth,
     bank_partner,
     billing_link,
+    card_webhooks,
     cards,
     chat,
     claim_payment,
@@ -57,6 +58,7 @@ api_router.include_router(travel.router)
 api_router.include_router(chat.router)
 api_router.include_router(public.router)
 api_router.include_router(trade_api.router)
+api_router.include_router(card_webhooks.router)
 
 from app.api.admin import auth as admin_auth
 from app.api.admin import cards as admin_cards

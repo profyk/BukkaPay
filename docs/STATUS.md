@@ -81,15 +81,17 @@ and secret detection.
 - [ ] **Company details** in Admin → Legal Documents (legal name, registration number, address, Information Officer) so legal pages lose their placeholders; publish reviewed versions.
 - [ ] Check whether any account converted to Business still has money in a personal wallet.
 
-### Milestone 2 — Backend APIs, trade escrow, receipts, webhooks, rails
-- [ ] Required `Idempotency-Key` on every money mutation (P2P, QR pay, swaps, flights, cash-out, claims, payment links, merchant payouts, escrow).
-- [ ] Route every fee to its `SYS_REVENUE_*` account.
-- [ ] `swapCurrency` (own wallets, live rate + configurable spread); merchant auto-FX settlement.
-- [ ] Merchant fee tiers 0.5–1.0% (configurable).
-- [ ] Trade: issue/pay invoices, `createTradeEscrow`, `releaseTradeEscrow` (1.0–1.5% fee), refunds, disputes, auto-release.
-- [ ] Trade receipt generator: canonical JSON + PDF, SHA-256 hash chain, verification endpoint.
-- [ ] Card issuer webhooks at `/webhooks/card/{auth,settle,reverse}` (<100 ms auth holds) for Onafriq / EFT Corporation.
-- [ ] Rail adapters: Stitch/PayShap (exists), Botswana mobile money, Yellow Card / PAPSS / ADLA rebalancing, Smile ID KYC.
+### Milestone 2 — Backend APIs, trade escrow, receipts, webhooks, rails *(PR #37)*
+- [x] Trade invoices (itemised, HS codes), Instant Pay, Protected Escrow Pay (fund → confirm / dispute → admin resolve, 14-day auto-release), cross-currency payment through the FX pools.
+- [x] Hash-chained AfCFTA Trade & Payment Receipts (JSON + PDF) with public verification.
+- [x] `swapCurrency` between own wallets (rate + spread → SYS_REVENUE_FX, price protection).
+- [x] Fees routed: merchant fees → SYS_REVENUE_MERCHANT_FEES, withdrawal fees → SYS_REVENUE_CASHOUT, escrow fees → SYS_REVENUE_ESCROW_FEES.
+- [x] Pricing (migration 0031): P2P free, merchant payments 1.0%, trade escrow 1.0% (clamped 1.0–1.5%).
+- [x] Card issuer webhooks at `/webhooks/card/{auth,settle,reverse}` (signed, exactly-once settle/reverse).
+- [x] Partner adapters: mobile money, Yellow Card / PAPSS / ADLA treasury rebalancing, Smile ID KYC — sandbox + live, live refuses until configured.
+- [x] Admin endpoints: escrow dispute desk, proof of reserve, custodian balance capture.
+- [ ] Required `Idempotency-Key` on the *existing* money endpoints (new trade/swap endpoints already require it) — do with the app updates in Milestone 3 so clients send keys first.
+- [ ] Wire Smile ID into the KYC flow and mobile money into add/withdraw money once partners are signed.
 
 ### Milestone 3 — Customer & trader app
 - [ ] Home wallet switcher (ZAR/USD/BWP), live FX converter, unified feed.
@@ -125,4 +127,5 @@ and secret detection.
 | #33 | Five admin roles, Treasury/Stokvels/Enquiries, admin look | merged |
 | #34 | Next.js 15.5.28 + React 19, shell-quote/tar patches | open — all checks green |
 | #35 | Milestone 1: ledger segregation, SYS_* chart, proof of reserve, trade schema | open — all checks green |
+| #37 | Milestone 2: trade escrow, receipts, swaps, card webhooks, partner adapters, pricing | open — base #35 |
 | #36 | Website redesign: cash-free Africa and AfCFTA trade vision | open — green except dependency scan (clears once #34 is in `main`) |
