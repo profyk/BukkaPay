@@ -36,7 +36,7 @@ class Settings(CamelModel):
     sales_email: str = Field(default="hello@bukkapay.com", max_length=120)
     press_email: str = Field(default="marketing@bukkapay.com", max_length=120)
     socials: list[Link] = Field(default_factory=list, max_length=8)
-    seo_title: str = Field(default="BukkaPay — Cash-free payments and trade across Africa", max_length=70)
+    seo_title: str = Field(default="BukkaPay — Africa’s money, without borders", max_length=70)
     seo_description: str = Field(
         default="Pay, get paid and trade across borders in ZAR, BWP and USD: free wallet transfers, scan-to-pay, "
                 "supplier payments and flights.",
@@ -65,7 +65,7 @@ class UseCase(CamelModel):
 
 class Home(CamelModel):
     eyebrow: str = Field(default="Cash-free Africa · ZAR · BWP · USD", max_length=60)
-    title: str = Field(default="Money that moves the way Africa trades.", max_length=80)
+    title: str = Field(default="Africa’s money, without borders.", max_length=80)
     subtitle: str = Field(
         default="Send money to anyone in seconds, pay any shop with a scan, and pay suppliers across borders — "
                 "with every rate and fee shown before you confirm. One wallet for everyday life and cross-border trade.",
@@ -75,16 +75,16 @@ class Home(CamelModel):
         "Free transfers between BukkaPay wallets",
         "Scan to pay at spaza shops, taxis and market stalls — no card machine",
         "ZAR, BWP and USD side by side — never mixed",
-        "Supplier payments protected by escrow, with border-ready receipts (coming soon)",
+        "Pay suppliers across borders instantly or with Protected Escrow",
     ], max_length=5)
     features: list[Feature] = Field(default_factory=lambda: [
         Feature(tag="Everyday", title="Zero-fee transfers", body="Pay friends and family by @username, phone number or QR. Money moves between BukkaPay wallets instantly — and free."),
         Feature(tag="Everyday", title="Scan to pay", body="One scan at the counter, the taxi rank or the market stall. The merchant is paid instantly into their BukkaPay balance."),
         Feature(tag="Wallet", title="ZAR, BWP and USD wallets", body="Keep a separate balance in each currency and switch in a tap. You see the exchange rate before you swap or pay."),
-        Feature(tag="Trade · soon", title="Pay suppliers across borders", body="Pay a wholesaler in Gaborone from Johannesburg — instantly, or protected by escrow until your goods are collected or delivered."),
-        Feature(tag="Trade · soon", title="Border-ready trade receipts", body="Every supplier payment comes with a tamper-evident receipt naming buyer and seller, the invoice and the rate — for customs and credit."),
-        Feature(tag="Travel", title="Fly with your wallet", body="Search fares across airlines and pay from your ZAR, BWP or USD wallet with your PIN. Your booking reference arrives instantly."),
-        Feature(tag="Cards", title="Virtual Visa card", body="Pay online and tap to pay once your ID is verified and cards launch in your country. Freeze it any time from the app."),
+        Feature(tag="AfCFTA trade", title="Pay suppliers across borders", body="Pay a wholesaler in Gaborone from Johannesburg instantly, or use Protected Escrow: the money is held until you confirm your goods arrived."),
+        Feature(tag="AfCFTA trade", title="PDF trade receipts for the border", body="Download a tamper-evident PDF receipt for every supplier payment, naming buyer, seller, goods, HS codes and the rate, for smooth border clearance."),
+        Feature(tag="Travel", title="Book flights in seconds", body="Search domestic and pan-African flights across airlines and pay from your ZAR, BWP or USD wallet balance with your PIN. Your booking reference arrives instantly."),
+        Feature(tag="Cards · soon", title="Instant virtual Visa cards", body="Create a virtual Visa card in seconds to shop online worldwide and tap to pay where Visa is accepted, once card issuing launches in your country. Freeze it any time."),
         Feature(tag="Business", title="Payment links & invoices", body="Share a link or an itemised invoice on WhatsApp and watch it marked paid the moment the money arrives."),
         Feature(tag="Community", title="Stokvels & contributions", body="Pool money for a family event or a stokvel — with a clear, shared record of who paid."),
     ], max_length=12)
@@ -94,7 +94,6 @@ class Home(CamelModel):
         UseCase(audience="Wholesalers", title="Invoice buyers in their currency", body="Send itemised invoices to buyers in neighbouring countries and get settled in your own currency."),
         UseCase(audience="Taxi owners & drivers", title="Fares without the cash box", body="Passengers scan and pay; you see every fare as it lands, and cash never has to change hands."),
         UseCase(audience="Families", title="Send home in seconds", body="Support family across town or across the border — free between BukkaPay wallets, with the rate shown upfront."),
-        UseCase(audience="Wholesalers", title="Sell across the border", body="Send trade invoices in ZAR, BWP or USD; buyers pay instantly or through BukkaPay escrow."),
     ], max_length=8)
 
 
