@@ -21,6 +21,11 @@ class AdminRole(StrEnum):
     MERCHANT_SUPPORT = "merchant_support"
     TECHNICAL_ADMIN = "technical_admin"
     AUDITOR = "auditor"
+    RISK_ANALYST = "risk_analyst"
+    KYC_ANALYST = "kyc_analyst"
+    TREASURY_MANAGER = "treasury_manager"
+    MARKETING_MANAGER = "marketing_manager"
+    TRAVEL_MANAGER = "travel_manager"
 
 
 class TransactionType(StrEnum):

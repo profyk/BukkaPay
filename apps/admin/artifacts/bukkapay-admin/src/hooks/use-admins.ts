@@ -39,6 +39,11 @@ export const ASSIGNABLE_ROLES: { value: string; label: string; summary: string }
   { value: "customer_support", label: "Customer Support", summary: "Users, KYC status, wallets and support chat." },
   { value: "merchant_support", label: "Merchant Support", summary: "Merchants, their transactions and support chat." },
   { value: "technical_admin", label: "Technical Admin", summary: "Network status, webhooks, audit log." },
+  { value: "risk_analyst", label: "Risk Analyst", summary: "Fraud and compliance cases; can freeze users and restrict wallets." },
+  { value: "kyc_analyst", label: "KYC Analyst", summary: "Reviews customer identity and merchant business verification." },
+  { value: "treasury_manager", label: "Treasury Manager", summary: "FX, reconciliation and ledger adjustment requests (approved by another admin)." },
+  { value: "marketing_manager", label: "Marketing Manager", summary: "Website content and broadcast messages." },
+  { value: "travel_manager", label: "Travel Manager", summary: "Airlines, flight routes and travel support." },
   { value: "auditor", label: "Auditor", summary: "Read-only access to everything." },
   { value: "admin", label: "Admin (legacy)", summary: "General admin role." },
 ];

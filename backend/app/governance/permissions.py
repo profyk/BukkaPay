@@ -39,6 +39,8 @@ ROLE_LABELS: dict[str, str] = {
     "compliance_officer": "Compliance Officer", "operations_admin": "Operations Admin",
     "customer_support": "Customer Support", "merchant_support": "Merchant Support",
     "technical_admin": "Technical Admin", "auditor": "Auditor",
+    "risk_analyst": "Risk Analyst", "kyc_analyst": "KYC Analyst", "treasury_manager": "Treasury Manager",
+    "marketing_manager": "Marketing Manager", "travel_manager": "Travel Manager",
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
@@ -65,6 +67,17 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     },
     "technical_admin": {"dashboard.view", "network.view", "webhooks.view", "audit.view", "reconciliation.view"},
     "auditor": _VIEW_ALL,
+    # Fraud and financial-crime monitoring: can stop money moving, not move it.
+    "risk_analyst": _VIEW_ALL | {"compliance.manage", "users.freeze", "wallets.restrict"},
+    # Identity and business verification only.
+    "kyc_analyst": {"dashboard.view", "users.view", "kyc.view", "kyc.review", "merchants.view",
+                    "merchants.kyb_review", "compliance.view", "support.view"},
+    # Money operations; adjustments are requests that another admin approves.
+    "treasury_manager": _VIEW_ALL | {"fx.manage", "reconciliation.run", "reconciliation.resolve",
+                                     "ledger.adjust_request"},
+    "marketing_manager": {"dashboard.view", "website.view", "website.manage", "broadcast.send", "support.view",
+                          "legal.view"},
+    "travel_manager": {"dashboard.view", "travel.manage", "transactions.view", "support.view", "support.manage"},
     # Legacy general-purpose role from before least-privilege roles existed.
     "admin": _VIEW_ALL | {
         "users.manage", "users.freeze", "kyc.review", "wallets.restrict", "merchants.manage",
