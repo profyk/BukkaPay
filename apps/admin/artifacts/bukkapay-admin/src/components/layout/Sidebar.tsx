@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter"
 import {
-  Inbox, PiggyBank,
+  Inbox, PiggyBank, Handshake,
   LayoutDashboard, Users, ArrowRightLeft, LogOut,
   CreditCard, FileCheck, ScrollText, Wallet,
   Link2, Store, Megaphone, ChevronRight,
@@ -47,7 +47,9 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
       { href: "/cards",         label: "Visa Cards",       icon: CreditCard,      perm: "wallets.view" },
       { href: "/payment-links", label: "Payment Links",    icon: Link2,           perm: "transactions.view" },
       { href: "/cross-border",  label: "Cross-Border",     icon: Globe2,          perm: "transactions.view" },
+      { href: "/safeguarding",  label: "Safeguarding",     icon: ShieldCheck,     perm: "ledger.view" },
       { href: "/treasury",      label: "Treasury",         icon: Landmark,        perm: "ledger.view" },
+      { href: "/trade-escrows", label: "Trade Escrow Desk", icon: Handshake,      perm: "compliance.view" },
       { href: "/ledger",        label: "Ledger",           icon: BookOpen,        perm: "ledger.view" },
       { href: "/stokvels",      label: "Stokvels",         icon: PiggyBank,       perm: "transactions.view" },
       { href: "/reconciliation",label: "Reconciliation",   icon: Scale,           perm: "reconciliation.view" },
