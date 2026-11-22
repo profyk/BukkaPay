@@ -6,15 +6,15 @@ export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bukkapay.
 export const NAV = [
   { href: "/wallet", label: "Wallet" },
   { href: "/merchants", label: "Business" },
-  { href: "/cross-border", label: "Cross-border" },
+  { href: "/trade", label: "Trade" },
+  { href: "/travel", label: "Flights" },
+  { href: "/cross-border", label: "Send abroad" },
   { href: "/countries", label: "Countries" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/partners", label: "Partners" },
   { href: "/security", label: "Security" },
 ]
 
 export const PAGES = [
-  "", "/about", "/how-it-works", "/wallet", "/merchants", "/cross-border", "/payment-links", "/contributions",
+  "", "/about", "/how-it-works", "/wallet", "/merchants", "/trade", "/travel", "/cross-border", "/payment-links", "/contributions",
   "/countries", "/pricing", "/partners", "/security", "/faq", "/contact",
   "/legal",
 ]
