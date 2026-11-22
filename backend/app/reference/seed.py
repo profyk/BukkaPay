@@ -120,11 +120,11 @@ DRAFT_CORRIDORS: list[tuple[str, str, str, str]] = [
 # percentage-only rules apply in any currency.
 # product, percentage, fixed, currency, country
 FEES: list[tuple[str, str, str, str | None, str | None]] = [
-    ("p2p", "0.5", "1.00", "ZAR", "ZA"),
-    ("p2p", "0.5", "0", None, None),
+    ("p2p", "0", "0", None, None),                 # wallet-to-wallet is free
     ("cross_border", "1.0", "0", None, None),
     ("payment_link", "1.5", "0", None, None),
-    ("merchant_payment", "1.5", "0", None, None),
+    ("merchant_payment", "1.0", "0", None, None),  # QR / checkout / instant supplier pay: 0.5–1.0%
+    ("trade_escrow", "1.0", "0", None, None),      # trade escrow: 1.0–1.5% (clamped in app.trade.service)
     ("withdrawal", "0", "8.50", "ZAR", "ZA"),
     ("card_issuance", "0", "50.00", "ZAR", "ZA"),
     ("card_maintenance", "0", "15.00", "ZAR", "ZA"),

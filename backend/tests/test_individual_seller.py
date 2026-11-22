@@ -54,8 +54,8 @@ async def test_individual_seller_caps_apply(client: AsyncClient):
 
     assert (await pay(client, payer, merchant_id, "5000.00")).status_code in (200, 201)
     assert (await pay(client, payer, merchant_id, "5000.00")).status_code in (200, 201)
-    # caps count what the seller receives (after the 1.5% fee): 9,850 so far
-    assert (await pay(client, payer, merchant_id, "150.00")).status_code in (200, 201)
+    # caps count what the seller receives (after the 1.0% fee): 9,900 so far
+    assert (await pay(client, payer, merchant_id, "99.00")).status_code in (200, 201)  # 9,998.01
     r = await pay(client, payer, merchant_id, "10.00")
     assert r.status_code == 403 and "daily" in r.json()["error"]
 

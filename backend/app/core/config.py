@@ -100,6 +100,13 @@ class Settings(BaseSettings):
     merchant_web_url: str = Field(default="http://localhost:3001", alias="MERCHANT_WEB_URL")
     # Flights: Duffel airline API (https://duffel.com). Unset = only BukkaPay's own inventory.
     duffel_access_token: str | None = Field(default=None, alias="DUFFEL_ACCESS_TOKEN")
+    # Treasury rebalancing (Yellow Card) and KYC (Smile ID); unset = not connected.
+    yellowcard_api_key: str | None = Field(default=None, alias="YELLOWCARD_API_KEY")
+    yellowcard_api_secret: str | None = Field(default=None, alias="YELLOWCARD_API_SECRET")
+    yellowcard_base_url: str = Field(default="https://sandbox.api.yellowcard.io", alias="YELLOWCARD_BASE_URL")
+    smile_id_partner_id: str | None = Field(default=None, alias="SMILE_ID_PARTNER_ID")
+    smile_id_api_key: str | None = Field(default=None, alias="SMILE_ID_API_KEY")
+    smile_id_sandbox: bool = Field(default=True, alias="SMILE_ID_SANDBOX")
     # Admin panel origin, used in admin invitation links.
     admin_web_url: str = Field(default="https://admin.bukkapay.com", alias="ADMIN_WEB_URL")
 

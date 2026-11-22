@@ -11,6 +11,7 @@ from app.api import (
     auth,
     bank_partner,
     billing_link,
+    card_webhooks,
     cards,
     chat,
     claim_payment,
@@ -31,6 +32,7 @@ from app.api import (
     wallet,
     webauthn,
 )
+from app.api import trade as trade_api
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -55,6 +57,8 @@ api_router.include_router(kyc.router)
 api_router.include_router(travel.router)
 api_router.include_router(chat.router)
 api_router.include_router(public.router)
+api_router.include_router(trade_api.router)
+api_router.include_router(card_webhooks.router)
 
 from app.api.admin import auth as admin_auth
 from app.api.admin import cards as admin_cards
@@ -63,6 +67,7 @@ from app.api.admin import finance as admin_finance
 from app.api.admin import legal as admin_legal
 from app.api.admin import network as admin_network
 from app.api.admin import platform as admin_platform
+from app.api.admin import trade as admin_trade
 from app.api.admin import travel as admin_travel
 from app.api.admin import users as admin_users
 from app.api.admin import website as admin_website
@@ -78,3 +83,4 @@ admin_router.include_router(admin_network.router)
 admin_router.include_router(admin_cards.router)
 admin_router.include_router(admin_website.router)
 admin_router.include_router(admin_legal.router)
+admin_router.include_router(admin_trade.router)

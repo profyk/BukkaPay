@@ -30,7 +30,7 @@ from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.integrations import stitch
 from app.ledger import accounts as ledger_accounts
-from app.ledger import posting
+from app.ledger import chart, posting
 from app.models.enums import TransactionType
 from app.models.ledger import FundingRequest, WithdrawalRequest
 from app.models.user import User
@@ -259,7 +259,7 @@ async def withdraw(
         legs=[
             posting.debit(await ledger_accounts.wallet_account(db, card), total_debit),
             posting.credit(await ledger_accounts.payouts_pending(db, card.currency), parsed_amount),
-            posting.credit(await ledger_accounts.fee_revenue(db, card.currency), fee.fee),
+            posting.credit(await chart.sys_account(db, "SYS_REVENUE_CASHOUT", card.currency), fee.fee),
         ],
         details={"withdrawal_request_id": str(request.id), "sender_id": str(user_id),
                  "fee_breakdown": fee.breakdown},
