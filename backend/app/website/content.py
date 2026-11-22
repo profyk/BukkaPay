@@ -36,9 +36,10 @@ class Settings(CamelModel):
     sales_email: str = Field(default="hello@bukkapay.com", max_length=120)
     press_email: str = Field(default="marketing@bukkapay.com", max_length=120)
     socials: list[Link] = Field(default_factory=list, max_length=8)
-    seo_title: str = Field(default="BukkaPay — Get paid across Africa", max_length=70)
+    seo_title: str = Field(default="BukkaPay — Cash-free payments and trade across Africa", max_length=70)
     seo_description: str = Field(
-        default="Payment links, invoices, QR payments and a multi-currency wallet with a Visa card — built for Africa.",
+        default="Pay, get paid and trade across borders in ZAR, BWP and USD: free wallet transfers, scan-to-pay, "
+                "supplier payments and flights.",
         max_length=160,
     )
 
@@ -63,31 +64,37 @@ class UseCase(CamelModel):
 
 
 class Home(CamelModel):
-    eyebrow: str = Field(default="Launching across Africa", max_length=60)
-    title: str = Field(default="Get paid. Pay anywhere.", max_length=80)
+    eyebrow: str = Field(default="Cash-free Africa · ZAR · BWP · USD", max_length=60)
+    title: str = Field(default="Money that moves the way Africa trades.", max_length=80)
     subtitle: str = Field(
-        default="Payment links, invoices and QR codes for your business — and a multi-currency wallet with a Visa "
-                "card for everyone. Every fee and exchange rate is shown before you confirm.",
+        default="Send money to anyone in seconds, pay any shop with a scan, and pay suppliers across borders — "
+                "with every rate and fee shown before you confirm. One wallet for everyday life and cross-border trade.",
         max_length=280,
     )
     benefits: list[str] = Field(default_factory=lambda: [
-        "No more fake payment screenshots — links are marked paid only when the money arrives",
-        "Street vendors start with just their ID",
-        "Fees and exchange rates shown upfront",
+        "Free transfers between BukkaPay wallets",
+        "Scan to pay at spaza shops, taxis and market stalls — no card machine",
+        "ZAR, BWP and USD side by side — never mixed",
+        "Supplier payments protected by escrow, with border-ready receipts (coming soon)",
     ], max_length=5)
     features: list[Feature] = Field(default_factory=lambda: [
-        Feature(tag="Business", title="Payment links", body="Create a link in seconds, share it on WhatsApp, SMS or email, and see it marked paid the moment the money arrives."),
-        Feature(tag="Business", title="Invoices & bills", body="Send bills for school fees, levies, rent or services. Every payment is matched to the right bill automatically."),
-        Feature(tag="Business", title="QR codes", body="Print a QR code for your counter or stall — no card machine needed. Dynamic QR codes are signed and can't be tampered with."),
-        Feature(tag="Wallet", title="Multi-currency wallet", body="Hold separate balances in the currencies available in your country. Balances are never mixed."),
-        Feature(tag="Wallet", title="Visa card on every wallet", body="Pay online and tap to pay with your phone wherever Visa is accepted, once your ID is verified and cards launch in your country."),
-        Feature(tag="Community", title="Contributions & bill splitting", body="Pool money for a family event or stokvel, or split a bill — with a clear record of who paid."),
+        Feature(tag="Everyday", title="Zero-fee transfers", body="Pay friends and family by @username, phone number or QR. Money moves between BukkaPay wallets instantly — and free."),
+        Feature(tag="Everyday", title="Scan to pay", body="One scan at the counter, the taxi rank or the market stall. The merchant is paid instantly into their BukkaPay balance."),
+        Feature(tag="Wallet", title="ZAR, BWP and USD wallets", body="Keep a separate balance in each currency and switch in a tap. You see the exchange rate before you swap or pay."),
+        Feature(tag="Trade · soon", title="Pay suppliers across borders", body="Pay a wholesaler in Gaborone from Johannesburg — instantly, or protected by escrow until your goods are collected or delivered."),
+        Feature(tag="Trade · soon", title="Border-ready trade receipts", body="Every supplier payment comes with a tamper-evident receipt naming buyer and seller, the invoice and the rate — for customs and credit."),
+        Feature(tag="Travel", title="Fly with your wallet", body="Search fares across airlines and pay from your ZAR, BWP or USD wallet with your PIN. Your booking reference arrives instantly."),
+        Feature(tag="Cards", title="Virtual Visa card", body="Pay online and tap to pay once your ID is verified and cards launch in your country. Freeze it any time from the app."),
+        Feature(tag="Business", title="Payment links & invoices", body="Share a link or an itemised invoice on WhatsApp and watch it marked paid the moment the money arrives."),
+        Feature(tag="Community", title="Stokvels & contributions", body="Pool money for a family event or a stokvel — with a clear, shared record of who paid."),
     ], max_length=12)
     use_cases: list[UseCase] = Field(default_factory=lambda: [
-        UseCase(audience="Freelancers", title="Send a link, get paid", body="Share a payment link with your client and get paid without sharing bank details."),
-        UseCase(audience="Street vendors & tuck shops", title="Your phone is the till", body="Show your QR code and get paid on the spot. Sign up with just your ID — no business registration needed to start."),
+        UseCase(audience="Spaza shops & vendors", title="Your phone is the till", body="Show your QR code and get paid on the spot, at a low merchant fee. Start with just your ID — no business registration needed."),
+        UseCase(audience="Cross-border traders", title="Buy stock without carrying cash", body="Pay suppliers across the border from your wallet, keep the receipt for the border post, and leave the cash risk behind."),
+        UseCase(audience="Wholesalers", title="Invoice buyers in their currency", body="Send itemised invoices to buyers in neighbouring countries and get settled in your own currency."),
+        UseCase(audience="Taxi owners & drivers", title="Fares without the cash box", body="Passengers scan and pay; you see every fare as it lands, and cash never has to change hands."),
+        UseCase(audience="Families", title="Send home in seconds", body="Support family across town or across the border — free between BukkaPay wallets, with the rate shown upfront."),
         UseCase(audience="Landlords", title="Collect rent on time", body="Add your units and tenants, send rent links, and see who has paid."),
-        UseCase(audience="Schools & clubs", title="Bills people actually pay", body="Send fee bills that parents pay from their wallet or bank, matched automatically."),
     ], max_length=8)
 
 
@@ -116,7 +123,10 @@ class FaqItem(CamelModel):
 
 class Faq(CamelModel):
     items: list[FaqItem] = Field(default_factory=lambda: [FaqItem(question=q, answer=a) for q, a in [
-        ("What is BukkaPay?", "BukkaPay is a payments app for Africa: payment links, invoices and QR codes for businesses, and a multi-currency wallet with a Visa card for everyone."),
+        ("What is BukkaPay?", "BukkaPay is a cash-free wallet for Africa. Send money free between wallets, pay shops and taxis with a QR scan, hold ZAR, BWP and USD, book flights, and — soon — pay suppliers across borders with escrow protection and border-ready receipts."),
+        ("Which currencies can I hold?", "South African rand (ZAR), Botswana pula (BWP) and US dollars (USD) to start, each in its own balance. Balances are never mixed, and every exchange rate is shown before you swap or pay."),
+        ("What is Protected Escrow Pay?", "When you pay a supplier with escrow, your money is held safely by BukkaPay — not by the seller — until you confirm you've received the goods (or delivery is verified). If something goes wrong, our team reviews the dispute and the money goes back to you or on to the seller. Escrow is coming soon."),
+        ("Can I book flights with BukkaPay?", "Yes. Search fares, add passengers exactly as on their ID or passport, and pay from a wallet in the fare's currency with your PIN. You get a booking reference straight away."),
         ("Is it available in my country?", "See the Countries page — it shows exactly where BukkaPay is live, piloting or planned, straight from our live configuration."),
         ("Who holds my money?", "Customer funds are held by licensed financial institutions in each country where BukkaPay operates. BukkaPay runs the technology on top."),
         ("How do I get a Visa card?", "Every wallet gets its own virtual Visa card once you've verified your ID and cards are available in your country. You can add it to Apple Pay or Google Pay to tap to pay."),

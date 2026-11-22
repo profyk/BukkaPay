@@ -1,13 +1,37 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root { color-scheme: light; }
 html { scroll-behavior: smooth; }
-body { background: #ffffff; color: #1A1A2E; font-family: "DM Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-h1, h2, h3 { font-family: "Outfit", system-ui, sans-serif; letter-spacing: -0.01em; }
+body { background: #ffffff; color: #1A1A2E; font-family: "DM Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+h1, h2, h3 { font-family: "Outfit", system-ui, sans-serif; letter-spacing: -0.02em; }
 :focus-visible { outline: 2px solid #7C3AED; outline-offset: 2px; }
+
+@layer utilities {
+  /* Violet → fuchsia → emerald brand gradient for display words. */
+  .text-gradient { background: linear-gradient(100deg, #C4B5FD 0%, #F0ABFC 45%, #6EE7B7 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .text-gradient-dark { background: linear-gradient(100deg, #6D28D9 0%, #A21CAF 55%, #059669 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  /* Soft glowing mesh behind dark heroes. */
+  .bg-mesh {
+    background-color: #0B0A1A;
+    background-image:
+      radial-gradient(60% 50% at 15% 10%, rgba(124,58,237,0.45) 0%, transparent 60%),
+      radial-gradient(40% 40% at 90% 20%, rgba(217,70,239,0.25) 0%, transparent 60%),
+      radial-gradient(50% 50% at 70% 100%, rgba(16,185,129,0.18) 0%, transparent 60%);
+  }
+  /* Fine grid for depth on dark sections. */
+  .bg-grid {
+    background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
 
 .prose-legal h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.5rem; scroll-margin-top: 6rem; }
 .prose-legal h3 { font-size: 1.05rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.25rem; }
