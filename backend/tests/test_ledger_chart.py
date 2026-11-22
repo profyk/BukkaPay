@@ -58,8 +58,8 @@ async def test_proof_of_reserve(client: AsyncClient, user: dict):
         assert owed >= Decimal("250.00")
         cid = (await db.execute(text(
             "INSERT INTO custodians (id, name, country_code, institution_type, status, integration_status, "
-            "regulatory_status, created_at, updated_at) VALUES (gen_random_uuid(), 'Test Bank', 'ZA', 'bank', "
-            "'active', 'none', 'licensed', now(), now()) RETURNING id"))).scalar_one()
+            "regulatory_status, contact, created_at, updated_at) VALUES (gen_random_uuid(), 'Test Bank', 'ZA', "
+            "'bank', 'active', 'none', 'licensed', '{}'::jsonb, now(), now()) RETURNING id"))).scalar_one()
         db.add(CustodianBalanceSnapshot(custodian_id=cid, currency="ZAR", balance=owed - Decimal("1.00"),
                                         as_of=datetime(2026, 1, 1, tzinfo=UTC), source="statement"))
         await db.flush()
