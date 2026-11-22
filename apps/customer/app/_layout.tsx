@@ -5,6 +5,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "../lib/ThemeContext";
 import { CurrencyProvider } from "../lib/CurrencyContext";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { installIdempotency } from "../lib/idempotency";
+
+// Every payment request carries an Idempotency-Key (see lib/idempotency).
+installIdempotency();
 
 export default function RootLayout() {
   return (
