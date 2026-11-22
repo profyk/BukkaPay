@@ -73,6 +73,11 @@ async def _create_schema():
         await conn.execute(text(account_guard.FUNCTION))
         for stmt in account_guard.TRIGGERS:
             await conn.execute(text(stmt))
+        # Escrow history and trade receipts are append-only (migration 0030).
+        from app.db import trade_guard
+
+        for stmt in trade_guard.TRIGGERS:
+            await conn.execute(text(stmt))
     yield
     await engine.dispose()
 

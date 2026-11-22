@@ -72,3 +72,60 @@ async def test_proof_of_reserve(client: AsyncClient, user: dict):
         zar = next(r for r in await reserves.proof_of_reserve(db) if r["currency"] == "ZAR")
         assert zar["covered"] is True
         await db.rollback()
+
+
+def test_trade_escrow_accounts_in_chart():
+    assert chart.system_code_for("escrow:trade:BWP") == "SYS_TRADE_ESCROW_BWP"
+    assert chart.system_code_for("revenue:escrow_fees:USD") == "SYS_REVENUE_ESCROW_FEES_USD"
+    assert any(p == "escrow:" for p in reserves.CUSTOMER_FUND_PREFIXES)  # escrow counts as owed
+
+
+async def test_trade_schema_rules(client: AsyncClient, business_user: dict, user: dict):
+    from app.ledger import posting
+    from app.models.trade import EscrowContract, EscrowEvent, TradeInvoice
+
+    r = await client.post("/api/merchants", json={"businessName": "Gabs Wholesale", "businessType": "retail"},
+                          headers=business_user["headers"])
+    merchant_id = uuid.UUID(r.json()["id"])
+    buyer_id = uuid.UUID(user["user"]["id"])
+
+    # Invoice totals must add up.
+    async with get_session_factory()() as db:
+        db.add(TradeInvoice(reference="TINV-BAD", merchant_id=merchant_id, buyer_name="B", seller_country="BW",
+                            currency="BWP", subtotal=Decimal("100.00"), tax_total=Decimal("14.00"),
+                            total=Decimal("100.00")))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+        await db.rollback()
+
+    async with get_session_factory()() as db:
+        fx = await chart.sys_account(db, "SYS_FX_POOL", "BWP")
+        esc = await chart.sys_account(db, "SYS_TRADE_ESCROW", "BWP")
+        entry = await posting.post(db, kind="test_escrow", description="t",
+                                   legs=[posting.debit(fx, Decimal("10.00")), posting.credit(esc, Decimal("10.00"))])
+        # Fee rate is capped at 5%.
+        db.add(EscrowContract(reference="ESC-BADFEE", buyer_user_id=buyer_id, merchant_id=merchant_id, currency="BWP",
+                              amount=Decimal("10.00"), fee_rate=Decimal("0.0600"), fee_amount=Decimal("0.60"),
+                              funded_entry_id=entry.id, idempotency_key="k1"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+        await db.rollback()
+
+    async with get_session_factory()() as db:
+        fx = await chart.sys_account(db, "SYS_FX_POOL", "BWP")
+        esc = await chart.sys_account(db, "SYS_TRADE_ESCROW", "BWP")
+        entry = await posting.post(db, kind="test_escrow", description="t",
+                                   legs=[posting.debit(fx, Decimal("10.00")), posting.credit(esc, Decimal("10.00"))])
+        c = EscrowContract(reference=f"ESC-{uuid.uuid4().hex[:8]}", buyer_user_id=buyer_id, merchant_id=merchant_id,
+                           currency="BWP", amount=Decimal("10.00"), fee_rate=Decimal("0.0100"),
+                           fee_amount=Decimal("0.10"), funded_entry_id=entry.id, idempotency_key="k2")
+        db.add(c)
+        await db.flush()
+        ev = EscrowEvent(contract_id=c.id, event="funded", actor_type="buyer", actor_id=str(buyer_id))
+        db.add(ev)
+        await db.commit()
+    # History can't be rewritten.
+    async with get_session_factory()() as db:
+        with pytest.raises(DBAPIError):
+            await db.execute(text("UPDATE escrow_events SET note = 'edited' WHERE id = :i"), {"i": ev.id})
+        await db.rollback()

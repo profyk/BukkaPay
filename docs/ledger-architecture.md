@@ -1,4 +1,4 @@
-# BukkaPay ledger architecture (Milestone 1)
+# BukkaPay ledger & trade architecture (Milestone 1)
 
 How BukkaPay keeps money correct: one PostgreSQL double-entry ledger for every
 currency, every customer, merchant and BukkaPay's own books. This document is
@@ -45,6 +45,8 @@ per wallet / merchant; system accounts exist once per currency.
 |---|---|---|---|
 | `SYS_SAFEGUARD_<CCY>` | `safeguard:<CCY>` | asset | Customer + merchant money held 1:1 at the safeguarding bank/custodian |
 | `SYS_FX_POOL_<CCY>` | `fx:position:<CCY>` | asset | Currency bought/sold on swaps and cross-border transfers |
+| `SYS_TRADE_ESCROW_<CCY>` | `escrow:trade:<CCY>` | liability | Buyer money locked against a supplier invoice |
+| `SYS_REVENUE_ESCROW_FEES_<CCY>` | `revenue:escrow_fees:<CCY>` | revenue | 1.0–1.5% fee on released trade escrow |
 | `SYS_REVENUE_FX_<CCY>` | `revenue:fx:<CCY>` | revenue | FX spread |
 | `SYS_REVENUE_MERCHANT_FEES_<CCY>` | `revenue:merchant_fees:<CCY>` | revenue | QR / checkout merchant fees |
 | `SYS_REVENUE_CASHOUT_<CCY>` | `revenue:cashout:<CCY>` | revenue | Flat withdrawal fees |
@@ -67,6 +69,9 @@ Debits on the left, credits on the right; liability balances grow with credits.
 | `transferP2P` (0%) | sender `wallet` | recipient `wallet` | same currency only |
 | `payMerchantQR` (fee f%) | payer `wallet` (amount) | `merchant` (amount − fee) + `SYS_REVENUE_MERCHANT_FEES` (fee) | fee 0.5–1.0% from `fee_schedules` |
 | `swapCurrency` A→B at rate r, spread s | `wallet` A (amount) | `SYS_FX_POOL_A` (amount) | then `SYS_FX_POOL_B` debit (converted) → `wallet` B credit (converted − spread) + `SYS_REVENUE_FX_B` (spread). Each currency balances on its own. |
+| `createTradeEscrow` | buyer `wallet` | `SYS_TRADE_ESCROW` | cross-currency buyers go through both FX pools first, like a swap |
+| `releaseTradeEscrow` (fee e%) | `SYS_TRADE_ESCROW` (amount) | `merchant` (amount − fee) + `SYS_REVENUE_ESCROW_FEES` (fee) | on buyer confirmation, delivery/border verification, auto-release, or a dispute resolved for the seller |
+| refund escrow | `SYS_TRADE_ESCROW` | buyer `wallet` | dispute resolved for the buyer, or invoice cancelled before release |
 | `payForFlight` | `wallet` | `SYS_FLIGHT_SETTLEMENT` | airline confirms first; refund reverses what the airline refunds |
 | `processCashOut` (flat fee) | `wallet` (amount + fee) | `payouts:pending` (amount) + `SYS_REVENUE_CASHOUT` (fee) | payout confirmed → `payouts:pending` → `clearing:<rail>` |
 | Cash-in (top-up) | `clearing:<rail>` | `wallet` | rail settlement then moves clearing → `SYS_SAFEGUARD` |
@@ -74,13 +79,26 @@ Debits on the left, credits on the right; liability balances grow with credits.
 | Card settle | `SYS_CARD_HOLD_ESCROW` | `card:payable:<issuer>` (+ `SYS_REVENUE_INTERCHANGE` when the issuer shares it) | |
 | Card reverse | `SYS_CARD_HOLD_ESCROW` | `wallet` | |
 
+## AfCFTA trade schema (`app/models/trade.py`)
+
+Money never lives in these tables — it sits on the ledger; each row points
+at the journal entries that moved it.
+
+| Table | Holds | Key rules (database-enforced) |
+|---|---|---|
+| `trade_invoices` | A merchant's itemised invoice to a buyer: buyer/seller country, currency, subtotal/tax/total, payment mode (instant / escrow / either), incoterm, status | `total = subtotal + tax_total`, `total > 0`, status and mode from fixed lists |
+| `trade_invoice_items` | Lines: description, HS code, origin country, quantity, unit, unit price | quantity and unit price `NUMERIC(19,4)`; unique line numbers |
+| `escrow_contracts` | Buyer funds held in `SYS_TRADE_ESCROW`: amount, fee rate/amount, buyer currency + FX rate if converted, release condition, auto-release time, funding/settlement journal entries, dispute fields | fee rate 0–5%, fee < amount, one contract per `(buyer, idempotency_key)` |
+| `escrow_events` | Every step: funded, buyer confirmed, delivery verified, released, disputed, resolved, refunded | **append-only** (trigger) |
+| `trade_receipts` | AfCFTA Trade & Payment Receipt: canonical JSON payload (buyer/seller KYC names, invoice ref, FX rate, ledger reference), `payload_sha256`, `previous_sha256` hash chain, sequence number | **append-only**; unique hashes and sequence — altering or removing any receipt breaks the chain |
+
 ## Proof of reserve (`app/ledger/reserves.py`)
 
 Per currency, **never added across currencies**:
 
 - **Owed** = sum of liability balances held for customers and merchants:
   `wallet:*`, `merchant:*`, `campaign:*`, `escrow:*`, `card:holds:*`,
-  `payouts:pending:*`, `transit:outbound:*`.
+  `payouts:pending:*`, `transit:outbound:*` — `escrow:*` includes trade escrow.
 - **Held** = the latest `custodian_balance_snapshots` balance for each
   safeguarding custodian (from its statement or API), summed.
 - Covered when **Held ≥ Owed**; the admin monitor (Milestone 5) shows owed,
@@ -92,7 +110,7 @@ Per currency, **never added across currencies**:
 |---|---|---|
 | 0016–0027 | Ledger, triggers, currencies, network, RLS, accounts, account types | live |
 | 0028–0029 | Flights only (buses retired); five more admin roles | live |
-| **0030** | `category` + `system_code` on `ledger_accounts` with check constraints; SYS_* accounts for ZAR/USD/BWP; `custodian_balance_snapshots` | this milestone |
+| **0030** | `category` + `system_code` on `ledger_accounts` with check constraints; SYS_* accounts for ZAR/USD/BWP (incl. trade escrow); `custodian_balance_snapshots`; `trade_invoices`, `trade_invoice_items`, `escrow_contracts`, `escrow_events`, `trade_receipts` | this milestone |
 | 0031 (M2) | Required `Idempotency-Key` on every money mutation (P2P, QR pay, swaps, flights, cash-out, claims, payment links, merchant payouts); revenue split at every fee call site; own-wallet currency swap; merchant fee tiers 0.5–1.0% | next |
 
 ## Gaps closed next (Milestone 2)
@@ -105,6 +123,7 @@ Per currency, **never added across currencies**:
 3. **`swapCurrency`** for a customer's own wallets (live rate + configurable
    spread), and auto-conversion for merchants accepting foreign currency.
 4. **Merchant fee** is 1.5% today; move to configurable 0.5–1.0% tiers.
-5. **Rail adapters:** Stitch/PayShap (exists), mobile money (BW), Yellow Card
+5. **Trade services:** `createTradeEscrow` / `releaseTradeEscrow` / refund + dispute flow, invoice issue/pay, and the receipt generator (PDF + JSON, hash-chained).
+6. **Rail adapters:** Stitch/PayShap (exists), mobile money (BW), Yellow Card
    rebalancing, Smile ID KYC, card issuer webhooks named
    `/webhooks/card/{auth,settle,reverse}` (today `/api/card-issuer/{issuer}/authorize|events`).

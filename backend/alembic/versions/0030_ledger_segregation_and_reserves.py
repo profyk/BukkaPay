@@ -7,6 +7,8 @@ balance snapshots for proof of reserve.
   Existing accounts that already do that job get the name; the rest are
   created for ZAR, USD and BWP.
 - custodian_balance_snapshots: what each safeguarding bank/custodian reports.
+- AfCFTA trade: trade_invoices (+ items), escrow_contracts, append-only
+  escrow_events and hash-chained trade_receipts.
 
 Revision ID: 0030_ledger_segregation
 Revises: 0029_more_admin_roles
@@ -17,7 +19,7 @@ import re
 
 from alembic import op
 
-from app.db import rls
+from app.db import rls, trade_guard
 from app.ledger.chart import LAUNCH_CURRENCIES, SYSTEM_ACCOUNTS
 
 revision = "0030_ledger_segregation"
@@ -70,10 +72,27 @@ def upgrade() -> None:
         )
     """)
     op.execute("CREATE INDEX ix_custodian_balance_snapshots_custodian_id ON custodian_balance_snapshots (custodian_id)")
+
+    # ─── AfCFTA trade: invoices, escrow, receipts (built from the models so
+    # the migration and the ORM can't drift).
+    from sqlalchemy.schema import CreateIndex, CreateTable
+
+    from app.models import trade
+
+    bind = op.get_bind()
+    for model in (trade.TradeInvoice, trade.TradeInvoiceItem, trade.EscrowContract, trade.EscrowEvent,
+                  trade.TradeReceipt):
+        op.execute(CreateTable(model.__table__).compile(dialect=bind.dialect).string)
+        for index in model.__table__.indexes:
+            op.execute(CreateIndex(index).compile(dialect=bind.dialect).string)
+    for stmt in trade_guard.TRIGGERS:
+        op.execute(stmt)
     op.execute(rls.ENABLE)
 
 
 def downgrade() -> None:
+    for t in ("trade_receipts", "escrow_events", "escrow_contracts", "trade_invoice_items", "trade_invoices"):
+        op.execute(f"DROP TABLE {t}")
     op.execute("DROP TABLE custodian_balance_snapshots")
     op.execute("ALTER TABLE ledger_accounts DROP CONSTRAINT ck_ledger_accounts_system_code")
     op.execute("ALTER TABLE ledger_accounts DROP CONSTRAINT ck_ledger_accounts_category_code")

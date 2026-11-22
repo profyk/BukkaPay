@@ -20,6 +20,7 @@ from app.models.ledger import (
     WithdrawalRequest,
 )
 from app.models.legal import LegalDocument, LegalDocumentVersion
+from app.models.trade import EscrowContract, EscrowEvent, TradeInvoice, TradeInvoiceItem, TradeReceipt
 from app.models.loyalty import AutoPay, Beneficiary, LoyaltyReward
 from app.models.merchant import (
     BillingLink,
@@ -107,6 +108,11 @@ __all__ = [
     "JournalEntry",
     "JournalLine",
     "CustodianBalanceSnapshot",
+    "TradeInvoice",
+    "TradeInvoiceItem",
+    "EscrowContract",
+    "EscrowEvent",
+    "TradeReceipt",
     "LedgerAccount",
     "WithdrawalRequest",
     "Achievement",
