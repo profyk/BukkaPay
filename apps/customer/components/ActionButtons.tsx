@@ -12,6 +12,8 @@ export default function ActionButtons() {
     { icon: "add-circle",        label: "Top Up",  href: "/(screens)/topup",              color: "#10B981" },
     { icon: "link",              label: "Request", href: "/(screens)/create-payment-link", color: "#8B5CF6" },
     { icon: "arrow-down-circle", label: "Receive", href: "/(screens)/my-id",              color: "#F59E0B" },
+    { icon: "swap-horizontal",   label: "Swap",    href: "/(screens)/swap",               color: "#0EA5E9" },
+    { icon: "briefcase",         label: "Supplier", href: "/(screens)/pay-supplier",      color: "#059669" },
     { icon: "grid",              label: "More",    href: "/(screens)/features-hub",       color: "#6366F1" },
   ];
 
