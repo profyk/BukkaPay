@@ -20,7 +20,6 @@ from app.models.ledger import (
     WithdrawalRequest,
 )
 from app.models.legal import LegalDocument, LegalDocumentVersion
-from app.models.trade import EscrowContract, EscrowEvent, TradeInvoice, TradeInvoiceItem, TradeReceipt
 from app.models.loyalty import AutoPay, Beneficiary, LoyaltyReward
 from app.models.merchant import (
     BillingLink,
@@ -60,6 +59,13 @@ from app.models.platform import (
 )
 from app.models.reference import Currency
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
+from app.models.trade import (
+    EscrowContract,
+    EscrowEvent,
+    TradeInvoice,
+    TradeInvoiceItem,
+    TradeReceipt,
+)
 from app.models.travel import TravelDeparture, TravelOperator, TravelRoute
 from app.models.user import User, UserSession
 from app.models.virtual_card import VirtualCard
