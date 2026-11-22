@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ApiError
 from app.integrations import stitch
 from app.ledger import accounts as ledger_accounts
-from app.ledger import posting
+from app.ledger import chart, posting
 from app.models.enums import (
     MerchantBusinessType,
     MerchantStaffRole,
@@ -390,7 +390,7 @@ async def merchant_pay(
         legs=[
             posting.debit(await ledger_accounts.wallet_account(db, card), parsed_amount),
             posting.credit(await ledger_accounts.merchant_account(db, merchant, currency), parsed_amount - fee.fee),
-            posting.credit(await ledger_accounts.fee_revenue(db, currency), fee.fee),
+            posting.credit(await chart.sys_account(db, "SYS_REVENUE_MERCHANT_FEES", currency), fee.fee),
         ],
         details={"merchant_id": str(merchant.id), "merchant_transaction_id": str(transaction.id),
                  "payer_card_id": str(card.id),
@@ -450,7 +450,7 @@ async def withdraw(
         legs=[
             posting.debit(await ledger_accounts.merchant_account(db, merchant), parsed_amount + fee.fee),
             posting.credit(await ledger_accounts.payouts_pending(db, merchant.settlement_currency), parsed_amount),
-            posting.credit(await ledger_accounts.fee_revenue(db, merchant.settlement_currency), fee.fee),
+            posting.credit(await chart.sys_account(db, "SYS_REVENUE_CASHOUT", merchant.settlement_currency), fee.fee),
         ],
         details={"merchant_id": str(merchant.id), "reference": reference},
     )

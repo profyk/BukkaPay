@@ -20,6 +20,7 @@ from app.workers.tasks import (
     expire_fx_quotes,
     issue_pending_cards,
     process_outbox,
+    release_due_escrows,
     sweep_expired_claim_payments,
     sweep_expired_payment_requests,
     sweep_expired_rent_payment_links,
@@ -54,6 +55,7 @@ class WorkerSettings:
         cron(process_outbox, second=set(range(0, 60, 10))),
         cron(expire_fx_quotes, minute=set(range(0, 60, 5))),
         cron(daily_reconciliation, hour=2, minute=30),
+        cron(release_due_escrows, minute=set(range(0, 60, 10))),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

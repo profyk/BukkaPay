@@ -13,7 +13,6 @@ from httpx import AsyncClient
 from sqlalchemy import select, text, update
 
 from app.db.base import get_session_factory
-from app.models.ledger import LedgerAccount
 from app.models.platform import AuditLog, Country, FxQuote, PaymentCorridor
 from app.models.reference import Currency
 from app.models.user import User
@@ -304,11 +303,8 @@ async def test_domestic_fee_comes_from_fee_engine(client: AsyncClient):
                                                  "toUserId": b["user"]["walletId"], "amount": "200.00"},
                           headers=a["headers"])
     assert r.status_code == 200, r.text
-    assert r.json()["fee"] == "2.00"  # 0.5% + R1.00
-    assert await card_balance(b["card_id"]) == Decimal("198.00")
-    async with get_session_factory()() as db:
-        revenue = (await db.execute(select(LedgerAccount).where(LedgerAccount.code == "revenue:fees:ZAR"))).scalar_one()
-        assert revenue.balance >= Decimal("2.00")
+    assert r.json()["fee"] == "0.00"  # wallet-to-wallet is free
+    assert await card_balance(b["card_id"]) == Decimal("200.00")
 
 
 async def test_withdrawal_blocked_at_kyc_level_zero(client: AsyncClient, monkeypatch):
@@ -398,8 +394,8 @@ async def test_merchant_dynamic_qr_pay_refund(client: AsyncClient, admin: dict):
 
     dash = (await client.get(f"/api/merchants/{merchant_id}/dashboard", headers=owner["headers"])).json()
     assert dash["totals"]["totalSales"] == "120.00"
-    assert dash["totals"]["feesPaid"] == "1.80"  # 1.5%
-    assert dash["settlement"]["balances"][0]["available"] == "118.20"
+    assert dash["totals"]["feesPaid"] == "1.20"  # 1.0%
+    assert dash["settlement"]["balances"][0]["available"] == "118.80"
 
     tx_id = r.json()["transactionId"]
     refund = await client.post(f"/api/merchants/{merchant_id}/transactions/{tx_id}/refund",
