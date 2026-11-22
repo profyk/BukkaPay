@@ -29,7 +29,7 @@ async def test_create_merchant_and_pay(client: AsyncClient, business_user: dict,
         "amount": "150.00", "payerName": "Payer", "pin": TEST_PIN,
     }, headers=funded_user["headers"])
     assert r.status_code == 201
-    assert r.json()["newBalance"] == "147.75"  # 150 less the 1.5% merchant fee
+    assert r.json()["newBalance"] == "148.50"  # 150 less the 1.0% merchant fee
 
 
 async def test_merchant_forbidden_for_non_owner(client: AsyncClient, business_user: dict,
@@ -76,7 +76,7 @@ async def test_merchant_withdraw_uses_real_auth(client: AsyncClient, business_us
         "pin": TEST_PIN, "amount": "100.00", "currency": "ZAR",
     }, headers=owner["headers"])
     assert r.status_code == 200, r.text
-    assert r.json()["newBalance"] == "88.50"  # 200 - 1.5% fee - 100 payout - R8.50 payout fee
+    assert r.json()["newBalance"] == "89.50"  # 200 - 1.0% fee - 100 payout - R8.50 payout fee
 
 
 async def test_merchant_subscribe_invalid_plan(client: AsyncClient, business_user: dict):

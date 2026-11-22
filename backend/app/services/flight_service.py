@@ -224,12 +224,11 @@ async def book(db: AsyncSession, user_id: uuid.UUID, *, offer_id: str, from_card
 
 
 async def _airline_payable(db: AsyncSession, provider: str, currency: str):
-    if provider == "inventory":  # same account the earlier ticketing used
-        return await ledger_accounts.system_account(
-            db, f"payable:travel_operators:{currency}", f"Owed to travel operators ({currency})", "liability", currency)
-    return await ledger_accounts.system_account(
-        db, f"payable:airlines:{provider}:{currency}", f"Owed to airlines via {provider} ({currency})",
-        "liability", currency)
+    """SYS_FLIGHT_SETTLEMENT_<CCY>: ticket money owed to airlines, whichever
+    source sold the seat (the provider is recorded on each journal entry)."""
+    from app.ledger import chart
+
+    return await chart.sys_account(db, "SYS_FLIGHT_SETTLEMENT", currency)
 
 
 async def cancel(db: AsyncSession, user_id: uuid.UUID, purchase_transaction_id: str) -> PurchaseTransaction:

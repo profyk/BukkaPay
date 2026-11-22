@@ -77,6 +77,11 @@ def create_app() -> FastAPI:
     register_middleware(app)
     register_exception_handlers(app)
 
+    # Inside CORS (replays keep CORS headers) and after the /api/v1 rewrite.
+    from app.core.idempotency_mw import IdempotencyMiddleware
+
+    app.add_middleware(IdempotencyMiddleware)
+
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=settings.trusted_hosts_list if settings.is_production else ["*"],

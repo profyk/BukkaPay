@@ -100,9 +100,9 @@
         "body": "Support family across town or across the border — free between BukkaPay wallets, with the rate shown upfront."
       },
       {
-        "audience": "Landlords",
-        "title": "Collect rent on time",
-        "body": "Add your units and tenants, send rent links, and see who has paid."
+        "audience": "Wholesalers",
+        "title": "Sell across the border",
+        "body": "Send trade invoices in ZAR, BWP or USD; buyers pay instantly or through BukkaPay escrow."
       }
     ]
   },
@@ -144,7 +144,7 @@
       },
       {
         "question": "Can I accept payments without a registered business?",
-        "answer": "Yes. Street vendors, tuck shops and individual landlords can start with just their verified ID, up to individual seller limits. Registered businesses verify once and have higher limits."
+        "answer": "Yes. Street vendors, tuck shops and informal traders can start with just their verified ID, up to individual seller limits. Registered businesses verify once and have higher limits."
       },
       {
         "question": "What does it cost?",
@@ -171,6 +171,5 @@
         "answer": "No. They collect money for a shared purpose and are not a savings, deposit or investment product."
       }
     ]
-  },
-  "versions": {}
+  }
 }

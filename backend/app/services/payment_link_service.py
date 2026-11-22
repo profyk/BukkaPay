@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ApiError
 from app.integrations import stitch
 from app.ledger import accounts as ledger_accounts
-from app.ledger import posting
+from app.ledger import chart, posting
 from app.models.enums import PaymentLinkStatus, TransactionType
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.user import User
@@ -237,7 +237,7 @@ async def settle_link_payment(
                                  country=merchant.country_code, method=method)
         destination_leg = [
             posting.credit(await ledger_accounts.merchant_account(db, merchant, link.currency), pay_amount - fee.fee),
-            posting.credit(await ledger_accounts.fee_revenue(db, link.currency), fee.fee),
+            posting.credit(await chart.sys_account(db, "SYS_REVENUE_MERCHANT_FEES", link.currency), fee.fee),
         ]
         details = {"merchant_id": str(merchant.id), "fee_breakdown": fee.breakdown}
         await webhooks_out.emit(db, merchant.id, "payment_link.paid", {

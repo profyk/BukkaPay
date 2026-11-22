@@ -182,7 +182,7 @@ async def dashboard(merchant_id: str, user_id=Depends(get_current_user_id), db: 
             LedgerAccount, LedgerAccount.id == JournalLine.account_id).where(
             JournalEntry.kind.in_(("merchant_payment", "payment_link_payment")),
             JournalEntry.details["merchant_id"].astext == str(merchant.id),
-            LedgerAccount.code.like("revenue:fees:%")))).scalar_one()
+            LedgerAccount.code.like("revenue:%")))).scalar_one()
     # Balances per currency, straight from the ledger.
     balances = [{"currency": a.currency, "available": _money(a.balance)} for a in (await db.execute(
         select(LedgerAccount).where(LedgerAccount.code.like(f"merchant:{merchant.id}:%")))).scalars()]

@@ -75,11 +75,18 @@ const ALL_ITEMS: AppItem[] = [
     route: "/(screens)/tap-pay",
   },
   {
-    id: "pay-rent", category: "Payments",
-    title: "Pay Rent", description: "Pay your rent directly through BukkaPay",
-    keywords: ["rent", "landlord", "pay", "housing", "property"],
-    icon: "home-outline", iconBg: "#FFF1F2", iconColor: "#E11D48",
-    route: "/(screens)/pay-rent",
+    id: "pay-supplier", category: "Payments",
+    title: "Pay Supplier", description: "Pay a supplier's trade invoice instantly or through escrow",
+    keywords: ["supplier", "invoice", "trade", "escrow", "wholesale", "border", "afcfta"],
+    icon: "briefcase-outline", iconBg: "#ECFDF5", iconColor: "#059669",
+    route: "/(screens)/pay-supplier",
+  },
+  {
+    id: "swap", category: "Payments",
+    title: "Swap currency", description: "Convert between your ZAR, BWP and USD wallets",
+    keywords: ["swap", "exchange", "fx", "convert", "currency", "pula", "rand", "dollar"],
+    icon: "swap-horizontal", iconBg: "#F0F9FF", iconColor: "#0EA5E9",
+    route: "/(screens)/swap",
   },
 
   // ── Payment Links ──────────────────────────────────────────
@@ -182,13 +189,6 @@ const ALL_ITEMS: AppItem[] = [
     keywords: ["business", "merchant", "landlord", "property", "billing", "invoice", "vendor", "shop", "sell"],
     icon: "storefront-outline", iconBg: "#FFF7ED", iconColor: "#EA580C",
     route: "/(screens)/business",
-  },
-  {
-    id: "tenant-dashboard", category: "Business",
-    title: "Tenant Dashboard", description: "View your lease, rent history and upcoming dues",
-    keywords: ["tenant", "rent", "lease", "property", "payment"],
-    icon: "key-outline", iconBg: "#FFFBEB", iconColor: "#D97706",
-    route: "/(screens)/tenant-dashboard",
   },
 
   // ── Account & Settings ─────────────────────────────────────

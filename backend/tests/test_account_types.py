@@ -17,7 +17,7 @@ async def test_routes_are_closed_to_the_other_account_type(client: AsyncClient, 
     r = await client.post("/api/merchants", json={"businessName": "Nope", "businessType": "retail"},
                           headers=user["headers"])
     assert r.status_code == 403 and "personal" in r.json()["error"].lower()
-    r = await client.get("/api/rental/properties", headers=user["headers"])
+    r = await client.get("/api/merchants/anything/trade-invoices", headers=user["headers"])
     assert r.status_code == 403
 
     r = await client.get("/api/cards", headers=business_user["headers"])

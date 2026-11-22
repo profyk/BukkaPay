@@ -254,3 +254,16 @@ async def collect_card_overdrafts(ctx: dict) -> int:
     if n:
         log.info("collect_card_overdrafts", collected=n)
     return n
+
+
+async def release_due_escrows(ctx: dict) -> int:
+    """Trade escrows that nobody disputed are released to the supplier once
+    their auto-release date passes (the buyer was told the date upfront)."""
+    from app.trade import service as trade
+
+    async with get_session_factory()() as db:
+        n = await trade.release_due(db)
+        await db.commit()
+    if n:
+        log.info("release_due_escrows", released=n)
+    return n

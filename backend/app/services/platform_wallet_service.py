@@ -23,12 +23,15 @@ async def get_balances(db: AsyncSession) -> list:
         (
             await db.execute(
                 select(LedgerAccount)
-                .where(LedgerAccount.code.like("revenue:fees:%"))
+                .where(LedgerAccount.code.like("revenue:%"))
                 .order_by(LedgerAccount.currency)
             )
         ).scalars()
     )
-    totals: dict[str, object] = {a.currency: a.balance for a in revenue}
+    # Several revenue accounts per currency (FX, merchant fees, cash-out…): add them up.
+    totals: dict[str, object] = {}
+    for a in revenue:
+        totals[a.currency] = totals.get(a.currency, 0) + a.balance
 
     from app.models.wallet import WalletCard
 

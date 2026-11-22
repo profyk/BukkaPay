@@ -94,7 +94,7 @@ class Home(CamelModel):
         UseCase(audience="Wholesalers", title="Invoice buyers in their currency", body="Send itemised invoices to buyers in neighbouring countries and get settled in your own currency."),
         UseCase(audience="Taxi owners & drivers", title="Fares without the cash box", body="Passengers scan and pay; you see every fare as it lands, and cash never has to change hands."),
         UseCase(audience="Families", title="Send home in seconds", body="Support family across town or across the border — free between BukkaPay wallets, with the rate shown upfront."),
-        UseCase(audience="Landlords", title="Collect rent on time", body="Add your units and tenants, send rent links, and see who has paid."),
+        UseCase(audience="Wholesalers", title="Sell across the border", body="Send trade invoices in ZAR, BWP or USD; buyers pay instantly or through BukkaPay escrow."),
     ], max_length=8)
 
 
@@ -130,7 +130,7 @@ class Faq(CamelModel):
         ("Is it available in my country?", "See the Countries page — it shows exactly where BukkaPay is live, piloting or planned, straight from our live configuration."),
         ("Who holds my money?", "Customer funds are held by licensed financial institutions in each country where BukkaPay operates. BukkaPay runs the technology on top."),
         ("How do I get a Visa card?", "Every wallet gets its own virtual Visa card once you've verified your ID and cards are available in your country. You can add it to Apple Pay or Google Pay to tap to pay."),
-        ("Can I accept payments without a registered business?", "Yes. Street vendors, tuck shops and individual landlords can start with just their verified ID, up to individual seller limits. Registered businesses verify once and have higher limits."),
+        ("Can I accept payments without a registered business?", "Yes. Street vendors, tuck shops and informal traders can start with just their verified ID, up to individual seller limits. Registered businesses verify once and have higher limits."),
         ("What does it cost?", "Every fee and exchange rate is shown before you confirm a payment. There are no hidden charges."),
         ("Is BukkaPay a bank?", "No. BukkaPay is a payment technology company. Customer funds are held and settled by licensed local financial institutions in each country where we operate."),
         ("What happens if a cross-border transfer fails?", "If it can't be delivered, the full amount, including the fee, is returned to your wallet."),
