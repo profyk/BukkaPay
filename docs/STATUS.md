@@ -73,7 +73,7 @@ and secret detection.
 ## To do
 
 ### Needs the owner
-- [ ] **Merge PR #34** (security upgrades) and **PR #35** (Milestone 1).
+- [ ] **Merge PR #34** (security upgrades), then **PR #35** (Milestone 1) and **PR #36** (website).
 - [ ] **Rotate the Supabase database password** (part of it appeared in an error message), then update `DATABASE_URL` on Railway (API + worker) and `Documents\BukkaPay-backups\supabase-db-url.txt`.
 - [ ] **Revoke the Supabase access token** used for the config script, and delete `Documents\BukkaPay-backups\supabase-access-token.txt`.
 - [ ] **Duffel access token** (test first) → Railway `DUFFEL_ACCESS_TOKEN`; fund the Duffel balance before live bookings.
@@ -112,7 +112,8 @@ and secret detection.
 - [ ] Review settings, dashboard and remaining admin pages end to end.
 
 ### Website
-- [ ] Redesign www.bukkapay.com around the cash-replacement and AfCFTA trade vision *(in progress)*.
+- [x] Redesign www.bukkapay.com around the cash-replacement and AfCFTA trade vision: new look, new home, /trade and /travel pages, new default copy *(PR #36 — merge pending)*.
+- [ ] After merging #36, reset Admin → Website → Home if an admin had saved older homepage text (saved text overrides the new defaults).
 
 ---
 
@@ -122,5 +123,6 @@ and secret detection.
 |---|---|---|
 | #32 | Flights with airline APIs, buses retired, no invented card numbers | merged |
 | #33 | Five admin roles, Treasury/Stokvels/Enquiries, admin look | merged |
-| #34 | Next.js 15.5.28 + React 19, shell-quote/tar patches | open — awaiting merge |
-| #35 | Milestone 1: ledger segregation, SYS_* chart, proof of reserve, trade schema | open — awaiting merge |
+| #34 | Next.js 15.5.28 + React 19, shell-quote/tar patches | open — all checks green |
+| #35 | Milestone 1: ledger segregation, SYS_* chart, proof of reserve, trade schema | open — all checks green |
+| #36 | Website redesign: cash-free Africa and AfCFTA trade vision | open — green except dependency scan (clears once #34 is in `main`) |
