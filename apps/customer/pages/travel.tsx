@@ -1,257 +1,240 @@
-import { useState, useEffect } from "react";
+/**
+ * Flights. Search airports and dates, compare fares from every airline
+ * source BukkaPay is connected to (our own inventory + airline APIs), enter
+ * passengers exactly as on their ID/passport, and pay from a wallet with the
+ * transaction PIN. Bus tickets are no longer sold.
+ */
+import { useEffect, useMemo, useState } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView, TextInput,
-  ActivityIndicator, StyleSheet, Platform,
+  ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { useToast } from "../hooks/use-toast";
-import { searchDepartures, bookTravel, fetchCards } from "../lib/api";
+import {
+  bookFlight, fetchCards, searchAirports, searchFlights,
+  type Airport, type Cabin, type FlightOffer, type Traveller,
+} from "../lib/api";
 import PinPrompt from "../components/PinPrompt";
-import { AFRICA_COUNTRIES, INTERNATIONAL_COUNTRIES, Country } from "../lib/countries";
 import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
 
 const PRIMARY = "#7C3AED";
-const GREEN = "#10B981";
-const ALL_COUNTRIES = [...AFRICA_COUNTRIES, ...INTERNATIONAL_COUNTRIES];
-const SOUTH_AFRICA: Country = { code: "ZA", name: "South Africa", flag: "🇿🇦", currency: "ZAR", zone: "africa", region: "Africa" } as Country;
+const CABINS: { value: Cabin; label: string }[] = [
+  { value: "economy", label: "Economy" }, { value: "premium_economy", label: "Premium" },
+  { value: "business", label: "Business" }, { value: "first", label: "First" },
+];
+const TITLES = ["mr", "ms", "mrs", "miss", "dr"];
+type Stage = "search" | "results" | "travellers" | "pay" | "success";
+type Kind = "adult" | "child" | "infant_without_seat";
 
-type Stage = "search" | "origin" | "destination" | "results" | "passengers" | "payment" | "confirm" | "success";
-type Mode = "bus" | "flight";
+const DEFAULT_FROM: Airport = { iata: "JNB", name: "O. R. Tambo International", city: "Johannesburg", countryCode: "ZA" };
+const DEFAULT_TO: Airport = { iata: "CPT", name: "Cape Town International", city: "Cape Town", countryCode: "ZA" };
 
-interface Passenger { name: string; idNumber: string; phone: string }
+const blankTraveller = (): Traveller => ({
+  title: "", givenName: "", familyName: "", bornOn: "", gender: "", email: "", phone: "",
+});
 
-function emptyPassenger(): Passenger {
-  return { name: "", idNumber: "", phone: "" };
-}
+const time = (iso: string) => format(new Date(iso), "HH:mm");
+const dur = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
 
-export default function Travel() {
+export default function Flights() {
   const router = useRouter();
   const { toast } = useToast();
-  const { colors, darkMode } = useTheme();
+  const { colors } = useTheme();
 
   const [stage, setStage] = useState<Stage>("search");
-  const [mode, setMode] = useState<Mode>("bus");
-  const [origin, setOrigin] = useState<Country | null>(SOUTH_AFRICA);
-  const [destination, setDestination] = useState<Country | null>(SOUTH_AFRICA);
+  const [from, setFrom] = useState<Airport>(DEFAULT_FROM);
+  const [to, setTo] = useState<Airport>(DEFAULT_TO);
+  const [picking, setPicking] = useState<null | "from" | "to">(null);
+  const [day, setDay] = useState(format(addDays(new Date(), 7), "yyyy-MM-dd"));
+  const [cabin, setCabin] = useState<Cabin>("economy");
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
+  const [infants, setInfants] = useState(0);
   const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
-  const [selectedDeparture, setSelectedDeparture] = useState<any | null>(null);
-  const [seatClass, setSeatClass] = useState<"economy" | "business">("economy");
-  const [passengers, setPassengers] = useState<Passenger[]>([emptyPassenger()]);
-  const [selectedCardId, setSelectedCardId] = useState("");
-  const [booking, setBooking] = useState(false);
-  const [bookedTransaction, setBookedTransaction] = useState<any | null>(null);
+  const [offers, setOffers] = useState<FlightOffer[]>([]);
+  const [offer, setOffer] = useState<FlightOffer | null>(null);
+  const [travellers, setTravellers] = useState<Traveller[]>([]);
+  const [cardId, setCardId] = useState("");
+  const [pinOpen, setPinOpen] = useState(false);
+  const [booked, setBooked] = useState<any | null>(null);
 
-  const { data: cards = [], isLoading: cardsLoading } = useQuery({
-    queryKey: ["cards"],
-    queryFn: fetchCards,
-  });
+  const international = from.countryCode !== to.countryCode;
+  const kinds: Kind[] = useMemo(() => [
+    ...Array(adults).fill("adult"), ...Array(children).fill("child"), ...Array(infants).fill("infant_without_seat"),
+  ], [adults, children, infants]);
 
-  const matchingCards = (cards as any[]).filter(
-    c => !selectedDeparture || c.currency === selectedDeparture.currency
-  );
-
+  const { data: cards = [] } = useQuery({ queryKey: ["cards"], queryFn: fetchCards });
+  const payable = (cards as any[]).filter((c) => !offer || c.currency === offer.currency);
   useEffect(() => {
-    if (matchingCards.length > 0 && !matchingCards.find(c => c.id === selectedCardId)) {
-      setSelectedCardId(matchingCards[0].id);
-    }
-  }, [selectedDeparture, cards]);
-
-  const unitPrice = selectedDeparture
-    ? (seatClass === "business" && selectedDeparture.businessPrice ? parseFloat(selectedDeparture.businessPrice) : parseFloat(selectedDeparture.price))
-    : 0;
-  const total = unitPrice * passengers.length;
-  const selectedCard = matchingCards.find(c => c.id === selectedCardId);
+    if (payable.length && !payable.find((c) => c.id === cardId)) setCardId(payable[0].id);
+  }, [offer, cards]);
 
   const header = (title: string, onBack: () => void) => (
-    <View style={[s.headerBanner, { backgroundColor: PRIMARY }]}>
-      <TouchableOpacity onPress={onBack} style={s.backBtn}>
-        <Ionicons name="arrow-back" size={24} color="#fff" />
-      </TouchableOpacity>
-      <Text style={s.headerTitle}>{title}</Text>
+    <View style={[st.header, { backgroundColor: PRIMARY }]}>
+      <TouchableOpacity onPress={onBack} style={st.back} accessibilityLabel="Back"><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity>
+      <Text style={st.headerTitle}>{title}</Text>
       <View style={{ width: 40 }} />
     </View>
   );
 
-  const handleSearch = async () => {
-    if (!origin || !destination) {
-      toast({ title: "Choose an origin and destination", variant: "destructive" });
-      return;
-    }
+  const search = async () => {
+    if (from.iata === to.iata) return toast({ title: "Choose two different airports", variant: "destructive" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return toast({ title: "Enter the date as YYYY-MM-DD", variant: "destructive" });
     setSearching(true);
     try {
-      const rows = await searchDepartures({
-        mode, originCountryCode: origin.code, destinationCountryCode: destination.code,
-      });
-      setResults(rows);
+      setOffers(await searchFlights({ origin: from.iata, destination: to.iata, date: day, adults, children, infants, cabin }));
       setStage("results");
     } catch (e: any) {
       toast({ title: "Search failed", description: e.message, variant: "destructive" });
-    } finally {
-      setSearching(false);
+    } finally { setSearching(false); }
+  };
+
+  const choose = (o: FlightOffer) => {
+    setOffer(o);
+    setTravellers(kinds.map(() => blankTraveller()));
+    setStage("travellers");
+  };
+
+  const setT = (i: number, patch: Partial<Traveller>) =>
+    setTravellers((list) => list.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+
+  const travellersOk = () => {
+    for (const [i, t] of travellers.entries()) {
+      const n = `Passenger ${i + 1}`;
+      if (!t.title || !t.givenName.trim() || !t.familyName.trim()) return `${n}: title and full name`;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(t.bornOn)) return `${n}: date of birth as YYYY-MM-DD`;
+      if (!t.gender) return `${n}: gender as on the passport`;
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t.email)) return `${n}: a valid email`;
+      if (!/^\+[1-9]\d{6,14}$/.test(t.phone.replace(/[\s-]/g, ""))) return `${n}: phone with country code, e.g. +27821234567`;
+      if (international && (!t.document?.number || !/^\d{4}-\d{2}-\d{2}$/.test(t.document?.expiresOn || "") || !/^[A-Za-z]{2}$/.test(t.document?.issuingCountry || "")))
+        return `${n}: passport number, issuing country (2 letters) and expiry`;
     }
+    return null;
   };
 
-  const handleSelectDeparture = (dep: any) => {
-    setSelectedDeparture(dep);
-    setSeatClass("economy");
-    setPassengers([emptyPassenger()]);
-    setStage("passengers");
+  const pay = async (pin: string) => {
+    if (!offer) return;
+    const res = await bookFlight({
+      offerId: offer.id, fromCardId: cardId, pin, adults, children, infants,
+      travellers: travellers.map((t) => ({
+        ...t, phone: t.phone.replace(/[\s-]/g, ""),
+        ...(international ? {} : { document: undefined }),
+      })),
+    });
+    setBooked(res);
+    setPinOpen(false);
+    setStage("success");
   };
 
-  const addPassenger = () => {
-    if (passengers.length >= selectedDeparture.seatsAvailable) {
-      toast({ title: `Only ${selectedDeparture.seatsAvailable} seat(s) left`, variant: "destructive" });
-      return;
-    }
-    setPassengers(p => [...p, emptyPassenger()]);
-  };
+  const counter = (label: string, sub: string, value: number, set: (n: number) => void, min: number, max: number) => (
+    <View style={st.counterRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={[st.counterLabel, { color: colors.text }]}>{label}</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 12 }}>{sub}</Text>
+      </View>
+      <TouchableOpacity onPress={() => set(Math.max(min, value - 1))} style={[st.step, { borderColor: colors.border }]} accessibilityLabel={`Fewer ${label}`}><Ionicons name="remove" size={18} color={colors.text} /></TouchableOpacity>
+      <Text style={[st.counterValue, { color: colors.text }]}>{value}</Text>
+      <TouchableOpacity onPress={() => set(Math.min(max, value + 1))} style={[st.step, { borderColor: colors.border }]} accessibilityLabel={`More ${label}`}><Ionicons name="add" size={18} color={colors.text} /></TouchableOpacity>
+    </View>
+  );
 
-  const removePassenger = (i: number) => setPassengers(p => p.filter((_, idx) => idx !== i));
-
-  const updatePassenger = (i: number, field: keyof Passenger, value: string) =>
-    setPassengers(p => p.map((pax, idx) => idx === i ? { ...pax, [field]: value } : pax));
-
-  const handlePassengersContinue = () => {
-    if (passengers.some(p => !p.name.trim())) {
-      toast({ title: "Enter a name for every passenger", variant: "destructive" });
-      return;
-    }
-    setStage("payment");
-  };
-
-  const [pinOpen, setPinOpen] = useState(false);
-  const handleBook = () => {
-    if (!selectedCardId || !selectedDeparture) return;
-    setPinOpen(true);
-  };
-
-  const bookWithPin = async (pin: string) => {
-    if (!selectedCardId || !selectedDeparture) return;
-    setBooking(true);
-    try {
-      const transaction = await bookTravel({
-        pin,
-        departureId: selectedDeparture.departureId,
-        fromCardId: selectedCardId,
-        seatClass,
-        passengers: passengers.map(p => ({
-          name: p.name.trim(),
-          idNumber: p.idNumber.trim() || undefined,
-          phone: p.phone.trim() || undefined,
-        })),
-      });
-      setBookedTransaction(transaction);
-      setPinOpen(false);
-      setStage("success");
-    } finally {
-      setBooking(false);
-    }
-  };
-
-  // ── Search ─────────────────────────────────────────────────────────────────
+  // ── Search ────────────────────────────────────────────────────────────────
   if (stage === "search") {
     return (
-      <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header("Travel Booking", () => router.back())}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
-          <View style={[s.modeRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {(["bus", "flight"] as Mode[]).map(m => (
-              <TouchableOpacity
-                key={m}
-                style={[s.modeBtn, mode === m && { backgroundColor: PRIMARY }]}
-                onPress={() => {
-                  setMode(m);
-                  if (m === "bus") { setOrigin(SOUTH_AFRICA); setDestination(SOUTH_AFRICA); }
-                  else { setOrigin(null); setDestination(null); }
-                }}
-              >
-                <Ionicons name={m === "bus" ? "bus" : "airplane"} size={18} color={mode === m ? "#fff" : colors.textMuted} />
-                <Text style={[s.modeBtnText, { color: mode === m ? "#fff" : colors.textSecondary }]}>
-                  {m === "bus" ? "Bus" : "Flight"}
-                </Text>
-              </TouchableOpacity>
-            ))}
+      <View style={[st.container, { backgroundColor: colors.background }]}>
+        {header("Book a flight", () => router.back())}
+        <ScrollView contentContainerStyle={st.body} keyboardShouldPersistTaps="handled">
+          <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <AirportField label="From" airport={from} onPress={() => setPicking("from")} />
+            <TouchableOpacity style={st.swap} onPress={() => { setFrom(to); setTo(from); }} accessibilityLabel="Swap airports">
+              <Ionicons name="swap-vertical" size={20} color={PRIMARY} />
+            </TouchableOpacity>
+            <AirportField label="To" airport={to} onPress={() => setPicking("to")} />
           </View>
 
-          {mode === "bus" ? (
-            <View style={[s.localBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={s.countryFlag}>🇿🇦</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.pickerText, { color: colors.text }]}>South Africa — local routes</Text>
-                <Text style={[s.localBadgeSub, { color: colors.textMuted }]}>Johannesburg · Cape Town · Durban</Text>
-              </View>
+          <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[st.label, { color: colors.textMuted }]}>Departure date</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+              {Array.from({ length: 21 }, (_, i) => addDays(new Date(), i + 1)).map((d) => {
+                const v = format(d, "yyyy-MM-dd");
+                const on = v === day;
+                return (
+                  <TouchableOpacity key={v} onPress={() => setDay(v)} style={[st.dayChip, { borderColor: on ? PRIMARY : colors.border, backgroundColor: on ? PRIMARY : "transparent" }]}>
+                    <Text style={{ color: on ? "#fff" : colors.textMuted, fontSize: 11 }}>{format(d, "EEE")}</Text>
+                    <Text style={{ color: on ? "#fff" : colors.text, fontWeight: "700" }}>{format(d, "d MMM")}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TextInput value={day} onChangeText={setDay} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textMuted}
+              style={[st.input, { color: colors.text, borderColor: colors.border }]} accessibilityLabel="Departure date" />
+          </View>
+
+          <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[st.label, { color: colors.textMuted }]}>Cabin</Text>
+            <View style={st.chips}>
+              {CABINS.map((c) => (
+                <TouchableOpacity key={c.value} onPress={() => setCabin(c.value)} style={[st.chip, { borderColor: cabin === c.value ? PRIMARY : colors.border, backgroundColor: cabin === c.value ? PRIMARY : "transparent" }]}>
+                  <Text style={{ color: cabin === c.value ? "#fff" : colors.text, fontWeight: "600" }}>{c.label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          ) : (
-            <>
-              <View>
-                <Text style={[s.sectionLabel, { color: colors.text }]}>From</Text>
-                <TouchableOpacity
-                  style={[s.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  onPress={() => setStage("origin")}
-                >
-                  {origin ? (
-                    <><Text style={s.countryFlag}>{origin.flag}</Text><Text style={[s.pickerText, { color: colors.text }]}>{origin.name}</Text></>
-                  ) : (
-                    <Text style={[s.pickerText, { color: colors.textMuted }]}>Choose origin country</Text>
-                  )}
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                </TouchableOpacity>
-              </View>
+            {counter("Adults", "12 years and over", adults, setAdults, 1, 9 - children - infants)}
+            {counter("Children", "2–11 years", children, setChildren, 0, 9 - adults - infants)}
+            {counter("Infants", "Under 2, on a lap", infants, setInfants, 0, Math.min(adults, 9 - adults - children))}
+          </View>
 
-              <View>
-                <Text style={[s.sectionLabel, { color: colors.text }]}>To</Text>
-                <TouchableOpacity
-                  style={[s.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  onPress={() => setStage("destination")}
-                >
-                  {destination ? (
-                    <><Text style={s.countryFlag}>{destination.flag}</Text><Text style={[s.pickerText, { color: colors.text }]}>{destination.name}</Text></>
-                  ) : (
-                    <Text style={[s.pickerText, { color: colors.textMuted }]}>Choose destination country</Text>
-                  )}
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-
-          <TouchableOpacity
-            style={[s.continueBtn, (!origin || !destination || searching) && { opacity: 0.4 }]}
-            onPress={handleSearch}
-            disabled={!origin || !destination || searching}
-          >
-            {searching ? <ActivityIndicator color="#fff" /> : (
-              <>
-                <Ionicons name="search" size={18} color="#fff" />
-                <Text style={s.continueBtnText}>Search {mode === "bus" ? "Buses" : "Flights"}</Text>
-              </>
-            )}
+          <TouchableOpacity style={[st.primary, searching && { opacity: 0.6 }]} onPress={search} disabled={searching}>
+            {searching ? <ActivityIndicator color="#fff" /> : <><Ionicons name="search" size={18} color="#fff" /><Text style={st.primaryText}>Search flights</Text></>}
           </TouchableOpacity>
+          <Text style={[st.note, { color: colors.textMuted }]}>Fares from BukkaPay's airline partners. Prices include taxes; you pay from your wallet with your PIN.</Text>
         </ScrollView>
+        <AirportPicker visible={picking !== null} onClose={() => setPicking(null)}
+          onPick={(a) => { picking === "from" ? setFrom(a) : setTo(a); setPicking(null); }} />
       </View>
     );
   }
 
-  // ── Origin / Destination country pickers ─────────────────────────────────────
-  if (stage === "origin" || stage === "destination") {
-    const isOrigin = stage === "origin";
+  // ── Results ───────────────────────────────────────────────────────────────
+  if (stage === "results") {
     return (
-      <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header(isOrigin ? "Origin Country" : "Destination Country", () => setStage("search"))}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 8 }}>
-          {ALL_COUNTRIES.map(c => (
-            <TouchableOpacity
-              key={c.code}
-              style={[s.countryChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
-              onPress={() => { isOrigin ? setOrigin(c) : setDestination(c); setStage("search"); }}
-            >
-              <Text style={s.countryFlag}>{c.flag}</Text>
-              <Text style={[s.countryName, { color: colors.text }]}>{c.name}</Text>
+      <View style={[st.container, { backgroundColor: colors.background }]}>
+        {header(`${from.iata} → ${to.iata}`, () => setStage("search"))}
+        <ScrollView contentContainerStyle={st.body}>
+          <Text style={[st.note, { color: colors.textMuted, marginBottom: 8 }]}>
+            {format(new Date(day), "EEE d MMM yyyy")} · {kinds.length} passenger{kinds.length > 1 ? "s" : ""} · {CABINS.find((c) => c.value === cabin)?.label}
+          </Text>
+          {offers.length === 0 && (
+            <View style={st.empty}>
+              <Ionicons name="airplane-outline" size={40} color={colors.textMuted} />
+              <Text style={{ color: colors.text, fontWeight: "600", marginTop: 8 }}>No flights for that search</Text>
+              <Text style={{ color: colors.textMuted, textAlign: "center", marginTop: 4 }}>Try another date, cabin or nearby airport.</Text>
+            </View>
+          )}
+          {offers.map((o) => (
+            <TouchableOpacity key={o.id} onPress={() => choose(o)} style={[st.offer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={st.offerTop}>
+                <Text style={[st.airline, { color: colors.text }]}>{o.airlineName}</Text>
+                <Text style={[st.price, { color: PRIMARY }]}>{getCurrency(o.currency).symbol}{Number(o.totalAmount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+              </View>
+              <View style={st.offerMid}>
+                <View><Text style={[st.time, { color: colors.text }]}>{time(o.departingAt)}</Text><Text style={{ color: colors.textMuted }}>{o.origin}</Text></View>
+                <View style={{ alignItems: "center", flex: 1 }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>{dur(o.durationMinutes)}</Text>
+                  <View style={[st.line, { backgroundColor: colors.border }]} />
+                  <Text style={{ color: o.stops ? "#D97706" : "#059669", fontSize: 12, fontWeight: "600" }}>{o.stops ? `${o.stops} stop${o.stops > 1 ? "s" : ""}` : "Direct"}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}><Text style={[st.time, { color: colors.text }]}>{time(o.arrivingAt)}</Text><Text style={{ color: colors.textMuted }}>{o.destination}</Text></View>
+              </View>
+              <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                {o.segments.map((s) => s.flightNumber).filter(Boolean).join(" · ")}
+                {o.refundable === false ? " · Non-refundable" : o.refundable ? " · Refundable" : ""}
+                {o.seatsLeft != null && o.seatsLeft <= 5 ? ` · ${o.seatsLeft} seats left` : ""}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -259,318 +242,203 @@ export default function Travel() {
     );
   }
 
-  // ── Results ────────────────────────────────────────────────────────────────
-  if (stage === "results") {
+  // ── Travellers ────────────────────────────────────────────────────────────
+  if (stage === "travellers" && offer) {
     return (
-      <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header(`${origin?.name} → ${destination?.name}`, () => setStage("search"))}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 10 }}>
-          {results.length === 0 ? (
-            <View style={s.emptyWrap}>
-              <Ionicons name={mode === "bus" ? "bus-outline" : "airplane-outline"} size={40} color={colors.textMuted} />
-              <Text style={[s.emptyTitle, { color: colors.text }]}>No departures found</Text>
-              <Text style={[s.emptySub, { color: colors.textMuted }]}>Try a different route or check back later</Text>
-            </View>
-          ) : (
-            results.map((dep) => (
-              <TouchableOpacity
-                key={dep.departureId}
-                style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => handleSelectDeparture(dep)}
-                activeOpacity={0.75}
-              >
-                <View style={s.resultTop}>
-                  <Text style={[s.resultOperator, { color: colors.text }]}>{dep.operatorName}</Text>
-                  <Text style={[s.resultPrice, { color: PRIMARY }]}>
-                    {getCurrency(dep.currency).symbol}{parseFloat(dep.price).toFixed(2)}
-                  </Text>
-                </View>
-                <Text style={[s.resultRoute, { color: colors.textSecondary }]}>
-                  {dep.originCity} → {dep.destinationCity}{dep.flightNumber ? ` · ${dep.flightNumber}` : ""}
-                </Text>
-                <View style={s.resultBottom}>
-                  <Text style={[s.resultDate, { color: colors.textMuted }]}>
-                    {format(new Date(dep.departureAt), "EEE, MMM d · HH:mm")}
-                  </Text>
-                  <Text style={[s.resultSeats, { color: dep.seatsAvailable > 5 ? GREEN : "#F59E0B" }]}>
-                    {dep.seatsAvailable} seat{dep.seatsAvailable === 1 ? "" : "s"} left
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // ── Passengers ─────────────────────────────────────────────────────────────
-  if (stage === "passengers" && selectedDeparture) {
-    return (
-      <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header("Passenger Details", () => setStage("results"))}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
-          {mode === "flight" && selectedDeparture.businessPrice && (
-            <View>
-              <Text style={[s.sectionLabel, { color: colors.text }]}>Class</Text>
-              <View style={[s.modeRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                {(["economy", "business"] as const).map(cls => (
-                  <TouchableOpacity
-                    key={cls}
-                    style={[s.modeBtn, seatClass === cls && { backgroundColor: PRIMARY }]}
-                    onPress={() => setSeatClass(cls)}
-                  >
-                    <Text style={[s.modeBtnText, { color: seatClass === cls ? "#fff" : colors.textSecondary, textTransform: "capitalize" }]}>
-                      {cls}
-                    </Text>
+      <View style={[st.container, { backgroundColor: colors.background }]}>
+        {header("Passengers", () => setStage("results"))}
+        <ScrollView contentContainerStyle={st.body} keyboardShouldPersistTaps="handled">
+          <Text style={[st.note, { color: colors.textMuted, marginBottom: 8 }]}>Enter names exactly as on each {international ? "passport" : "ID or passport"}. Airlines can refuse boarding if they don't match.</Text>
+          {travellers.map((t, i) => (
+            <View key={i} style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[st.cardTitle, { color: colors.text }]}>Passenger {i + 1} · {kinds[i] === "adult" ? "Adult" : kinds[i] === "child" ? "Child" : "Infant"}</Text>
+              <View style={st.chips}>
+                {TITLES.map((x) => (
+                  <TouchableOpacity key={x} onPress={() => setT(i, { title: x })} style={[st.chip, { borderColor: t.title === x ? PRIMARY : colors.border, backgroundColor: t.title === x ? PRIMARY : "transparent" }]}>
+                    <Text style={{ color: t.title === x ? "#fff" : colors.text, textTransform: "capitalize" }}>{x}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
-          )}
-
-          {passengers.map((pax, i) => (
-            <View key={i} style={[s.passengerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={s.passengerHeader}>
-                <Text style={[s.passengerTitle, { color: colors.text }]}>Passenger {i + 1}</Text>
-                {passengers.length > 1 && (
-                  <TouchableOpacity onPress={() => removePassenger(i)}>
-                    <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+              <Field label="First and middle names" value={t.givenName} onChange={(v) => setT(i, { givenName: v })} />
+              <Field label="Last name" value={t.familyName} onChange={(v) => setT(i, { familyName: v })} />
+              <Field label="Date of birth (YYYY-MM-DD)" value={t.bornOn} onChange={(v) => setT(i, { bornOn: v })} />
+              <View style={st.chips}>
+                {(["f", "m"] as const).map((g) => (
+                  <TouchableOpacity key={g} onPress={() => setT(i, { gender: g })} style={[st.chip, { borderColor: t.gender === g ? PRIMARY : colors.border, backgroundColor: t.gender === g ? PRIMARY : "transparent" }]}>
+                    <Text style={{ color: t.gender === g ? "#fff" : colors.text }}>{g === "f" ? "Female" : "Male"}</Text>
                   </TouchableOpacity>
-                )}
+                ))}
               </View>
-              <TextInput
-                style={[s.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder="Full name"
-                placeholderTextColor={colors.textMuted}
-                value={pax.name}
-                onChangeText={(v) => updatePassenger(i, "name", v)}
-              />
-              <TextInput
-                style={[s.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder="ID / Passport number (optional)"
-                placeholderTextColor={colors.textMuted}
-                value={pax.idNumber}
-                onChangeText={(v) => updatePassenger(i, "idNumber", v)}
-              />
-              <TextInput
-                style={[s.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder="Phone (optional)"
-                placeholderTextColor={colors.textMuted}
-                value={pax.phone}
-                onChangeText={(v) => updatePassenger(i, "phone", v)}
-                keyboardType="phone-pad"
-              />
+              <Field label="Email" value={t.email} onChange={(v) => setT(i, { email: v })} keyboard="email-address" />
+              <Field label="Phone with country code (+27…)" value={t.phone} onChange={(v) => setT(i, { phone: v })} keyboard="phone-pad" />
+              {international && (
+                <>
+                  <Field label="Passport number" value={t.document?.number ?? ""} onChange={(v) => setT(i, { document: { ...(t.document ?? { issuingCountry: "", expiresOn: "" }), number: v } as any })} />
+                  <Field label="Issuing country (2 letters, e.g. ZA)" value={t.document?.issuingCountry ?? ""} onChange={(v) => setT(i, { document: { ...(t.document ?? { number: "", expiresOn: "" }), issuingCountry: v.toUpperCase().slice(0, 2) } as any })} />
+                  <Field label="Passport expiry (YYYY-MM-DD)" value={t.document?.expiresOn ?? ""} onChange={(v) => setT(i, { document: { ...(t.document ?? { number: "", issuingCountry: "" }), expiresOn: v } as any })} />
+                </>
+              )}
             </View>
           ))}
-
-          <TouchableOpacity
-            style={[s.addPassengerBtn, { borderColor: PRIMARY }]}
-            onPress={addPassenger}
-            disabled={passengers.length >= selectedDeparture.seatsAvailable}
-          >
-            <Ionicons name="add" size={18} color={PRIMARY} />
-            <Text style={[s.addPassengerText, { color: PRIMARY }]}>Add another passenger</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={s.continueBtn} onPress={handlePassengersContinue}>
-            <Text style={s.continueBtnText}>Continue</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          <TouchableOpacity style={st.primary} onPress={() => {
+            const problem = travellersOk();
+            if (problem) return toast({ title: "Check passenger details", description: problem, variant: "destructive" });
+            setStage("pay");
+          }}>
+            <Text style={st.primaryText}>Continue to payment</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
     );
   }
 
-  // ── Payment ────────────────────────────────────────────────────────────────
-  if (stage === "payment" && selectedDeparture) {
+  // ── Pay ───────────────────────────────────────────────────────────────────
+  if (stage === "pay" && offer) {
+    const sym = getCurrency(offer.currency).symbol;
     return (
-      <View style={[s.container, { backgroundColor: colors.background }]}>
-        {header("Payment", () => setStage("passengers"))}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
-          <View style={[s.summaryCard, { backgroundColor: colors.card }]}>
-            <Text style={[s.summaryRoute, { color: colors.text }]}>
-              {selectedDeparture.originCity} → {selectedDeparture.destinationCity}
-            </Text>
-            <Text style={[s.summarySub, { color: colors.textMuted }]}>
-              {format(new Date(selectedDeparture.departureAt), "EEE, MMM d · HH:mm")} · {passengers.length} passenger{passengers.length > 1 ? "s" : ""}
-            </Text>
-            <View style={[s.confirmDivider, { backgroundColor: colors.divider }]} />
-            <View style={s.confirmRow}>
-              <Text style={[s.confirmLabel, { color: colors.textMuted }]}>Price per person</Text>
-              <Text style={[s.confirmValue, { color: colors.text }]}>{getCurrency(selectedDeparture.currency).symbol}{unitPrice.toFixed(2)}</Text>
-            </View>
-            <View style={s.confirmRow}>
-              <Text style={[s.confirmLabel, { color: colors.text, fontWeight: "700" }]}>Total</Text>
-              <Text style={[s.confirmValue, { color: PRIMARY, fontWeight: "800", fontSize: 16 }]}>
-                {getCurrency(selectedDeparture.currency).symbol}{total.toFixed(2)}
-              </Text>
-            </View>
+      <View style={[st.container, { backgroundColor: colors.background }]}>
+        {header("Review and pay", () => setStage("travellers"))}
+        <ScrollView contentContainerStyle={st.body}>
+          <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[st.cardTitle, { color: colors.text }]}>{offer.airlineName}</Text>
+            <Text style={{ color: colors.text }}>{offer.origin} {time(offer.departingAt)} → {offer.destination} {time(offer.arrivingAt)}</Text>
+            <Text style={{ color: colors.textMuted }}>{format(new Date(offer.departingAt), "EEE d MMM yyyy")} · {dur(offer.durationMinutes)} · {offer.stops ? `${offer.stops} stop(s)` : "Direct"}</Text>
+            <Text style={{ color: colors.textMuted, marginTop: 6 }}>{travellers.map((t) => `${t.givenName} ${t.familyName}`).join(", ")}</Text>
+            {offer.refundable === false && <Text style={{ color: "#D97706", marginTop: 6 }}>This fare is non-refundable.</Text>}
           </View>
-
-          <Text style={[s.sectionLabel, { color: colors.text }]}>Pay with</Text>
-          {cardsLoading ? (
-            <ActivityIndicator color={PRIMARY} />
-          ) : matchingCards.length === 0 ? (
-            <View style={[s.noCardWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Ionicons name="alert-circle-outline" size={22} color="#F59E0B" />
-              <Text style={[s.noCardText, { color: colors.textSecondary }]}>
-                You don't have a {selectedDeparture.currency} wallet yet. Top up or create one to book this ticket.
-              </Text>
-            </View>
-          ) : (
-            <View style={{ gap: 8 }}>
-              {matchingCards.map((card: any) => (
-                <TouchableOpacity
-                  key={card.id}
-                  style={[s.cardOption, { borderColor: colors.border, backgroundColor: colors.surface },
-                    selectedCardId === card.id && { borderColor: PRIMARY, backgroundColor: colors.primaryLight }]}
-                  onPress={() => setSelectedCardId(card.id)}
-                >
-                  <Ionicons name="card" size={16} color={selectedCardId === card.id ? PRIMARY : colors.textMuted} />
-                  <Text style={[s.cardOptionText, { color: colors.text }]}>{card.title}</Text>
-                  <Text style={[s.cardOptionBalance, { color: colors.textMuted }]}>
-                    {getCurrency(card.currency).symbol}{parseFloat(card.balance).toFixed(2)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[s.sendBtn, (!selectedCardId || booking || (selectedCard && parseFloat(selectedCard.balance) < total)) && { opacity: 0.4 }]}
-            onPress={handleBook}
-            disabled={!selectedCardId || booking || (selectedCard && parseFloat(selectedCard.balance) < total)}
-          >
-            {booking ? <ActivityIndicator color="#fff" /> : (
-              <>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={s.sendBtnText}>Book · {getCurrency(selectedDeparture.currency).symbol}{total.toFixed(2)}</Text>
-              </>
-            )}
+          <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[st.label, { color: colors.textMuted }]}>Pay from</Text>
+            {payable.length === 0 && <Text style={{ color: "#DC2626", marginTop: 6 }}>You need a {offer.currency} wallet to pay for this fare.</Text>}
+            {payable.map((c: any) => (
+              <TouchableOpacity key={c.id} onPress={() => setCardId(c.id)} style={[st.walletRow, { borderColor: cardId === c.id ? PRIMARY : colors.border }]}>
+                <Text style={{ color: colors.text, flex: 1 }}>{c.title}</Text>
+                <Text style={{ color: colors.textMuted }}>{sym}{Number(c.balance).toFixed(2)}</Text>
+                {cardId === c.id && <Ionicons name="checkmark-circle" size={20} color={PRIMARY} style={{ marginLeft: 8 }} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={st.totalRow}>
+            <Text style={{ color: colors.text, fontSize: 16 }}>Total</Text>
+            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>{sym}{Number(offer.totalAmount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+          </View>
+          <TouchableOpacity style={[st.primary, !cardId && { opacity: 0.5 }]} disabled={!cardId} onPress={() => setPinOpen(true)}>
+            <Ionicons name="lock-closed" size={18} color="#fff" /><Text style={st.primaryText}>Pay and book</Text>
           </TouchableOpacity>
-          <PinPrompt visible={pinOpen} title="Confirm booking" onCancel={() => setPinOpen(false)} onSubmit={bookWithPin} />
+          <PinPrompt visible={pinOpen} title="Confirm booking" onCancel={() => setPinOpen(false)} onSubmit={pay} />
         </ScrollView>
       </View>
     );
   }
 
-  // ── Success ────────────────────────────────────────────────────────────────
+  // ── Success ───────────────────────────────────────────────────────────────
+  const m = booked?.metadata ?? {};
   return (
-    <View style={[s.container, { backgroundColor: colors.background }]}>
-      <View style={s.successWrap}>
-        <View style={s.successCircle}>
-          <Ionicons name="checkmark" size={52} color="#fff" />
-        </View>
-        <Text style={[s.successTitle, { color: colors.text }]}>Booked!</Text>
-        <Text style={[s.successSub, { color: colors.textMuted }]}>Your ticket is in Purchases</Text>
-
-        <TouchableOpacity
-          style={s.doneBtn}
-          onPress={() => router.push(`/(screens)/purchase-detail?id=${bookedTransaction?.id}` as any)}
-        >
-          <Text style={s.doneBtnText}>View Ticket</Text>
+    <View style={[st.container, { backgroundColor: colors.background }]}>
+      {header("Booked", () => router.back())}
+      <ScrollView contentContainerStyle={[st.body, { alignItems: "center" }]}>
+        <Ionicons name="checkmark-circle" size={72} color="#10B981" />
+        <Text style={[st.cardTitle, { color: colors.text, fontSize: 22, marginTop: 8 }]}>You're booked!</Text>
+        <Text style={{ color: colors.textMuted }}>Booking reference</Text>
+        <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800", letterSpacing: 4, marginVertical: 6 }}>{m.bookingReference}</Text>
+        <Text style={{ color: colors.text }}>{m.airline} · {m.fromCode} → {m.toCode}</Text>
+        <Text style={{ color: colors.textMuted }}>{m.travelDate} · departs {m.departure}</Text>
+        <TouchableOpacity style={[st.primary, { alignSelf: "stretch", marginTop: 24 }]} onPress={() => booked && router.push({ pathname: "/(screens)/purchase-detail", params: { id: booked.id } } as any)}>
+          <Text style={st.primaryText}>View ticket</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ marginTop: 16 }} onPress={() => router.push("/(tabs)" as any)}>
-          <Text style={{ color: colors.textMuted, fontSize: 14 }}>Back to Home</Text>
+        <TouchableOpacity onPress={() => { setStage("search"); setOffer(null); setBooked(null); }} style={{ marginTop: 14 }}>
+          <Text style={{ color: PRIMARY, fontWeight: "600" }}>Book another flight</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
-const s = StyleSheet.create({
+function AirportField({ label, airport, onPress }: { label: string; airport: Airport; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity onPress={onPress} style={st.airportField} accessibilityLabel={`${label}: ${airport.city}`}>
+      <Text style={[st.label, { color: colors.textMuted }]}>{label}</Text>
+      <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>{airport.iata}</Text>
+      <Text style={{ color: colors.textMuted }} numberOfLines={1}>{airport.city} · {airport.name}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function Field({ label, value, onChange, keyboard }: { label: string; value: string; onChange: (v: string) => void; keyboard?: any }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ marginTop: 10 }}>
+      <Text style={[st.label, { color: colors.textMuted }]}>{label}</Text>
+      <TextInput value={value} onChangeText={onChange} keyboardType={keyboard} autoCapitalize={keyboard === "email-address" ? "none" : "words"}
+        style={[st.input, { color: colors.text, borderColor: colors.border }]} accessibilityLabel={label} />
+    </View>
+  );
+}
+
+function AirportPicker({ visible, onClose, onPick }: { visible: boolean; onClose: () => void; onPick: (a: Airport) => void }) {
+  const { colors } = useTheme();
+  const [q, setQ] = useState("");
+  const { data = [], isFetching } = useQuery({ queryKey: ["airports", q], queryFn: () => searchAirports(q), enabled: visible });
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={[st.container, { backgroundColor: colors.background }]}>
+        <View style={[st.header, { backgroundColor: PRIMARY }]}>
+          <TouchableOpacity onPress={onClose} style={st.back} accessibilityLabel="Close"><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity>
+          <Text style={st.headerTitle}>Choose airport</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={{ padding: 16 }}>
+          <TextInput autoFocus value={q} onChangeText={setQ} placeholder="City, airport or code" placeholderTextColor={colors.textMuted}
+            style={[st.input, { color: colors.text, borderColor: colors.border }]} accessibilityLabel="Search airports" />
+        </View>
+        {isFetching && <ActivityIndicator color={PRIMARY} />}
+        <ScrollView keyboardShouldPersistTaps="handled">
+          {data.map((a) => (
+            <TouchableOpacity key={a.iata} onPress={() => onPick(a)} style={[st.airportRow, { borderColor: colors.border }]}>
+              <Text style={{ color: colors.text, fontWeight: "800", width: 52 }}>{a.iata}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text }}>{a.city}</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>{a.name} · {a.countryCode}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const st = StyleSheet.create({
   container: { flex: 1 },
-  headerBanner: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 52 : 40, paddingBottom: 18, paddingHorizontal: 20,
-  },
-  backBtn: { padding: 8, borderRadius: 20 },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
-
-  modeRow: { flexDirection: "row", borderRadius: 14, borderWidth: 1.5, padding: 4, gap: 4 },
-  modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10 },
-  modeBtnText: { fontSize: 14, fontWeight: "700" },
-
-  sectionLabel: { fontSize: 14, fontWeight: "700", marginBottom: 8 },
-  pickerRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 14,
-  },
-  pickerText: { flex: 1, fontSize: 15, fontWeight: "600" },
-
-  localBadge: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 14,
-  },
-  localBadgeSub: { fontSize: 12, marginTop: 2 },
-
-  countryChip: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1.5, padding: 12 },
-  countryFlag: { fontSize: 22 },
-  countryName: { fontSize: 14, fontWeight: "700" },
-
-  continueBtn: {
-    backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 16,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-  },
-  continueBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
-
-  emptyWrap: { alignItems: "center", paddingTop: 60, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: "700" },
-  emptySub: { fontSize: 13, textAlign: "center" },
-
-  resultCard: { borderRadius: 16, borderWidth: 1.5, padding: 16, gap: 6 },
-  resultTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  resultOperator: { fontSize: 15, fontWeight: "700" },
-  resultPrice: { fontSize: 17, fontWeight: "800" },
-  resultRoute: { fontSize: 13, fontWeight: "500" },
-  resultBottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
-  resultDate: { fontSize: 12 },
-  resultSeats: { fontSize: 12, fontWeight: "700" },
-
-  passengerCard: { borderRadius: 16, borderWidth: 1.5, padding: 14, gap: 10 },
-  passengerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  passengerTitle: { fontSize: 14, fontWeight: "700" },
-  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
-
-  addPassengerBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    borderWidth: 1.5, borderStyle: "dashed", borderRadius: 14, paddingVertical: 12,
-  },
-  addPassengerText: { fontSize: 14, fontWeight: "700" },
-
-  summaryCard: { borderRadius: 18, padding: 18 },
-  summaryRoute: { fontSize: 17, fontWeight: "800" },
-  summarySub: { fontSize: 12, marginTop: 4 },
-  confirmDivider: { height: 1, marginVertical: 12 },
-  confirmRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
-  confirmLabel: { fontSize: 14 },
-  confirmValue: { fontSize: 14, fontWeight: "600" },
-
-  noCardWrap: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1.5, padding: 14 },
-  noCardText: { flex: 1, fontSize: 13, lineHeight: 18 },
-
-  cardOption: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 12,
-  },
-  cardOptionText: { flex: 1, fontSize: 14, fontWeight: "600" },
-  cardOptionBalance: { fontSize: 12 },
-
-  sendBtn: {
-    backgroundColor: PRIMARY, borderRadius: 16, paddingVertical: 18,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-  },
-  sendBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
-
-  successWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
-  successCircle: {
-    width: 96, height: 96, borderRadius: 48, backgroundColor: GREEN,
-    alignItems: "center", justifyContent: "center", marginBottom: 24,
-    shadowColor: GREEN, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 10,
-  },
-  successTitle: { fontSize: 28, fontWeight: "900", marginBottom: 8 },
-  successSub: { fontSize: 15, marginBottom: 32 },
-  doneBtn: { backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40 },
-  doneBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 48, paddingBottom: 16, paddingHorizontal: 12 },
+  back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  body: { padding: 16, gap: 12, paddingBottom: 48 },
+  card: { borderWidth: 1, borderRadius: 16, padding: 16 },
+  cardTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
+  label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  airportField: { paddingVertical: 6 },
+  swap: { alignSelf: "flex-end", padding: 6, marginVertical: -6 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginTop: 6 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 10 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  dayChip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8, alignItems: "center" },
+  counterRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
+  counterLabel: { fontSize: 15, fontWeight: "600" },
+  counterValue: { width: 32, textAlign: "center", fontSize: 16, fontWeight: "700" },
+  step: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  primary: { backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 16, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
+  primaryText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  note: { fontSize: 12, lineHeight: 18 },
+  empty: { alignItems: "center", padding: 32 },
+  offer: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
+  offerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  airline: { fontSize: 15, fontWeight: "700", flex: 1 },
+  price: { fontSize: 18, fontWeight: "800" },
+  offerMid: { flexDirection: "row", alignItems: "center", gap: 12 },
+  time: { fontSize: 20, fontWeight: "800" },
+  line: { height: 2, alignSelf: "stretch", marginVertical: 4, borderRadius: 1 },
+  walletRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 8 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4 },
+  airportRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
 });

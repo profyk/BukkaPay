@@ -1,4 +1,8 @@
-from datetime import UTC, datetime, timedelta
+"""Flights: buses are retired; flights come from every provider (here, the
+inventory provider admins load), with airline-grade passenger checks,
+seat locking, ledger-backed payment and refunds."""
+
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -8,119 +12,146 @@ from tests.conftest import TEST_PIN
 pytestmark = pytest.mark.asyncio
 
 
-async def _seed_bus_departure(client: AsyncClient, admin: dict) -> dict:
-    r = await client.post("/api/admin/travel/operators", json={
-        "name": "Test Coach Lines", "mode": "bus",
-    }, headers=admin["headers"])
+async def _seed_flight(client: AsyncClient, admin: dict, *, origin="JNB", destination="CPT",
+                       dest_country="ZA", price="450.00", seats=4) -> dict:
+    r = await client.post("/api/admin/travel/operators", json={"name": "Test Air", "mode": "flight"},
+                          headers=admin["headers"])
     assert r.status_code == 201, r.text
     operator = r.json()
-
     r = await client.post(f"/api/admin/travel/operators/{operator['id']}/routes", json={
-        "originCode": "Johannesburg", "originCity": "Johannesburg", "originCountryCode": "ZA",
-        "destinationCode": "Cape Town", "destinationCity": "Cape Town", "destinationCountryCode": "ZA",
+        "originCode": origin.lower(), "originCity": "Johannesburg", "originCountryCode": "ZA",
+        "destinationCode": destination, "destinationCity": "Somewhere", "destinationCountryCode": dest_country,
+        "flightNumber": "TA101",
     }, headers=admin["headers"])
     assert r.status_code == 201, r.text
     route = r.json()
-
-    departure_at = (datetime.now(UTC) + timedelta(days=3)).isoformat()
-    arrival_at = (datetime.now(UTC) + timedelta(days=3, hours=9)).isoformat()
+    dep_at = datetime.now(UTC) + timedelta(days=5)
     r = await client.post(f"/api/admin/travel/routes/{route['id']}/departures", json={
-        "departureAt": departure_at, "arrivalAt": arrival_at,
-        "price": "500.00", "currency": "ZAR", "totalSeats": 4,
+        "departureAt": dep_at.isoformat(), "arrivalAt": (dep_at + timedelta(hours=2, minutes=10)).isoformat(),
+        "price": price, "currency": "ZAR", "totalSeats": seats,
     }, headers=admin["headers"])
     assert r.status_code == 201, r.text
-    return {"operator": operator, "route": route, "departure": r.json()}
+    return {"route": route, "departure": r.json(), "day": dep_at.date().isoformat()}
 
 
-async def test_search_departures(client: AsyncClient, admin: dict, user: dict):
-    seed = await _seed_bus_departure(client, admin)
+def _traveller(given="Ama", born="1990-04-02", **extra) -> dict:
+    return {"title": "ms", "givenName": given, "familyName": "Mensah", "bornOn": born, "gender": "f",
+            "email": "ama@example.com", "phone": "+27821234567", **extra}
 
-    r = await client.get("/api/travel/search", params={"mode": "bus"}, headers=user["headers"])
+
+async def _search(client, user, seed, **params):
+    r = await client.get("/api/travel/flights/search", params={
+        "origin": "JNB", "destination": seed["route"]["destinationCode"], "date": seed["day"], **params,
+    }, headers=user["headers"])
     assert r.status_code == 200, r.text
-    results = r.json()
-    match = next((x for x in results if x["departureId"] == seed["departure"]["id"]), None)
-    assert match is not None
-    assert match["operatorName"] == "Test Coach Lines"
-    assert match["seatsAvailable"] == 4
-    assert match["price"] == "500.00"
+    return [o for o in r.json() if o["provider"] == "inventory" and seed["departure"]["id"] in o["id"]]
 
 
-async def test_book_travel_creates_purchase_transaction_and_debits_wallet(
-    client: AsyncClient, admin: dict, funded_user: dict
-):
-    seed = await _seed_bus_departure(client, admin)
+async def test_buses_are_retired(client: AsyncClient, admin: dict, user: dict):
+    r = await client.post("/api/admin/travel/operators", json={"name": "Coach Co", "mode": "bus"},
+                          headers=admin["headers"])
+    assert r.status_code == 400
+    r = await client.get("/api/travel/search", params={"mode": "bus"}, headers=user["headers"])
+    assert r.status_code == 410
 
-    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
-        "departureId": seed["departure"]["id"],
-        "fromCardId": funded_user["card_id"],
-        "seatClass": "standard",
-        "passengers": [{"name": "Jane Doe", "idNumber": "8001015800083"}, {"name": "John Doe"}],
+
+async def test_airport_search(client: AsyncClient, user: dict):
+    r = await client.get("/api/travel/airports", params={"q": "nairobi"}, headers=user["headers"])
+    assert r.status_code == 200
+    assert r.json()[0]["iata"] == "NBO"
+
+
+async def test_route_codes_must_be_airports(client: AsyncClient, admin: dict):
+    r = await client.post("/api/admin/travel/operators", json={"name": "Code Air", "mode": "flight"},
+                          headers=admin["headers"])
+    op = r.json()
+    r = await client.post(f"/api/admin/travel/operators/{op['id']}/routes", json={
+        "originCode": "Johannesburg", "originCity": "Johannesburg", "originCountryCode": "ZA",
+        "destinationCode": "CPT", "destinationCity": "Cape Town", "destinationCountryCode": "ZA",
+    }, headers=admin["headers"])
+    assert r.status_code == 400 and "IATA" in r.json()["error"]
+
+
+async def test_search_book_and_cancel_a_flight(client: AsyncClient, admin: dict, funded_user: dict):
+    seed = await _seed_flight(client, admin)
+    offers = await _search(client, funded_user, seed, adults=2)
+    assert len(offers) == 1
+    offer = offers[0]
+    assert offer["totalAmount"] == "900.00" and offer["seatsLeft"] == 4 and offer["stops"] == 0
+
+    r = await client.post("/api/travel/flights/book", json={
+        "pin": TEST_PIN, "offerId": offer["id"], "fromCardId": funded_user["card_id"], "adults": 2,
+        "travellers": [_traveller(), _traveller(given="Kofi", born="1988-11-20", title="mr", gender="m")],
     }, headers=funded_user["headers"])
     assert r.status_code == 201, r.text
     booking = r.json()
-    assert booking["category"] == "travel"
-    assert booking["amount"] == "1000.00"  # 2 passengers x R500
-    assert booking["merchantName"] == "Test Coach Lines"
     meta = booking["metadata"]
-    assert meta["ticketType"] == "bus"
-    assert meta["operator"] == "Test Coach Lines"
-    assert meta["from"] == "Johannesburg"
-    assert meta["to"] == "Cape Town"
-    assert meta["passengerCount"] == 2
-    assert meta["passengers"][0]["idNumber"] == "8001015800083"
-    assert meta["passengers"][1].get("idNumber") is None
+    assert booking["amount"] == "900.00" and meta["provider"] == "inventory"
+    assert len(meta["bookingReference"]) == 6 and meta["fromCode"] == "JNB" and meta["toCode"] == "CPT"
+    assert meta["passengers"][0] == {"name": "Ama Mensah", "type": "adult"}
 
-    r = await client.get("/api/cards", headers=funded_user["headers"])
-    card = next(c for c in r.json() if c["id"] == funded_user["card_id"])
-    assert card["balance"] == "0.00"  # 1000 funded - 1000 fare
+    cards = (await client.get("/api/cards", headers=funded_user["headers"])).json()
+    assert next(c for c in cards if c["id"] == funded_user["card_id"])["balance"] == "100.00"
+    assert (await _search(client, funded_user, seed))[0]["seatsLeft"] == 2
 
-    r = await client.get(f"/api/travel/departures/{seed['departure']['id']}", headers=funded_user["headers"])
-    assert r.json()["seatsAvailable"] == 2
-
-
-async def test_book_travel_rejects_wrong_currency_card(client: AsyncClient, admin: dict, funded_user: dict):
-    seed = await _seed_bus_departure(client, admin)
-    r = await client.post("/api/cards", json={"pin": TEST_PIN, "title": "USD Wallet", "currency": "USD"}, headers=funded_user["headers"])
-    usd_card_id = r.json()["id"]
-
-    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
-        "departureId": seed["departure"]["id"], "fromCardId": usd_card_id,
-        "passengers": [{"name": "Solo Traveler"}],
-    }, headers=funded_user["headers"])
-    assert r.status_code == 400
-    assert "zar" in r.json()["error"].lower()
-
-
-async def test_book_travel_rejects_overbooking(client: AsyncClient, admin: dict, funded_user: dict):
-    seed = await _seed_bus_departure(client, admin)  # 4 seats total
-
-    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
-        "departureId": seed["departure"]["id"], "fromCardId": funded_user["card_id"],
-        "passengers": [{"name": f"Passenger {i}"} for i in range(5)],
-    }, headers=funded_user["headers"])
-    assert r.status_code == 400
-    assert "seat" in r.json()["error"].lower()
-
-
-async def test_cancel_booking_refunds_wallet_and_frees_seats(client: AsyncClient, admin: dict, funded_user: dict):
-    seed = await _seed_bus_departure(client, admin)
-
-    r = await client.post("/api/travel/book", json={"pin": TEST_PIN,
-        "departureId": seed["departure"]["id"], "fromCardId": funded_user["card_id"],
-        "passengers": [{"name": "Solo Traveler"}],
-    }, headers=funded_user["headers"])
-    booking_id = r.json()["id"]
-
-    r = await client.post(f"/api/travel/bookings/{booking_id}/cancel", headers=funded_user["headers"])
+    r = await client.post(f"/api/travel/flights/bookings/{booking['id']}/cancel", headers=funded_user["headers"])
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "refunded"
+    assert r.json()["status"] == "refunded" and r.json()["metadata"]["ticketStatus"] == "cancelled"
+    cards = (await client.get("/api/cards", headers=funded_user["headers"])).json()
+    assert next(c for c in cards if c["id"] == funded_user["card_id"])["balance"] == "1000.00"
+    assert (await _search(client, funded_user, seed))[0]["seatsLeft"] == 4
 
-    r = await client.get("/api/cards", headers=funded_user["headers"])
-    card = next(c for c in r.json() if c["id"] == funded_user["card_id"])
-    assert card["balance"] == "1000.00"  # fully refunded
 
-    r = await client.get(f"/api/travel/departures/{seed['departure']['id']}", headers=funded_user["headers"])
-    assert r.json()["seatsAvailable"] == 4
+async def test_no_overbooking(client: AsyncClient, admin: dict, funded_user: dict):
+    seed = await _seed_flight(client, admin, seats=2, price="100.00")
+    assert await _search(client, funded_user, seed, adults=3) == []  # not offered
+    offer = (await _search(client, funded_user, seed, adults=2))[0]
+    r = await client.post("/api/travel/flights/book", json={
+        "pin": TEST_PIN, "offerId": offer["id"], "fromCardId": funded_user["card_id"], "adults": 3,
+        "travellers": [_traveller(), _traveller(), _traveller()],
+    }, headers=funded_user["headers"])
+    assert r.status_code == 409
+
+
+async def test_passenger_details_are_checked(client: AsyncClient, admin: dict, funded_user: dict):
+    seed = await _seed_flight(client, admin)
+    offer = (await _search(client, funded_user, seed))[0]
+    body = {"pin": TEST_PIN, "offerId": offer["id"], "fromCardId": funded_user["card_id"], "adults": 1}
+    for bad in (_traveller(phone="0821234567"), _traveller(born="2020-01-01"), _traveller(title="")):
+        r = await client.post("/api/travel/flights/book", json={**body, "travellers": [bad]},
+                              headers=funded_user["headers"])
+        assert r.status_code == 400, bad
+
+
+async def test_international_flights_need_a_valid_passport(client: AsyncClient, admin: dict, funded_user: dict):
+    seed = await _seed_flight(client, admin, destination="NBO", dest_country="KE")
+    offer = (await _search(client, funded_user, seed))[0]
+    body = {"pin": TEST_PIN, "offerId": offer["id"], "fromCardId": funded_user["card_id"], "adults": 1}
+    r = await client.post("/api/travel/flights/book", json={**body, "travellers": [_traveller()]},
+                          headers=funded_user["headers"])
+    assert r.status_code == 400 and "passport" in r.json()["error"].lower()
+    soon = (date.fromisoformat(seed["day"]) - timedelta(days=1)).isoformat()
+    r = await client.post("/api/travel/flights/book", json={**body, "travellers": [_traveller(
+        document={"number": "a1234567", "issuingCountry": "za", "expiresOn": soon})]},
+        headers=funded_user["headers"])
+    assert r.status_code == 400 and "expires" in r.json()["error"].lower()
+    r = await client.post("/api/travel/flights/book", json={**body, "travellers": [_traveller(
+        document={"number": "a1234567", "issuingCountry": "za", "expiresOn": "2034-01-01"})]},
+        headers=funded_user["headers"])
+    assert r.status_code == 201, r.text
+
+
+async def test_wrong_pin_or_currency_is_refused(client: AsyncClient, admin: dict, funded_user: dict):
+    seed = await _seed_flight(client, admin)
+    offer = (await _search(client, funded_user, seed))[0]
+    body = {"offerId": offer["id"], "fromCardId": funded_user["card_id"], "adults": 1, "travellers": [_traveller()]}
+    r = await client.post("/api/travel/flights/book", json={**body, "pin": "0000"}, headers=funded_user["headers"])
+    assert r.status_code in (401, 403)
+    usd = (await client.post("/api/cards", json={"pin": TEST_PIN, "title": "USD", "currency": "USD"},
+                             headers=funded_user["headers"])).json()["id"]
+    r = await client.post("/api/travel/flights/book", json={**body, "pin": TEST_PIN, "fromCardId": usd},
+                          headers=funded_user["headers"])
+    assert r.status_code == 400 and "zar" in r.json()["error"].lower()
 
 
 async def test_admin_travel_crud_requires_admin_auth(client: AsyncClient):

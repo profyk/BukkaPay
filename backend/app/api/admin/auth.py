@@ -46,6 +46,10 @@ async def setup(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     settings = get_settings()
+    # The owner already exists in production; recovery goes through the
+    # emailed owner invite, never through creating an admin here.
+    if settings.is_production:
+        raise ApiError("Setup is closed. The owner can be sent a recovery invite instead.", status_code=403)
     if not settings.admin_api_key:
         raise ApiError("ADMIN_API_KEY not configured", status_code=503)
     if not x_admin_token or not hmac.compare_digest(x_admin_token.encode(), settings.admin_api_key.encode()):

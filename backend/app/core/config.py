@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     sandbox_settlement_delay_seconds: int = Field(default=5, alias="SANDBOX_SETTLEMENT_DELAY_SECONDS")
     public_web_url: str = Field(default="http://localhost:3000", alias="PUBLIC_WEB_URL")
     merchant_web_url: str = Field(default="http://localhost:3001", alias="MERCHANT_WEB_URL")
+    # Flights: Duffel airline API (https://duffel.com). Unset = only BukkaPay's own inventory.
+    duffel_access_token: str | None = Field(default=None, alias="DUFFEL_ACCESS_TOKEN")
     # Admin panel origin, used in admin invitation links.
     admin_web_url: str = Field(default="https://admin.bukkapay.com", alias="ADMIN_WEB_URL")
 

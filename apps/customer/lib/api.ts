@@ -333,38 +333,57 @@ export async function clearAllNotifications() {
   return res.json();
 }
 
-export async function searchDepartures(params: {
-  mode: "bus" | "flight"; originCountryCode?: string; destinationCountryCode?: string; date?: string;
-}) {
-  const query = new URLSearchParams();
-  query.set("mode", params.mode);
-  if (params.originCountryCode) query.set("originCountryCode", params.originCountryCode);
-  if (params.destinationCountryCode) query.set("destinationCountryCode", params.destinationCountryCode);
-  if (params.date) query.set("date", params.date);
-  const res = await fetch(API_BASE + "/api/travel/search?" + query.toString(), { headers: await getAuthHeader() });
-  if (!res.ok) throw new Error("Failed to search departures");
-  return res.json();
+// ─── Flights (BukkaPay inventory + airline APIs) ─────────────────────────────
+
+export type Airport = { iata: string; name: string; city: string; countryCode: string };
+export type Cabin = "economy" | "premium_economy" | "business" | "first";
+export type FlightOffer = {
+  id: string; provider: string; airlineName: string; airlineCode?: string | null;
+  origin: string; destination: string; departingAt: string; arrivingAt: string;
+  durationMinutes: number; stops: number; cabin: Cabin; totalAmount: string; currency: string;
+  passengers: number; seatsLeft?: number | null; refundable?: boolean | null;
+  segments: { flightNumber: string; carrierName: string; origin: string; destination: string; departingAt: string; arrivingAt: string }[];
+};
+export type Traveller = {
+  title: string; givenName: string; familyName: string; bornOn: string; gender: "m" | "f" | "";
+  email: string; phone: string;
+  document?: { number: string; issuingCountry: string; expiresOn: string; nationality?: string };
+};
+
+async function jsonOrThrow(res: Response, fallback: string) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || fallback);
+  return data;
 }
 
-export async function bookTravel(payload: {
-  departureId: string; fromCardId: string; seatClass?: string;
-  passengers: { name: string; idNumber?: string; phone?: string }[];
-  pin: string;
+export async function searchAirports(q: string): Promise<Airport[]> {
+  const res = await fetch(API_BASE + "/api/travel/airports?q=" + encodeURIComponent(q), { headers: await getAuthHeader() });
+  return jsonOrThrow(res, "Couldn't load airports");
+}
+
+export async function searchFlights(p: {
+  origin: string; destination: string; date: string; adults: number; children: number; infants: number; cabin: Cabin;
+}): Promise<FlightOffer[]> {
+  const q = new URLSearchParams(Object.entries(p).map(([k, v]) => [k, String(v)]));
+  const res = await fetch(API_BASE + "/api/travel/flights/search?" + q.toString(), { headers: await getAuthHeader() });
+  return jsonOrThrow(res, "Flight search failed");
+}
+
+export async function bookFlight(payload: {
+  offerId: string; fromCardId: string; pin: string; adults: number; children: number; infants: number;
+  travellers: Traveller[];
 }) {
-  const res = await fetch(API_BASE + "/api/travel/book", {
+  const res = await fetch(API_BASE + "/api/travel/flights/book", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Booking failed");
-  }
-  return res.json();
+  return jsonOrThrow(res, "Booking failed");
 }
 
+/** Cancels any travel booking (flights from every provider, and older tickets). */
 export async function cancelTravelBooking(purchaseTransactionId: string) {
-  const res = await fetch(API_BASE + `/api/travel/bookings/${purchaseTransactionId}/cancel`, {
+  const res = await fetch(API_BASE + `/api/travel/flights/bookings/${purchaseTransactionId}/cancel`, {
     method: "POST",
     headers: await getAuthHeader(),
   });

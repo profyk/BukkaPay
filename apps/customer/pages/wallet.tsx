@@ -114,8 +114,9 @@ export default function Wallet() {
       {mappedCards.map((card: any, index: number) => (
         <View key={card.id} style={[styles.cardContainer, { backgroundColor: colors.card, borderColor: card.isDefault ? colors.primary : colors.cardBorder, borderWidth: card.isDefault ? 2 : 1 }]}>
           <PremiumCard
-            cardNumber={card.cardNumber}
-            expiryDate={card.expiryDate || "—"}
+            cardNumber={card.issuedCard?.last4 ? card.cardNumber : ""}
+            cardStatus={card.issuedCard?.status ?? null}
+            expiryDate={card.issuedCard?.last4 ? (card.expiryDate || "—") : "—"}
             holderName={userName}
             balance={Number(card.balance)}
             currency={getCurrency(card.currency).symbol}

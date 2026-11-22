@@ -10,7 +10,16 @@ interface PremiumCardProps {
   currency: string;
   color?: "blue" | "gold" | "black" | "purple";
   showBalanceToggle?: boolean;
+  /** Status of the Visa card from the card issuer; null/undefined = none issued yet. */
+  cardStatus?: string | null;
 }
+
+const STATUS_TEXT: Record<string, string> = {
+  pending: "Card being issued…",
+  pending_kyc: "Verify your identity to get your card",
+  frozen: "Card frozen",
+  cancelled: "Card cancelled",
+};
 
 const colorMap: Record<string, string> = {
   blue: "#1a3a6e",
@@ -27,15 +36,17 @@ export default function PremiumCard({
   currency,
   color = "blue",
   showBalanceToggle = true,
+  cardStatus,
 }: PremiumCardProps) {
   const [showBalance, setShowBalance] = useState(true);
 
-  const formatCardNumber = (num: string) => {
-    if (/[•*]/.test(num)) return num; // already masked server-side, e.g. "•••• •••• •••• 1234"
-    const cleaned = num.replace(/\D/g, "").slice(0, 16);
-    const padded = cleaned.padEnd(16, "0");
-    return padded.match(/.{1,4}/g)?.join(" ") || "0000 0000 0000 0000";
-  };
+  // Card numbers only ever come from the card issuer, masked by the API
+  // ("•••• •••• •••• 1234"). Never invent or pad digits: no issued card,
+  // no number — show its status instead.
+  const hasNumber = /\d{4}/.test(cardNumber || "");
+  const numberText = hasNumber
+    ? cardNumber
+    : (cardStatus ? STATUS_TEXT[cardStatus] ?? "Card not available" : "No card issued yet");
 
   const bgColor = colorMap[color] || "#1a3a6e";
 
@@ -83,7 +94,7 @@ export default function PremiumCard({
           )}
         </View>
 
-        <Text style={styles.cardNumberText}>{formatCardNumber(cardNumber)}</Text>
+        <Text style={[styles.cardNumberText, !hasNumber && { fontSize: 15, letterSpacing: 0.5 }]}>{numberText}</Text>
 
         <View style={styles.bottomRow}>
           <View>

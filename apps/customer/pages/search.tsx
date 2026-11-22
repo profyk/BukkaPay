@@ -138,8 +138,8 @@ const ALL_ITEMS: AppItem[] = [
   // ── Shopping & Services ────────────────────────────────────
   {
     id: "travel", category: "Shopping",
-    title: "Travel Booking", description: "Book buses, flights and hotels",
-    keywords: ["travel", "flight", "bus", "hotel", "booking", "trip"],
+    title: "Travel Booking", description: "Search and book flights across Africa and beyond",
+    keywords: ["travel", "flight", "airline", "airport", "booking", "trip"],
     icon: "airplane-outline", iconBg: "#EFF6FF", iconColor: "#3B82F6",
     route: "/(screens)/travel",
   },
