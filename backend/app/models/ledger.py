@@ -53,6 +53,14 @@ class LedgerAccount(Base):
             name="ck_ledger_accounts_type",
         ),
         CheckConstraint("allow_negative OR balance >= 0", name="ck_ledger_accounts_nonneg"),
+        # Strict segregation: the category is fixed by the code, so a customer
+        # wallet can never be booked as a system or merchant account.
+        CheckConstraint("category IN ('customer','merchant','system')", name="ck_ledger_accounts_category"),
+        CheckConstraint(
+            "(category = 'customer') = (code LIKE 'wallet:%') AND (category = 'merchant') = (code LIKE 'merchant:%')",
+            name="ck_ledger_accounts_category_code",
+        ),
+        CheckConstraint("system_code IS NULL OR category = 'system'", name="ck_ledger_accounts_system_code"),
     )
 
     id: Mapped[UUIDPk]
@@ -73,6 +81,9 @@ class LedgerAccount(Base):
         UUID(as_uuid=True), ForeignKey("contribution_groups.id", ondelete="RESTRICT"), unique=True
     )
     allow_negative: Mapped[bool] = mapped_column(Boolean, default=False)
+    category: Mapped[str] = mapped_column(String(10), default="system", server_default="system")
+    # SYS_* name for BukkaPay's own accounts (app.ledger.chart), e.g. SYS_REVENUE_FX_ZAR.
+    system_code: Mapped[str | None] = mapped_column(String(64), unique=True)
     balance: Mapped[Decimal] = mapped_column(LedgerAmount, default=Decimal("0.00"))
     # Bumped on every posting; lets readers detect a concurrent change.
     version: Mapped[int] = mapped_column(Integer, default=0)
@@ -231,4 +242,25 @@ class WithdrawalRequest(Base):
     reversal_entry_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="RESTRICT")
     )
+    created_at: Mapped[CreatedAt]
+
+
+class CustodianBalanceSnapshot(Base):
+    """A custodian/bank balance as reported by its statement or API, for the
+    proof-of-reserve check: customer + merchant liabilities must be covered
+    1:1 by safeguarded money in the same currency."""
+
+    __tablename__ = "custodian_balance_snapshots"
+    __table_args__ = (CheckConstraint("balance >= 0", name="ck_custodian_snapshots_nonneg"),)
+
+    id: Mapped[UUIDPk]
+    custodian_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("custodians.id", ondelete="RESTRICT"), index=True
+    )
+    currency: Mapped[CurrencyCode]
+    balance: Mapped[Decimal] = mapped_column(LedgerAmount)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(20))  # statement | api | manual
+    reference: Mapped[str | None] = mapped_column(Text)
+    recorded_by: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[CreatedAt]

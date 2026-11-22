@@ -11,6 +11,7 @@ from app.models.contribution import Contribution, ContributionGroup
 from app.models.dormant import FamilyMember, SecuritySetting
 from app.models.gamification import Achievement, Challenge
 from app.models.ledger import (
+    CustodianBalanceSnapshot,
     FundingRequest,
     IdempotencyRecord,
     JournalEntry,
@@ -105,6 +106,7 @@ __all__ = [
     "IdempotencyRecord",
     "JournalEntry",
     "JournalLine",
+    "CustodianBalanceSnapshot",
     "LedgerAccount",
     "WithdrawalRequest",
     "Achievement",
