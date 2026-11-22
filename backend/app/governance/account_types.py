@@ -26,11 +26,6 @@ _BUSINESS_ROUTES = [re.compile(p) for p in (
     r"^/api/merchants(/|$)",
     r"^/api/merchant-memberships(/|$)",
     r"^/api/billing-links(/|$)",
-    # Landlord side of rentals; the tenant side (pay, tenant-dashboard,
-    # link-tenant, paying a rent link) stays personal.
-    r"^/api/rental/(properties|tenants)(/|$)",
-    r"^/api/rental/dashboard$",
-    r"^/api/rental/payment-links$",
 )]
 
 # Routes both kinds of account use (signing in, profile, uploads).

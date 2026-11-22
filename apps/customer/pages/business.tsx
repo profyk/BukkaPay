@@ -7,7 +7,7 @@ const MERCHANT_URL = (process.env.EXPO_PUBLIC_MERCHANT_URL || "https://merchant.
 
 const FEATURES: [any, string, string][] = [
   ["storefront-outline", "Accept payments", "QR codes, checkout links and tap-to-pay customers"],
-  ["home-outline", "Properties & rent", "Units, tenants, rent links and rent received"],
+  ["briefcase-outline", "Trade invoices & escrow", "Invoice buyers across the border; get paid instantly or through escrow"],
   ["receipt-outline", "Bills", "School fees, levies, utilities and subscriptions"],
   ["people-outline", "Staff & payouts", "Cashier logins, settlements to your bank"],
 ];
@@ -27,7 +27,7 @@ export default function Business() {
         <View style={{ width: 40 }} />
       </View>
       <View style={styles.body}>
-        <Text style={[styles.lead, { color: colors.text }]}>Run your business, stall or rental from BukkaPay Business.</Text>
+        <Text style={[styles.lead, { color: colors.text }]}>Run your shop, stall or wholesale business from BukkaPay Business.</Text>
         <Text style={[styles.muted, { color: colors.textMuted }]}>
           Sign in with this same BukkaPay account. Street vendors and individual landlords can start straight away with the ID they verified here.
         </Text>
@@ -42,9 +42,6 @@ export default function Business() {
         ))}
         <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={() => Linking.openURL(MERCHANT_URL)}>
           <Text style={styles.primaryBtnText}>Open BukkaPay Business</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("/(screens)/tenant-dashboard" as any)}>
-          <Text style={{ color: colors.primary, fontWeight: "600", textAlign: "center", marginTop: 8 }}>Paying rent? Go to your tenant dashboard</Text>
         </TouchableOpacity>
       </View>
     </View>

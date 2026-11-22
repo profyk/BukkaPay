@@ -17,7 +17,6 @@ const NAV: { href: string; label: string; cap?: "collect" | "finance" | "setting
   { href: "/links", label: "Checkout links", cap: "collect" },
   { href: "/trade", label: "Trade invoices", cap: "collect" },
   { href: "/billing", label: "Bills", cap: "owner" },
-  { href: "/properties", label: "Properties & rent", cap: "owner" },
   { href: "/settlements", label: "Settlements", cap: "finance" },
   { href: "/staff", label: "Staff", cap: "settings" },
   { href: "/developers", label: "Developers", cap: "developer" },

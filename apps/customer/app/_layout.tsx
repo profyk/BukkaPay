@@ -22,7 +22,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(screens)" />
                 <Stack.Screen name="pay" />
-                <Stack.Screen name="pay-rent" />
+                <Stack.Screen name="trade" />
                 <Stack.Screen name="claim" />
                 <Stack.Screen name="+not-found" />
               </Stack>
