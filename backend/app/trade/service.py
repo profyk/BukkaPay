@@ -268,6 +268,8 @@ async def release(db: AsyncSession, contract: EscrowContract, *, actor_type: str
                   event: str, note: str | None = None):
     if contract.status not in ("funded", "disputed"):
         raise ApiError(f"This escrow is already {contract.status}", status_code=409)
+    if contract.status == "disputed" and actor_type != "admin":
+        raise ApiError("This escrow is under dispute — BukkaPay's trade desk will resolve it", status_code=409)
     merchant = await db.get(Merchant, contract.merchant_id)
     buyer = await db.get(User, contract.buyer_user_id)
     net = contract.amount - contract.fee_amount
@@ -297,6 +299,8 @@ async def refund(db: AsyncSession, contract: EscrowContract, *, actor_type: str,
                  event: str, note: str | None = None):
     if contract.status not in ("funded", "disputed"):
         raise ApiError(f"This escrow is already {contract.status}", status_code=409)
+    if contract.status == "disputed" and actor_type != "admin":
+        raise ApiError("This escrow is under dispute — BukkaPay's trade desk will resolve it", status_code=409)
     from app.services.wallet_service import get_or_create_currency_card
 
     merchant = await db.get(Merchant, contract.merchant_id)

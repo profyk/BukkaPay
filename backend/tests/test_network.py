@@ -421,7 +421,7 @@ async def test_merchant_checkout_link_settles_to_merchant(client: AsyncClient, a
                           headers=payer["headers"])
     assert r.status_code == 200, r.text
     dash = (await client.get(f"/api/merchants/{merchant_id}/dashboard", headers=owner["headers"])).json()
-    assert dash["settlement"]["balances"][0]["available"] == "98.50"
+    assert dash["settlement"]["balances"][0]["available"] == "99.00"  # 100 less the 1.0% merchant fee
     assert await card_balance(owner["card_id"]) == Decimal("0.00")  # not the owner's personal wallet
 
 
