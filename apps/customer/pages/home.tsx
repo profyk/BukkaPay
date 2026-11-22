@@ -33,8 +33,12 @@ export default function Home() {
     queryFn: () => fetchTransactions(3),
   });
 
+  // Wallet switcher: one chip per currency (ZAR, BWP, USD…); balances are never mixed.
+  const [currency, setCurrency] = useState<string | null>(null);
+  const currencies: string[] = Array.from(new Set<string>((cards || []).map((c: any) => String(c.currency))));
   const defaultWallet = (cards || []).find((c: any) => c.isDefault) || (cards || [])[0];
-  const mainCard = defaultWallet ? mapCardFromAPI(defaultWallet) : null;
+  const shown = (currency && (cards || []).find((c: any) => c.currency === currency)) || defaultWallet;
+  const mainCard = shown ? mapCardFromAPI(shown) : null;
   const mappedTransactions = transactions?.map(mapTransactionFromAPI) || [];
 
   return (
@@ -43,6 +47,19 @@ export default function Home() {
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
         <View style={styles.section}>
         {cardsLoading && <View style={[styles.skeleton, { backgroundColor: colors.surface }]} />}
+        {currencies.length > 1 && (
+          <View style={[styles.switcher, { backgroundColor: colors.surface }]} accessibilityRole="tablist">
+            {currencies.map((c) => {
+              const on = (mainCard?.currency ?? "") === c;
+              return (
+                <TouchableOpacity key={c} onPress={() => setCurrency(c)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+                  style={[styles.switchChip, on && { backgroundColor: "#1A1A2E" }]}>
+                  <Text style={{ color: on ? "#FFFFFF" : colors.textSecondary, fontWeight: "700" }}>{c}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
         {mainCard && (
           <WalletCard
             {...mainCard}
@@ -90,6 +107,8 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  switcher: { flexDirection: "row", borderRadius: 999, padding: 4, marginBottom: 12, gap: 4 },
+  switchChip: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 999 },
   outerContainer: {
     flex: 1,
     backgroundColor: "#FFFFFF",
