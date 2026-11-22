@@ -5,15 +5,17 @@ import { Section } from "@/components/site"
 import { headings, LegalMarkdown } from "@/components/LegalMarkdown"
 import { formatDate, getLegalDoc, REVIEW_LABEL } from "@/lib/legal"
 
-type Props = { params: { slug: string }; searchParams: { version?: string } }
+// Next.js 15: route params and search params are promises.
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ version?: string }> }
 
 function versionParam(v?: string): number | undefined {
   const n = v ? Number(v) : NaN
   return Number.isInteger(n) && n >= 0 ? n : undefined
 }
 
-export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
-  const doc = await getLegalDoc(params.slug, versionParam(searchParams.version))
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const [{ slug }, { version }] = await Promise.all([props.params, props.searchParams])
+  const doc = await getLegalDoc(slug, versionParam(version))
   if (!doc || doc === "unavailable") return { title: "Legal" }
   return {
     title: doc.title,
@@ -24,9 +26,10 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   }
 }
 
-export default async function LegalDocument({ params, searchParams }: Props) {
-  const version = versionParam(searchParams.version)
-  const doc = await getLegalDoc(params.slug, version)
+export default async function LegalDocument(props: Props) {
+  const [{ slug }, search] = await Promise.all([props.params, props.searchParams])
+  const version = versionParam(search.version)
+  const doc = await getLegalDoc(slug, version)
   if (doc === null) notFound()
   if (doc === "unavailable") {
     return (
