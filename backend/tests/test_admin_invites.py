@@ -220,3 +220,22 @@ async def test_only_the_owner_appoints_a_ceo(client: AsyncClient, admin: dict):
     r = await client.post("/api/admin/invites", json={"email": _email(), "name": "C", "role": "ceo"},
                           headers=admin["headers"])
     assert r.status_code == 201, r.text
+
+
+def test_every_role_has_a_label_and_only_known_permissions():
+    from app.governance.permissions import ALL_PERMISSIONS, ROLE_LABELS, ROLE_PERMISSIONS
+    from app.models.enums import AdminRole
+
+    roles = {r.value for r in AdminRole}
+    assert set(ROLE_PERMISSIONS) == roles
+    assert set(ROLE_LABELS) == roles
+    for role, perms in ROLE_PERMISSIONS.items():
+        assert perms <= ALL_PERMISSIONS, role
+    # Only the owner's role can manage admins.
+    assert [r for r, p in ROLE_PERMISSIONS.items() if "admins.manage" in p] == ["super_admin"]
+
+
+async def test_new_roles_can_be_invited(client: AsyncClient, admin: dict):
+    for role in ("risk_analyst", "kyc_analyst", "treasury_manager", "marketing_manager", "travel_manager"):
+        r = await _invite(client, admin, _email(), role=role)
+        assert r.status_code == 201, (role, r.text)

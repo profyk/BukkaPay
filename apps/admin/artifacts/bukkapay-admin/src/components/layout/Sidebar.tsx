@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter"
 import {
+  Inbox, PiggyBank,
   LayoutDashboard, Users, ArrowRightLeft, LogOut,
   CreditCard, FileCheck, ScrollText, Wallet,
   Link2, Store, Megaphone, ChevronRight,
@@ -17,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useAdminMe, usePermissions } from "@/lib/permissions"
+import { ROLE_LABEL } from "@/hooks/use-admins"
 
 type NavItem = { href: string; label: string; icon: any; perm?: string }
 
@@ -34,6 +36,7 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
       { href: "/users",         label: "Users",            icon: Users,           perm: "users.view" },
       { href: "/kyc",           label: "KYC Review",       icon: FileCheck,       perm: "kyc.view" },
       { href: "/support-chat",  label: "Support Chat",     icon: MessageCircle,   perm: "support.view" },
+      { href: "/enquiries",     label: "Website Enquiries", icon: Inbox,          perm: "support.view" },
     ],
   },
   {
@@ -44,7 +47,9 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
       { href: "/cards",         label: "Visa Cards",       icon: CreditCard,      perm: "wallets.view" },
       { href: "/payment-links", label: "Payment Links",    icon: Link2,           perm: "transactions.view" },
       { href: "/cross-border",  label: "Cross-Border",     icon: Globe2,          perm: "transactions.view" },
+      { href: "/treasury",      label: "Treasury",         icon: Landmark,        perm: "ledger.view" },
       { href: "/ledger",        label: "Ledger",           icon: BookOpen,        perm: "ledger.view" },
+      { href: "/stokvels",      label: "Stokvels",         icon: PiggyBank,       perm: "transactions.view" },
       { href: "/reconciliation",label: "Reconciliation",   icon: Scale,           perm: "reconciliation.view" },
     ],
   },
@@ -93,10 +98,10 @@ function NavLink({ href, label, icon: Icon }: { href: string; label: string; ico
     <Link href={href} className="block">
       <div
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer group",
+          "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 cursor-pointer group",
           isActive
-            ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-            : "text-muted-foreground hover:bg-sidebar-border hover:text-sidebar-foreground"
+            ? "bg-gradient-to-r from-violet-600 to-violet-500 text-white shadow-md shadow-violet-950/40"
+            : "text-sidebar-foreground/65 hover:bg-white/5 hover:text-sidebar-foreground"
         )}
       >
         <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-primary-foreground" : "")} />
@@ -114,14 +119,24 @@ export function Sidebar() {
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen sticky top-0 shrink-0">
-      {/* Logo */}
-      <div className="p-5 pb-4">
-        <img
-          src={`${import.meta.env.BASE_URL}images/bukkapay-logo.png`}
-          alt="BukkaPay Technologies"
-          className="h-10 w-auto"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
-        />
+      {/* Brand */}
+      <div className="px-5 pt-5 pb-4 border-b border-sidebar-border">
+        <Link href="/">
+          <div className="flex items-center gap-3 cursor-pointer">
+            <div className="w-10 h-10 rounded-xl bg-white shadow-lg shadow-violet-900/40 flex items-center justify-center overflow-hidden ring-1 ring-white/10">
+              <img
+                src={`${import.meta.env.BASE_URL}images/bukkapay-logo.png`}
+                alt=""
+                className="w-8 h-8 object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).replaceWith(Object.assign(document.createElement("span"), { textContent: "B", className: "text-lg font-black text-violet-600" })) }}
+              />
+            </div>
+            <div className="leading-tight">
+              <p className="font-display text-lg font-bold tracking-tight text-sidebar-foreground">BukkaPay</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Admin Console</p>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* Nav */}
@@ -131,7 +146,7 @@ export function Sidebar() {
           if (!links.length) return null
           return (
             <div key={section.label}>
-              <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/35">
                 {section.label}
               </p>
               <div className="space-y-0.5">
@@ -144,27 +159,26 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
-        <div className="px-3 py-2 rounded-xl bg-muted/30">
-          <p className="text-xs text-muted-foreground font-medium">Signed in as</p>
-          {me ? (
-            <>
-              <p className="text-sm font-semibold text-sidebar-foreground truncate mt-0.5">{me.name || me.email}</p>
-              {me.role && (
-                <p className={cn("text-xs capitalize font-medium", me.role === "super_admin" ? "text-violet-500" : "text-muted-foreground")}>
-                  {me.role.replace(/_/g, " ")}{me.mfaEnabled === false && " · MFA off"}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm font-semibold text-sidebar-foreground mt-0.5">BukkaPay Admin</p>
-          )}
+        <div className="px-3 py-2.5 rounded-xl bg-white/5 ring-1 ring-white/5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-bold flex items-center justify-center shrink-0">
+            {(me?.name || me?.email || "A").trim().split(/s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-sidebar-foreground truncate">{me ? (me.name || me.email) : "BukkaPay Admin"}</p>
+            {me?.role && (
+              <p className={cn("text-xs font-medium truncate", me.role === "super_admin" ? "text-violet-300" : "text-sidebar-foreground/60")}>
+                {me.role === "super_admin" ? "Owner · Super Admin" : (ROLE_LABEL[me.role] ?? me.role.replace(/_/g, " "))}
+                {me.mfaEnabled === false && " · MFA off"}
+              </p>
+            )}
+          </div>
         </div>
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="ghost"
-              className="w-full justify-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors text-sm"
+              className="w-full justify-start text-sidebar-foreground/60 hover:bg-rose-500/10 hover:text-rose-300 transition-colors text-sm"
             >
               <LogOut className="w-4 h-4 mr-3" />
               Sign Out

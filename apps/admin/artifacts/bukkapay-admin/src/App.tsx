@@ -59,6 +59,9 @@ import TravelOperatorsPage from "@/pages/travel-operators"
 import TravelRoutesPage from "@/pages/travel-routes"
 import SupportChatPage from "@/pages/support-chat"
 import AcceptInvitePage from "@/pages/accept-invite"
+import EnquiriesPage from "@/pages/enquiries"
+import TreasuryPage from "@/pages/treasury"
+import StokvelsPage from "@/pages/stokvels"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -105,6 +108,9 @@ function Router() {
       <Route path="/travel-operators" component={TravelOperatorsPage} />
       <Route path="/travel-routes"    component={TravelRoutesPage} />
       <Route path="/support-chat"     component={SupportChatPage} />
+      <Route path="/enquiries"        component={EnquiriesPage} />
+      <Route path="/treasury"         component={TreasuryPage} />
+      <Route path="/stokvels"         component={StokvelsPage} />
       <Route component={NotFound} />
     </Switch>
   )
