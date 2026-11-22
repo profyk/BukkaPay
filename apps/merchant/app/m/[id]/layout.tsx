@@ -7,6 +7,7 @@ import { getToken, setToken } from "@/lib/api"
 import { can, useData, type Membership } from "@/lib/hooks"
 import { Badge, Notice } from "@/components/ui"
 import { MerchantContext } from "@/components/merchant-context"
+import { PaymentAlert } from "@/components/payment-alert"
 
 
 const NAV: { href: string; label: string; cap?: "collect" | "finance" | "settings" | "developer" | "owner" }[] = [
@@ -14,6 +15,7 @@ const NAV: { href: string; label: string; cap?: "collect" | "finance" | "setting
   { href: "/transactions", label: "Transactions" },
   { href: "/qr", label: "QR codes", cap: "collect" },
   { href: "/links", label: "Checkout links", cap: "collect" },
+  { href: "/trade", label: "Trade invoices", cap: "collect" },
   { href: "/billing", label: "Bills", cap: "owner" },
   { href: "/properties", label: "Properties & rent", cap: "owner" },
   { href: "/settlements", label: "Settlements", cap: "finance" },
@@ -76,6 +78,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
           )}
           {merchant && children}
         </main>
+        {merchant && <PaymentAlert merchantId={merchant.id} currency={(merchant as any).currency ?? (merchant as any).settlementCurrency} />}
       </div>
     </MerchantContext.Provider>
   )
