@@ -93,25 +93,29 @@ and secret detection.
 - [ ] Required `Idempotency-Key` on the *existing* money endpoints (new trade/swap endpoints already require it) — do with the app updates in Milestone 3 so clients send keys first.
 - [ ] Wire Smile ID into the KYC flow and mobile money into add/withdraw money once partners are signed.
 
-### Milestone 3 — Customer & trader app
-- [ ] Home wallet switcher (ZAR/USD/BWP), live FX converter, unified feed.
-- [ ] Bottom-centre Scan QR, My QR, @username / phone pay.
-- [ ] Pay Supplier hub: search verified merchants, Instant vs Protected Escrow pay, download/share PDF receipt.
-- [ ] Virtual cards hub (create, reveal behind biometrics, freeze, limits, notifications).
-- [ ] Add/withdraw money (PayShap, mobile money).
+### Milestone 3 — Customer & trader app *(PR #38)*
+- [x] Home wallet switcher (ZAR/BWP/USD); Scan QR is the bottom-centre tab; Swap and Supplier quick actions.
+- [x] Swap screen (live quote, rate + spread, PIN, price protection).
+- [x] Pay Supplier hub: invoice from link `/trade/TINV-…`, QR or reference; Instant vs Protected Escrow Pay; auto-FX from any wallet; receipt download/share; My escrows.
+- [x] Escrow detail: confirm goods, dispute, timeline, receipts.
+- [x] Every new money call sends an Idempotency-Key reused on retry.
+- [ ] Send Idempotency-Key from the older screens (send money, QR pay, withdraw, claims), then make it required server-side.
+- [ ] Virtual cards hub polish (create, biometric reveal, limits, notifications) — today's card screen already reveals via the issuer and freezes.
+- [ ] Add/withdraw via mobile money once a BW operator is signed.
 
-### Milestone 4 — Merchant & wholesaler POS
-- [ ] Static/dynamic QR till with audio "Payment received".
-- [ ] Trade invoice builder (items, HS codes) + WhatsApp share link/QR, instant or escrow.
-- [ ] Multi-currency acceptance with auto-FX into settlement currency.
-- [ ] Daily totals, fee breakdown, cashier logins (accept-only), supplier/bank payouts.
+### Milestone 4 — Merchant & wholesaler POS *(PR #39)*
+- [x] Trade invoice builder (items, HS codes, origin, ZAR/BWP/USD, instant/escrow/either, incoterm, tax) with WhatsApp share; invoice list and cancel.
+- [x] Escrow view for suppliers (held, net after fee, release date, dispute).
+- [x] Till alert: banner, chime and spoken "Payment received: R150.00" for every new payment.
+- [ ] Auto-FX settlement for merchants accepting a foreign-currency wallet at the QR till (trade invoices already convert).
+- [ ] Supplier payouts to other BukkaPay businesses.
 
-### Milestone 5 — Admin & treasury
-- [ ] Safeguarding / proof-of-reserve monitor (owed vs held per currency, staleness alerts), custodian balance capture.
-- [ ] Fee & FX engine controls (spreads, QR fee %, escrow fee %, cash-out fees, tier limits).
-- [ ] Trade escrow dispute desk; AML desk; Smile ID review; regulatory / AfCFTA trade report export.
-- [ ] Treasury rebalancing: trigger and track cross-border pool settlements.
-- [ ] Review settings, dashboard and remaining admin pages end to end.
+### Milestone 5 — Admin & treasury *(PR #40)*
+- [x] Safeguarding monitor: owed vs held per currency, surplus/shortfall, coverage, stale custodian figures, record custodian balances.
+- [x] Trade escrow desk: counts, held per currency, dispute queue, timeline, release/refund with a recorded decision.
+- [ ] Fee & FX engine screen (edit fee schedules incl. trade_escrow, currency_corridors rates/spreads) — the APIs exist.
+- [ ] Treasury rebalancing screen on top of `app.integrations.partners.treasury`.
+- [ ] Regulatory / AfCFTA trade report export.
 
 ### Website
 - [x] Redesign www.bukkapay.com around the cash-replacement and AfCFTA trade vision: new look, new home, /trade and /travel pages, new default copy *(PR #36 — merge pending)*.
@@ -128,4 +132,7 @@ and secret detection.
 | #34 | Next.js 15.5.28 + React 19, shell-quote/tar patches | open — all checks green |
 | #35 | Milestone 1: ledger segregation, SYS_* chart, proof of reserve, trade schema | open — all checks green |
 | #37 | Milestone 2: trade escrow, receipts, swaps, card webhooks, partner adapters, pricing | open — base #35 |
+| #38 | Milestone 3: customer app | open — base #37 |
+| #39 | Milestone 4: merchant trade invoices & till alerts | open — base #38 |
+| #40 | Milestone 5: safeguarding monitor & escrow desk | open — base #39 |
 | #36 | Website redesign: cash-free Africa and AfCFTA trade vision | open — green except dependency scan (clears once #34 is in `main`) |
