@@ -25,7 +25,6 @@ from app.api import (
     payment_link,
     public,
     purchase_transaction,
-    rental,
     stitch,
     travel,
     upload,
@@ -44,7 +43,6 @@ api_router.include_router(merchant_platform.router)
 api_router.include_router(payment_link.router)
 api_router.include_router(claim_payment.router)
 api_router.include_router(purchase_transaction.router)
-api_router.include_router(rental.router)
 api_router.include_router(contribution.router)
 api_router.include_router(billing_link.router)
 api_router.include_router(loyalty.router)

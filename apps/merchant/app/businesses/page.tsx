@@ -7,7 +7,7 @@ import { api, setToken } from "@/lib/api"
 import { useData, type Membership } from "@/lib/hooks"
 import { Badge, Button, Card, Empty, Field, Input, Modal, Notice, PageHeader, Select } from "@/components/ui"
 
-const TYPES = ["retail", "restaurant", "services", "sme", "tuckshop", "street_vendor", "logistics", "online", "school", "utility", "rental", "other"]
+const TYPES = ["retail", "restaurant", "services", "sme", "tuckshop", "street_vendor", "logistics", "online", "school", "utility", "other"]
 
 export default function BusinessesPage() {
   const router = useRouter()

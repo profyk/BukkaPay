@@ -63,7 +63,7 @@ export default function Scan() {
     // BukkaPay QR codes can either be a direct wallet code or a payment-link
     // URL. The direct wallet variant works with the bukkapay:// custom scheme
     // while link-based flows should resolve to the relevant screen.
-    const rentMatch = data.match(/\/pay-rent\/([^/?#]+)/);
+    const tradeMatch = data.match(/\/trade\/(TINV-[A-Z0-9-]+)/i);
     const payLinkMatch = data.match(/\/pay\/([^/?#]+)/);
 
     if (data.startsWith("bukkapay:qr:v1:")) {
@@ -72,8 +72,8 @@ export default function Scan() {
     } else if (data.startsWith("bukkapay://pay/")) {
       const payId = data.replace("bukkapay://pay/", "");
       router.push(`/(screens)/qr-pay?walletId=${payId}` as any);
-    } else if (rentMatch) {
-      router.push(`/pay-rent/${rentMatch[1]}` as any);
+    } else if (tradeMatch) {
+      router.push(`/trade/${tradeMatch[1].toUpperCase()}` as any);
     } else if (payLinkMatch) {
       router.push(`/pay/${payLinkMatch[1]}` as any);
     } else if (data.startsWith("bukkapay://")) {

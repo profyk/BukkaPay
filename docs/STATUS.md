@@ -99,7 +99,7 @@ and secret detection.
 - [x] Pay Supplier hub: invoice from link `/trade/TINV-…`, QR or reference; Instant vs Protected Escrow Pay; auto-FX from any wallet; receipt download/share; My escrows.
 - [x] Escrow detail: confirm goods, dispute, timeline, receipts.
 - [x] Every new money call sends an Idempotency-Key reused on retry.
-- [ ] Send Idempotency-Key from the older screens (send money, QR pay, withdraw, claims), then make it required server-side.
+- [x] Idempotency on every money route (Redis middleware); both apps send keys automatically on every mutating request *(PR #41)*.
 - [ ] Virtual cards hub polish (create, biometric reveal, limits, notifications) — today's card screen already reveals via the issuer and freezes.
 - [ ] Add/withdraw via mobile money once a BW operator is signed.
 
@@ -116,6 +116,12 @@ and secret detection.
 - [ ] Fee & FX engine screen (edit fee schedules incl. trade_escrow, currency_corridors rates/spreads) — the APIs exist.
 - [ ] Treasury rebalancing screen on top of `app.integrations.partners.treasury`.
 - [ ] Regulatory / AfCFTA trade report export.
+
+### Product focus & clean-up *(PR #41)*
+- [x] **Rental retired.** Rent collection (properties, tenants, rent links) is outside BukkaPay's core of cash replacement plus cross-border trade. The API routes, service, schemas and the customer and merchant screens are removed. Tables and past rent payments are kept, since the ledger is immutable. Anyone who wants to collect rent can use payment links, bills or QR.
+- [x] Removed the unreachable gamification screen, the dead "Referral Program" tile and the Replit artifact config.
+- [x] Removed 35 unused admin UI components.
+- [x] Pay Supplier and Swap now appear in the features hub and search; the scanner opens trade invoice QR codes.
 
 ### Website
 - [x] Redesign www.bukkapay.com around the cash-replacement and AfCFTA trade vision: new look, new home, /trade and /travel pages, new default copy *(PR #36 — merge pending)*.
@@ -135,4 +141,5 @@ and secret detection.
 | #38 | Milestone 3: customer app | open — base #37 |
 | #39 | Milestone 4: merchant trade invoices & till alerts | open — base #38 |
 | #40 | Milestone 5: safeguarding monitor & escrow desk | open — base #39 |
+| #41 | Idempotency everywhere, rental retired, clean-up | open, based on #40 |
 | #36 | Website redesign: cash-free Africa and AfCFTA trade vision | open — green except dependency scan (clears once #34 is in `main`) |

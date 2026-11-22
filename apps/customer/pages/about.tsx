@@ -9,7 +9,7 @@ const coreFeatures = [
   { icon: "qr-code" as const, title: "QR Code Payments", desc: "Fast, simple, and contactless payments that let customers pay instantly in person or remotely." },
   { icon: "globe" as const, title: "Cross-Border Payments", desc: "Secure and cost-effective international transfers that help individuals and businesses move money across countries with minimal friction." },
   { icon: "analytics" as const, title: "Spending Insights", desc: "Track payment trends, transaction history, and wallet health with clear, actionable insights." },
-  { icon: "home" as const, title: "Rental Payments System", desc: "A structured digital solution that enables transparent and reliable rent payments between tenants and landlords." },
+  { icon: "briefcase" as const, title: "Cross-border trade", desc: "Supplier invoices with HS codes, Protected Escrow Pay and border-ready receipts for AfCFTA traders." },
 ];
 
 const values = [
