@@ -11,6 +11,7 @@ from app.models.contribution import Contribution, ContributionGroup
 from app.models.dormant import FamilyMember, SecuritySetting
 from app.models.gamification import Achievement, Challenge
 from app.models.ledger import (
+    CustodianBalanceSnapshot,
     FundingRequest,
     IdempotencyRecord,
     JournalEntry,
@@ -58,6 +59,13 @@ from app.models.platform import (
 )
 from app.models.reference import Currency
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
+from app.models.trade import (
+    EscrowContract,
+    EscrowEvent,
+    TradeInvoice,
+    TradeInvoiceItem,
+    TradeReceipt,
+)
 from app.models.travel import TravelDeparture, TravelOperator, TravelRoute
 from app.models.user import User, UserSession
 from app.models.virtual_card import VirtualCard
@@ -105,6 +113,12 @@ __all__ = [
     "IdempotencyRecord",
     "JournalEntry",
     "JournalLine",
+    "CustodianBalanceSnapshot",
+    "TradeInvoice",
+    "TradeInvoiceItem",
+    "EscrowContract",
+    "EscrowEvent",
+    "TradeReceipt",
     "LedgerAccount",
     "WithdrawalRequest",
     "Achievement",

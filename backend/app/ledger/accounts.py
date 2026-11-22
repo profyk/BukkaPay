@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ledger import posting
+from app.ledger import chart, posting
 from app.models.ledger import LedgerAccount
 from app.models.wallet import WalletCard
 
@@ -43,6 +43,7 @@ async def _get_or_create(
             insert(LedgerAccount)
             .values(
                 code=code, name=name, type=type, currency=currency,
+                category=chart.category_for(code), system_code=chart.system_code_for(code),
                 allow_negative=allow_negative, wallet_card_id=wallet_card_id,
                 merchant_id=merchant_id, contribution_group_id=contribution_group_id,
                 balance=Decimal("0.00"), version=0,
