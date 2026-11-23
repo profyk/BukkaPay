@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, Switch, ActivityIndicator, Linking } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, Switch, ActivityIndicator, Linking, Modal } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import WalletCard from "../components/WalletCard";
 import PinPrompt from "../components/PinPrompt";
 import {
-  addCardToWallet, cardAuthorizations, fetchCards, fetchIssuedCard, freezeCard, removeCardFromWallet,
+  cardAuthorizations, fetchCards, fetchIssuedCard, freezeCard, removeCardFromWallet,
   replaceCard, requestWalletCard, revealCard, unfreezeCard, updateCardControls,
   type CardControls, type CardReveal, type IssuedCard, type WalletToken,
 } from "../lib/api";
@@ -15,20 +15,20 @@ import { getCurrency } from "../lib/currency";
 import { queryClient } from "../lib/queryClient";
 import { useTheme } from "../lib/ThemeContext";
 import { useToast } from "../hooks/use-toast";
+import {
+  activeToken, addToPhoneWallet, isSupported, openPhoneWallet, pendingToken, phoneWallet, TAP_STEPS, WALLET_NAME, type Support,
+} from "../lib/tapToPay";
 
 type PinAction =
   | { kind: "reveal" } | { kind: "unfreeze" } | { kind: "replace" }
   | { kind: "controls"; changes: Partial<CardControls> } | { kind: "wallet"; wallet: WalletToken["wallet"] };
 
-const PHONE_WALLET: WalletToken["wallet"] = Platform.OS === "ios" ? "apple_pay" : "google_pay";
-const WALLET_LABEL: Record<WalletToken["wallet"], string> = {
-  apple_pay: "Apple Wallet", google_pay: "Google Wallet", samsung_pay: "Samsung Wallet",
-};
 const DECLINE_TEXT: Record<string, string> = {
   insufficient_funds: "Not enough balance", card_frozen: "Card was frozen", international_disabled: "International payments off",
   online_disabled: "Online payments off", contactless_disabled: "Tap to pay off", atm_disabled: "ATM withdrawals off",
   card_limit_exceeded: "Above your card limit", limit_exceeded: "Above your account limit",
   merchant_category_blocked: "Merchant type blocked", wallet_restricted: "Wallet restricted", account_restricted: "Account restricted",
+  token_inactive: "Phone card removed or not active",
 };
 
 /** One wallet's Visa card: details, freeze, controls, phone wallet (tap to pay), activity. */
@@ -39,6 +39,9 @@ export default function CardScreen() {
   const { toast } = useToast();
   const [pinAction, setPinAction] = useState<PinAction | null>(null);
   const [revealed, setRevealed] = useState<CardReveal | null>(null);
+  const [support, setSupport] = useState<Support | null>(null);
+  const [tapOpen, setTapOpen] = useState(false);
+  useEffect(() => { isSupported().then(setSupport); }, []);
 
   const { data: wallets } = useQuery({ queryKey: ["cards"], queryFn: fetchCards });
   const wallet = (wallets || []).find((w: any) => w.id === walletId);
@@ -62,6 +65,7 @@ export default function CardScreen() {
     if (updated) queryClient.setQueryData(["issued-card", updated.id], updated);
     queryClient.invalidateQueries({ queryKey: ["cards"] });
     queryClient.invalidateQueries({ queryKey: ["issued-card"] });
+    queryClient.invalidateQueries({ queryKey: ["issued-cards"] });
   };
   const fail = (e: any) => toast({ title: "Couldn't update card", description: e?.message, variant: "destructive" });
 
@@ -84,11 +88,13 @@ export default function CardScreen() {
     } else if (pinAction.kind === "controls") {
       refresh(await updateCardControls(card.id, pin, pinAction.changes));
     } else if (pinAction.kind === "wallet") {
-      await addCardToWallet(card.id, pin, pinAction.wallet, Platform.OS === "ios" ? "iPhone" : "Android phone");
-      // The issuer's native SDK completes provisioning on device; status
-      // turns "active" once Visa confirms the token.
-      refresh();
-      toast({ title: `Adding to ${WALLET_LABEL[pinAction.wallet]}`, description: "You'll be able to tap to pay once it's confirmed." });
+      setPinAction(null);
+      try {
+        const r = await addToPhoneWallet(card, pin);
+        refresh();
+        if (r === "added") toast({ title: `Added to ${WALLET_NAME[phoneWallet]}`, description: "Visa is confirming it, usually in under a minute. Then just tap your phone to pay." });
+      } catch (e: any) { toast({ title: "Couldn't add the card", description: e?.message, variant: "destructive" }); }
+      return;
     }
     setPinAction(null);
   };
@@ -132,7 +138,8 @@ export default function CardScreen() {
 
   const expiry = card.expMonth ? `${String(card.expMonth).padStart(2, "0")}/${String(card.expYear).slice(-2)}` : "—";
   const frozen = card.status === "frozen";
-  const phoneToken = card.walletTokens.find((t) => t.wallet === PHONE_WALLET && t.status !== "deleted");
+  const phoneToken = activeToken(card);
+  const settingUp = pendingToken(card);
   const toggle = (key: keyof CardControls, value: boolean) => setPinAction({ kind: "controls", changes: { [key]: value } });
 
   return (
@@ -192,36 +199,85 @@ export default function CardScreen() {
         </View>
       )}
 
+      {(card.status === "active" || frozen) && (
+        <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.panelTitle, { color: colors.text }]}>Where this card works</Text>
+          {([
+            ["online", "globe-outline", "Online payments", "Shops, apps and subscriptions"],
+            ["contactless", "wifi", "Tap to pay", "Card machines, with your phone or card"],
+          ] as [keyof CardControls, any, string, string][]).map(([key, icon, label, hint]) => (
+            <View key={key} style={styles.quickRow}>
+              <View style={[styles.quickIcon, { backgroundColor: card.controls[key] ? colors.primaryLight : colors.border }]}>
+                <Ionicons name={icon} size={18} color={card.controls[key] ? colors.primary : colors.textMuted}
+                  style={key === "contactless" ? { transform: [{ rotate: "90deg" }] } : undefined} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.value, { color: colors.text }]}>{label}</Text>
+                <Text style={[styles.muted, { color: colors.textMuted }]}>{card.controls[key] ? hint : "Off: these payments are declined"}</Text>
+              </View>
+              <Switch value={Boolean(card.controls[key])} onValueChange={(v) => toggle(key, v)} trackColor={{ true: colors.primary }}
+                accessibilityLabel={`${label} ${card.controls[key] ? "on" : "off"}`} />
+            </View>
+          ))}
+          <Text style={[styles.muted, { color: colors.textMuted }]}>Switching asks for your PIN and takes effect immediately.</Text>
+        </View>
+      )}
+
       {card.status === "active" && (
         <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.panelTitle, { color: colors.text }]}>Tap to pay</Text>
-          {phoneToken ? (
-            <View style={styles.row}>
-              <Text style={[styles.value, { color: colors.text }]}>
-                {WALLET_LABEL[phoneToken.wallet]} · {phoneToken.status === "active" ? "ready" : "being set up"}
-              </Text>
-              <TouchableOpacity onPress={() => removeToken.mutate(phoneToken.id)}><Text style={{ color: "#DC2626", fontWeight: "600" }}>Remove</Text></TouchableOpacity>
+          <View style={styles.row}>
+            <Text style={[styles.panelTitle, { color: colors.text }]}>Tap to pay</Text>
+            <Ionicons name="wifi" size={20} color={colors.primary} style={{ transform: [{ rotate: "90deg" }] }} />
+          </View>
+          {card.form === "physical" && (
+            <Text style={[styles.muted, { color: colors.textMuted }]}>
+              {card.controls.contactless ? "Your physical card taps at any contactless card machine." : "Contactless is off for your physical card. Switch it on in Card controls."}
+            </Text>
+          )}
+          {!card.controls.contactless ? (
+            <View style={[styles.notice, { backgroundColor: "#FEF3C7" }]}>
+              <Ionicons name="pause-circle-outline" size={18} color="#B45309" />
+              <Text style={[styles.noticeText, { color: "#78350F" }]}>Tap to pay is switched off for this card. Turn it on above to pay at card machines.</Text>
             </View>
-          ) : (
+          ) : phoneToken ? (
             <>
-              <Text style={[styles.muted, { color: colors.textMuted }]}>
-                Add this card to {WALLET_LABEL[PHONE_WALLET]} and pay by holding your phone to any contactless Visa terminal, anywhere in the world.
-              </Text>
-              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: "#000" }]} onPress={() => setPinAction({ kind: "wallet", wallet: PHONE_WALLET })}>
+              <View style={[styles.notice, { backgroundColor: "#ECFDF5" }]}>
+                <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                <Text style={[styles.noticeText, { color: "#065F46" }]}>In {WALLET_NAME[phoneToken.wallet]}{phoneToken.tokenLast4 ? ` · device card •••• ${phoneToken.tokenLast4}` : ""}. Ready to tap anywhere Visa is accepted.</Text>
+              </View>
+              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: "#010C38" }]} onPress={() => setTapOpen(true)}>
+                <Ionicons name="phone-portrait-outline" size={16} color="#fff" />
+                <Text style={styles.primaryBtnText}>Pay with your phone</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => removeToken.mutate(phoneToken.id)}><Text style={{ color: "#DC2626", fontWeight: "600", textAlign: "center" }}>Remove from {WALLET_NAME[phoneToken.wallet]}</Text></TouchableOpacity>
+            </>
+          ) : settingUp ? (
+            <View style={[styles.notice, { backgroundColor: colors.primaryLight }]}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={[styles.noticeText, { color: colors.text }]}>Visa is confirming your card in {WALLET_NAME[settingUp.wallet]}. This usually takes under a minute.</Text>
+            </View>
+          ) : support?.ok ? (
+            <>
+              <Text style={[styles.muted, { color: colors.textMuted }]}>Add this card to {WALLET_NAME[phoneWallet]} and pay by holding your phone to any contactless card machine, anywhere in the world. Payments come straight from your {currency} balance.</Text>
+              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: "#000" }]} onPress={() => setPinAction({ kind: "wallet", wallet: phoneWallet })}>
                 <Ionicons name={Platform.OS === "ios" ? "logo-apple" : "logo-google"} size={16} color="#fff" />
-                <Text style={styles.primaryBtnText}>Add to {WALLET_LABEL[PHONE_WALLET]}</Text>
+                <Text style={styles.primaryBtnText}>Add to {WALLET_NAME[phoneWallet]}</Text>
               </TouchableOpacity>
             </>
-          )}
+          ) : support ? (
+            <View style={[styles.notice, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
+              <Text style={[styles.noticeText, { color: colors.text }]}>{support.message}</Text>
+            </View>
+          ) : <ActivityIndicator color={colors.primary} />}
         </View>
       )}
 
       {(card.status === "active" || frozen) && (
         <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.panelTitle, { color: colors.text }]}>Card controls</Text>
+          <Text style={[styles.panelTitle, { color: colors.text }]}>More controls</Text>
           {([
-            ["online", "Online payments"], ["contactless", "Tap to pay (contactless)"], ["chip", "Chip & PIN"],
-            ["international", "Payments abroad"], ["atm", "ATM withdrawals"],
+            ["chip", "Chip & PIN"], ["international", "Payments abroad"], ["atm", "ATM withdrawals"],
           ] as [keyof CardControls, string][]).map(([key, label]) => (
             <View key={key} style={styles.row}>
               <Text style={[styles.value, { color: colors.text }]}>{label}</Text>
@@ -248,6 +304,24 @@ export default function CardScreen() {
           </Text>
         </View>
       ))}
+
+      <Modal visible={tapOpen} animationType="slide" onRequestClose={() => setTapOpen(false)}>
+        <View style={styles.tapScreen}>
+          <TouchableOpacity onPress={() => setTapOpen(false)} style={styles.tapClose} accessibilityLabel="Close"><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity>
+          <View style={styles.tapRing}><View style={styles.tapRingInner}><Ionicons name="wifi" size={64} color="#fff" style={{ transform: [{ rotate: "90deg" }] }} /></View></View>
+          <Text style={styles.tapTitle}>Hold near the card machine</Text>
+          <Text style={styles.tapSub}>{wallet?.title || "Your card"} · Visa •••• {phoneToken?.tokenLast4 || card.last4}</Text>
+          <View style={{ gap: 12, marginTop: 28, alignSelf: "stretch" }}>
+            {TAP_STEPS[Platform.OS === "ios" ? "ios" : "android"].map((t, i) => (
+              <View key={t} style={styles.tapStep}><Text style={styles.tapStepNo}>{i + 1}</Text><Text style={styles.tapStepText}>{t}</Text></View>
+            ))}
+          </View>
+          <TouchableOpacity style={styles.tapWalletBtn} onPress={openPhoneWallet}>
+            <Text style={styles.tapWalletText}>Open {WALLET_NAME[phoneWallet]}</Text>
+          </TouchableOpacity>
+          <Text style={styles.tapFoot}>Paid from your {currency} balance. Approved payments appear in Card activity.</Text>
+        </View>
+      </Modal>
 
       <PinPrompt
         visible={pinAction !== null}
@@ -291,5 +365,19 @@ const styles = StyleSheet.create({
   actionIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   actionLabel: { fontSize: 12, fontWeight: "600" },
   sectionTitle: { fontSize: 16, fontWeight: "700", marginTop: 8 },
+  tapScreen: { flex: 1, backgroundColor: "#010C38", alignItems: "center", justifyContent: "center", padding: 28 },
+  tapClose: { position: "absolute", top: Platform.OS === "ios" ? 60 : 32, right: 20, padding: 8 },
+  tapRing: { width: 200, height: 200, borderRadius: 100, backgroundColor: "rgba(0,82,255,0.18)", alignItems: "center", justifyContent: "center" },
+  tapRingInner: { width: 140, height: 140, borderRadius: 70, backgroundColor: "rgba(0,82,255,0.45)", alignItems: "center", justifyContent: "center" },
+  tapTitle: { color: "#fff", fontSize: 24, fontWeight: "800", marginTop: 32, textAlign: "center" },
+  tapSub: { color: "rgba(255,255,255,0.65)", fontSize: 14, marginTop: 6 },
+  tapStep: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 14, padding: 14 },
+  tapStepNo: { color: "#22D3EE", fontWeight: "800", fontSize: 16, width: 20 },
+  tapStepText: { color: "#fff", fontSize: 15, flex: 1 },
+  tapWalletBtn: { marginTop: 24, backgroundColor: "#fff", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28 },
+  tapWalletText: { color: "#010C38", fontWeight: "800", fontSize: 15 },
+  tapFoot: { color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 20, textAlign: "center" },
+  quickRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
+  quickIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   activityRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
 });

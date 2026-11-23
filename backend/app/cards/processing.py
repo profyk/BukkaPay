@@ -163,6 +163,11 @@ async def authorize(db: AsyncSession, req: AuthorizationRequest) -> CardAuthoriz
                                                            CardWalletToken.issuer_token_id == req.issuer_token_id))
         ).scalar_one_or_none()
         token_id = token.id if token else None
+        # A phone wallet payment is only valid from a live token of this card:
+        # removed, suspended or someone else's tokens never spend.
+        token_ok = token is not None and token.issued_card_id == card.id and token.status == "active"
+    else:
+        token_ok = True
     auth = CardAuthorization(
         issued_card_id=card.id, issuer=req.issuer, issuer_authorization_id=req.issuer_authorization_id,
         currency=req.currency, amount=posting.money(req.amount), merchant_amount=req.merchant_amount,
@@ -173,6 +178,8 @@ async def authorize(db: AsyncSession, req: AuthorizationRequest) -> CardAuthoriz
     try:
         if req.amount <= 0:
             raise Decline("invalid_amount")
+        if not token_ok:
+            raise Decline("token_inactive")
         await _check(db, req, card, wallet, user)
         fee = await _fee(db, req, user)
         total = posting.money(req.amount) + fee.fee

@@ -100,7 +100,10 @@ and secret detection.
 - [x] Escrow detail: confirm goods, dispute, timeline, receipts.
 - [x] Every new money call sends an Idempotency-Key reused on retry.
 - [x] Idempotency on every money route (Redis middleware); both apps send keys automatically on every mutating request *(PR #41)*.
-- [ ] Virtual cards hub polish (create, biometric reveal, limits, notifications) — today's card screen already reveals via the issuer and freezes.
+- [x] Cards page shows only issued Visa cards (virtual and physical) in the wallet-card design; tap a card to open it.
+- [x] Tap to pay, our side end to end: PIN-confirmed provisioning API, phone-token payments run through the contactless control, inactive/foreign tokens are declined (`token_inactive`), "Pay with your phone" screen with per-phone tap steps.
+- [ ] **Tap to pay, native last mile:** ship the `BukkaPayWalletProvisioning` native module (Apple PKAddPaymentPassViewController / Google TapAndPay pushTokenize) in an EAS build. Blocked on: signed BIN sponsor/issuer-processor, Apple payment-pass provisioning entitlement, Google TapAndPay allow-list. Until then the app explains this instead of creating tokens it can't finish.
+- [ ] Physical card ordering (delivery address, fee, activation) once the issuer supports physical cards.
 - [ ] Add/withdraw via mobile money once a BW operator is signed.
 
 ### Milestone 4 — Merchant & wholesaler POS *(PR #39)*

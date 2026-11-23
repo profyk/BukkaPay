@@ -72,7 +72,7 @@ export default function AddCardDialog() {
     <>
       <TouchableOpacity style={[styles.trigger, { borderColor: colors.border }]} onPress={() => setOpen(true)}>
         <Ionicons name="add" size={20} color={colors.textSecondary} />
-        <Text style={[styles.triggerText, { color: colors.textSecondary }]}>Add New Card</Text>
+        <Text style={[styles.triggerText, { color: colors.textSecondary }]}>Add another virtual card</Text>
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>

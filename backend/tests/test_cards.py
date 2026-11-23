@@ -387,3 +387,27 @@ async def test_admin_freeze_cannot_be_undone_by_customer(client: AsyncClient, ad
     assert r.status_code == 403
     r = await client.post(f"/api/admin/cards/{cid}/unfreeze", json={"reason": "cleared"}, headers=admin["headers"])
     assert r.status_code == 200 and r.json()["status"] == "active"
+
+
+async def test_phone_wallet_payment_needs_a_live_token_of_this_card(client: AsyncClient):
+    from app.models.cards import CardWalletToken
+
+    u = await card_holder(client)
+    # Unknown token: declined, nothing held.
+    a = await authorize(client, u["card"], "20.00", channel="wallet_token", tokenId="tok_unknown")
+    assert a["approved"] is False
+    assert await card_balance(u["card_id"]) == Decimal("500.00")
+    tok_id = "tok_" + uuid.uuid4().hex[:10]
+    async with get_session_factory()() as db:
+        db.add(CardWalletToken(issued_card_id=u["card"].id, issuer=u["card"].issuer, issuer_token_id=tok_id,
+                               wallet="google_pay", status="active", device_name="Android phone", token_last4="4242"))
+        await db.commit()
+    a = await authorize(client, u["card"], "20.00", channel="wallet_token", tokenId=tok_id)
+    assert a["approved"] is True
+    # Suspended (e.g. phone reported lost): the token stops working at once.
+    async with get_session_factory()() as db:
+        from sqlalchemy import update
+        await db.execute(update(CardWalletToken).where(CardWalletToken.issuer_token_id == tok_id).values(status="suspended"))
+        await db.commit()
+    a = await authorize(client, u["card"], "20.00", channel="wallet_token", tokenId=tok_id)
+    assert a["approved"] is False
