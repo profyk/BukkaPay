@@ -127,3 +127,66 @@ async def record_custodian_balance(body: SnapshotIn, ctx: AdminContext = Depends
     await db.flush()
     return {"id": str(snap.id), "custodianId": body.custodian_id, "currency": snap.currency,
             "balance": f"{snap.balance:.2f}", "asOf": snap.as_of.isoformat()}
+
+
+# ─── AfCFTA trade report ─────────────────────────────────────────────────────
+
+REPORT_COLUMNS = [
+    "invoice", "status", "created_at", "seller", "seller_country", "buyer", "buyer_country", "currency",
+    "invoice_total", "payment_mode", "incoterm", "line", "description", "hs_code", "origin_country",
+    "quantity", "unit", "unit_price", "line_total", "escrow", "escrow_status", "escrow_fee",
+]
+
+
+@router.get("/trade/report.csv")
+async def trade_report(start: str | None = Query(default=None, alias="from"), end: str | None = Query(default=None, alias="to"),
+                       ctx: AdminContext = Depends(require("compliance.view")), db: AsyncSession = Depends(get_db)):
+    """One row per invoice line: who traded what (HS code, origin) across which
+    border, how it was paid, and the escrow outcome — for regulators, AfCFTA
+    reporting and trade-finance partners. Dates are ISO (YYYY-MM-DD), UTC."""
+    import csv
+    import io
+
+    from fastapi.responses import Response
+
+    from app.models.trade import TradeInvoiceItem
+
+    stmt = select(TradeInvoice).order_by(TradeInvoice.created_at)
+    try:
+        if start:
+            stmt = stmt.where(TradeInvoice.created_at >= datetime.fromisoformat(start))
+        if end:
+            stmt = stmt.where(TradeInvoice.created_at < datetime.fromisoformat(end))
+    except ValueError as e:
+        raise ApiError("Dates must look like 2026-11-01") from e
+    invoices = list((await db.execute(stmt.limit(50000))).scalars())
+    ids = [i.id for i in invoices]
+    items: dict = {}
+    escrows: dict = {}
+    sellers: dict = {}
+    if ids:
+        for it in (await db.execute(select(TradeInvoiceItem).where(TradeInvoiceItem.invoice_id.in_(ids))
+                                    .order_by(TradeInvoiceItem.line_no))).scalars():
+            items.setdefault(it.invoice_id, []).append(it)
+        for e in (await db.execute(select(EscrowContract).where(EscrowContract.invoice_id.in_(ids)))).scalars():
+            escrows[e.invoice_id] = e
+        for m in (await db.execute(select(Merchant).where(Merchant.id.in_({i.merchant_id for i in invoices})))).scalars():
+            sellers[m.id] = m.business_name
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(REPORT_COLUMNS)
+    for inv in invoices:
+        esc = escrows.get(inv.id)
+        head = [inv.reference, inv.status, inv.created_at.isoformat(), sellers.get(inv.merchant_id, ""), inv.seller_country,
+                inv.buyer_name, inv.buyer_country or "", inv.currency, f"{inv.total:.2f}", inv.payment_mode, inv.incoterm or ""]
+        tail = [esc.reference if esc else "", esc.status if esc else "", f"{esc.fee_amount:.2f}" if esc else ""]
+        for it in items.get(inv.id) or [None]:
+            line = ([it.line_no, it.description, it.hs_code or "", it.origin_country or "", f"{it.quantity.normalize():f}",
+                     it.unit or "", f"{it.unit_price:.2f}", f"{(it.quantity * it.unit_price):.2f}"]
+                    if it else ["", "", "", "", "", "", "", ""])
+            w.writerow(head + line + tail)
+    await ctx.audit(db, "trade.report.export", details={"from": start, "to": end, "invoices": len(invoices)})
+    name = f"bukkapay-trade-report-{start or 'all'}-{end or 'now'}.csv"
+    return Response(out.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

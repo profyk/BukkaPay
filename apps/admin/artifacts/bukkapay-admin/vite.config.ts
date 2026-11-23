@@ -25,34 +25,24 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.png", "favicon.svg", "images/bukkapay-logo.png"],
+      includeAssets: ["favicon.png", "icons/apple-touch-icon.png"],
+      // Installable from the browser ("Install app"), never listed in an app
+      // store: updates reach every admin instantly and nothing is public.
       manifest: {
-        name: "BukkaPay Admin Portal",
-        short_name: "BukkaPay",
-        description: "BukkaPay Admin Panel — manage users and transactions",
-        theme_color: "#4F46E5",
-        background_color: "#ffffff",
+        id: basePath,
+        name: "BukkaPay Console",
+        short_name: "BukkaPay Admin",
+        description: "BukkaPay operations console for authorised administrators.",
+        theme_color: "#1E1048",
+        background_color: "#0B0820",
         display: "standalone",
-        orientation: "portrait",
+        display_override: ["window-controls-overlay", "standalone"],
         start_url: basePath,
         scope: basePath,
         icons: [
-          {
-            src: "favicon.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "favicon.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-          {
-            src: "favicon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
-            purpose: "any maskable",
-          },
+          { src: "icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
       // Always serve the newest deploy: the page itself comes from the network

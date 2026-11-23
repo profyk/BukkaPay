@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter"
 import {
-  Inbox, PiggyBank, Handshake,
+  Inbox, PiggyBank, Handshake, Repeat,
   LayoutDashboard, Users, ArrowRightLeft, LogOut,
   CreditCard, FileCheck, ScrollText, Wallet,
   Link2, Store, Megaphone, ChevronRight,
@@ -49,6 +49,7 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
       { href: "/cross-border",  label: "Cross-Border",     icon: Globe2,          perm: "transactions.view" },
       { href: "/safeguarding",  label: "Safeguarding",     icon: ShieldCheck,     perm: "ledger.view" },
       { href: "/treasury",      label: "Treasury",         icon: Landmark,        perm: "ledger.view" },
+      { href: "/fx-desk",       label: "FX Desk",          icon: Repeat,          perm: "fees.view" },
       { href: "/trade-escrows", label: "Trade Escrow Desk", icon: Handshake,      perm: "compliance.view" },
       { href: "/ledger",        label: "Ledger",           icon: BookOpen,        perm: "ledger.view" },
       { href: "/stokvels",      label: "Stokvels",         icon: PiggyBank,       perm: "transactions.view" },
@@ -125,14 +126,7 @@ export function Sidebar() {
       <div className="px-5 pt-5 pb-4 border-b border-sidebar-border">
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer">
-            <div className="w-10 h-10 rounded-xl bg-white shadow-lg shadow-violet-900/40 flex items-center justify-center overflow-hidden ring-1 ring-white/10">
-              <img
-                src={`${import.meta.env.BASE_URL}images/bukkapay-logo.png`}
-                alt=""
-                className="w-8 h-8 object-contain"
-                onError={(e) => { (e.target as HTMLImageElement).replaceWith(Object.assign(document.createElement("span"), { textContent: "B", className: "text-lg font-black text-violet-600" })) }}
-              />
-            </div>
+            <img src="/icons/icon-192.png" alt="" className="w-10 h-10 rounded-xl shadow-lg shadow-violet-900/40" />
             <div className="leading-tight">
               <p className="font-display text-lg font-bold tracking-tight text-sidebar-foreground">BukkaPay</p>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Admin Console</p>

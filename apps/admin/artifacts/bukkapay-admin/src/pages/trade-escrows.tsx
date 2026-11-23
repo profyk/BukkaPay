@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DataTable, FormDialog, Page, Section, Stat, StatusBadge, money, useAction, useApi, when } from "@/components/network/kit"
 import { usePermissions } from "@/lib/permissions"
+import { api } from "@/lib/api"
 
 type Party = { id: string; name: string; email?: string; kycLevel?: number; country?: string; kybStatus?: string }
 type Escrow = {
@@ -68,8 +69,15 @@ export default function TradeEscrowsPage() {
   }
 
   const d = desk.data
+  const exportReport = async () => {
+    const res = await api.get("/admin/trade/report.csv", { responseType: "blob" })
+    const url = URL.createObjectURL(res.data as Blob)
+    const a = Object.assign(document.createElement("a"), { href: url, download: `bukkapay-trade-report-${new Date().toISOString().slice(0, 10)}.csv` })
+    a.click(); URL.revokeObjectURL(url)
+  }
   return (
-    <Page title="Trade escrow desk" subtitle="Buyer money held against supplier invoices in SYS_TRADE_ESCROW. Disputed escrows wait here for a decision; nothing moves until you decide.">
+    <Page title="Trade escrow desk" subtitle="Buyer money held against supplier invoices in SYS_TRADE_ESCROW. Disputed escrows wait here for a decision; nothing moves until you decide."
+      actions={<Button variant="outline" onClick={exportReport}>Export AfCFTA trade report (CSV)</Button>}>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Disputed" value={d?.counts?.disputed ?? 0} tone={d?.counts?.disputed ? "bad" : undefined} />
         <Stat label="Funded (held)" value={d?.counts?.funded ?? 0} />
