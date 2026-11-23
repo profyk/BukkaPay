@@ -10,7 +10,6 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(SITE_URL),
     title: { default: settings.seoTitle, template: "%s · BukkaPay" },
     description: settings.seoDescription,
-    icons: { icon: "/logo.png", apple: "/logo.png" },
     openGraph: {
       type: "website", siteName: "BukkaPay", url: SITE_URL, title: settings.seoTitle, description: settings.seoDescription,
     },
