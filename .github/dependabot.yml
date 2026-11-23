@@ -1,31 +1,75 @@
 version: 2
+# Grouped weekly updates: one PR per app instead of one per package, so
+# packages that must move together (react + react-dom) do. Major versions and
+# Expo-managed native packages are upgraded deliberately, not by bot.
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
 
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
       interval: "weekly"
+    groups:
+      backend:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/apps/customer"
     schedule:
       interval: "weekly"
+    groups:
+      customer:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Pinned by the Expo SDK; upgraded together with `npx expo install --fix`.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/apps/admin"
     schedule:
       interval: "weekly"
+    groups:
+      admin:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/apps/website"
     schedule:
       interval: "weekly"
+    groups:
+      website:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/apps/merchant"
     schedule:
       interval: "weekly"
+    groups:
+      merchant:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
