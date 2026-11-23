@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useToast } from "../hooks/use-toast";
@@ -8,9 +8,9 @@ import { COUNTRY_CODES } from "../lib/countryData";
 import { fetchOperatingCountries, type PublicCountry } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 import SocialSignIn from "../components/SocialSignIn";
+import AuthHero from "../components/AuthHero";
 import EmailCodeModal from "../components/EmailCodeModal";
 
-const logoImage = require("../assets/logo.png");
 
 export default function Signup() {
   const router = useRouter();
@@ -103,11 +103,9 @@ export default function Signup() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: darkMode ? colors.background : "#F5F3FF" }]} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.logoContainer}>
-          <Image source={logoImage} style={styles.logoImage} />
-        </View>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
+      <AuthHero />
+      <View style={[styles.card, styles.authCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
         <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>Join BukkaPay and manage your finances</Text>
@@ -328,6 +326,8 @@ export default function Signup() {
 }
 
 const styles = StyleSheet.create({
+  authScroll: { flexGrow: 1, paddingBottom: 32 },
+  authCard: { marginTop: -40, marginHorizontal: 16, width: "auto", maxWidth: 480, alignSelf: "stretch", ...(Platform.OS === "web" ? { alignSelf: "center", width: "92%" } : {}) },
   container: {
     flex: 1,
     backgroundColor: "#F5F3FF",
