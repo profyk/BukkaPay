@@ -183,3 +183,31 @@ async def test_pay_bwp_invoice_from_zar_wallet(client: AsyncClient, user: dict):
     paid = r.json()["escrow"]["paidFrom"]
     assert paid["currency"] == "ZAR" and Decimal(paid["amount"]) == Decimal("274.88")  # 200/0.99 → 202.03 BWP gross → /0.735, rounded up
     await assert_ledger_consistent()
+
+
+async def test_trade_report_csv(client: AsyncClient, admin: dict):
+    owner, mid = await _supplier(client)
+    inv = await _invoice(client, owner, mid, qty="3", price="12.50")
+    r = await client.get("/api/admin/trade/report.csv", headers=admin["headers"])
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("invoice,status,created_at")
+    assert any(inv["reference"] in ln and "37.50" in ln for ln in lines[1:])
+    assert (await client.get("/api/admin/trade/report.csv", params={"from": "nope"}, headers=admin["headers"])).status_code == 400
+
+
+async def test_fx_desk_edits_are_guarded_and_audited(client: AsyncClient, admin: dict):
+    await _rate("ZAR", "BWP", "0.735000")
+    desk = (await client.get("/api/admin/fx/desk", headers=admin["headers"])).json()
+    pair = next(p for p in desk["pairs"] if p["from"] == "ZAR" and p["to"] == "BWP")
+    rate = Decimal(pair["rate"])
+    # A >10% jump is refused unless confirmed.
+    r = await client.patch(f"/api/admin/fx/pairs/{pair['id']}", headers=admin["headers"], json={"rate": str(rate * 2)})
+    assert r.status_code == 400
+    r = await client.patch(f"/api/admin/fx/pairs/{pair['id']}", headers=admin["headers"], json={"spreadPct": "9"})
+    assert r.status_code == 400
+    r = await client.patch(f"/api/admin/fx/pairs/{pair['id']}", headers=admin["headers"],
+                           json={"rate": str((rate * Decimal("1.01")).quantize(Decimal("0.000001"))), "spreadPct": "1.25", "reason": "test"})
+    assert r.status_code == 200 and r.json()["spreadPct"] == "1.25"
+    audit = (await client.get("/api/admin/audit", params={"action": "fx.pair.update"}, headers=admin["headers"])).json()
+    assert audit

@@ -14,7 +14,7 @@ type Limit = {
 }
 
 const PRODUCTS = ["p2p", "cross_border", "merchant_payment", "payment_link", "funding", "withdrawal",
-  "card_issuance", "card_maintenance", "contribution_payout"]
+  "card_issuance", "card_maintenance", "contribution_payout", "trade_escrow"]
 const scope = (r: { countryCode?: string; currency?: string }) =>
   [r.countryCode, r.currency].filter(Boolean).join(" · ") || "All"
 

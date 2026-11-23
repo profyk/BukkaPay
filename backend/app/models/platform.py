@@ -241,7 +241,7 @@ class FxQuote(Base):
 
 FEE_PRODUCTS = (
     "p2p", "cross_border", "merchant_payment", "payment_link", "funding", "withdrawal",
-    "card_issuance", "card_maintenance", "contribution_payout",
+    "card_issuance", "card_maintenance", "contribution_payout", "trade_escrow",
 )
 
 

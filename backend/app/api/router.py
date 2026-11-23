@@ -62,6 +62,7 @@ from app.api.admin import auth as admin_auth
 from app.api.admin import cards as admin_cards
 from app.api.admin import chat as admin_chat
 from app.api.admin import finance as admin_finance
+from app.api.admin import fx as admin_fx
 from app.api.admin import legal as admin_legal
 from app.api.admin import network as admin_network
 from app.api.admin import platform as admin_platform
@@ -82,3 +83,4 @@ admin_router.include_router(admin_cards.router)
 admin_router.include_router(admin_website.router)
 admin_router.include_router(admin_legal.router)
 admin_router.include_router(admin_trade.router)
+admin_router.include_router(admin_fx.router)

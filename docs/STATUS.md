@@ -113,15 +113,20 @@ and secret detection.
 ### Milestone 5 — Admin & treasury *(PR #40)*
 - [x] Safeguarding monitor: owed vs held per currency, surplus/shortfall, coverage, stale custodian figures, record custodian balances.
 - [x] Trade escrow desk: counts, held per currency, dispute queue, timeline, release/refund with a recorded decision.
-- [ ] Fee & FX engine screen (edit fee schedules incl. trade_escrow, currency_corridors rates/spreads) — the APIs exist.
+- [x] FX desk: swap rates and spreads per pair (guarded against >10% jumps and audited), FX pool positions and FX revenue; trade_escrow can be managed on Fees & Limits *(PR #47)*.
 - [ ] Treasury rebalancing screen on top of `app.integrations.partners.treasury`.
-- [ ] Regulatory / AfCFTA trade report export.
+- [x] AfCFTA trade report CSV (one row per invoice line: HS code, origin, parties, countries, escrow outcome), with the export audited *(PR #47)*.
 
 ### Product focus & clean-up *(PR #41)*
 - [x] **Rental retired.** Rent collection (properties, tenants, rent links) is outside BukkaPay's core of cash replacement plus cross-border trade. The API routes, service, schemas and the customer and merchant screens are removed. Tables and past rent payments are kept, since the ledger is immutable. Anyone who wants to collect rent can use payment links, bills or QR.
 - [x] Removed the unreachable gamification screen, the dead "Referral Program" tile and the Replit artifact config.
 - [x] Removed 35 unused admin UI components.
 - [x] Pay Supplier and Swap now appear in the features hub and search; the scanner opens trade invoice QR codes.
+
+### Admin console & platform hygiene *(PR #47)*
+- [x] New sign-in portal and app icon; installable as **BukkaPay Console** (browser install, deliberately not in app stores); fixed the MFA code input.
+- [x] Removed 22 unused admin packages; React 19.3.1 across the web apps; GitHub Actions v7.
+- [ ] Dependabot: Next 16 (#29), TypeScript 7 (#3) and Expo-pinned packages (#4, #6, #9) were closed. Upgrade them deliberately (Next 16 migration; Expo SDK upgrade), not one at a time.
 
 ### Website
 - [x] Redesign www.bukkapay.com around the cash-replacement and AfCFTA trade vision: new look, new home, /trade and /travel pages, new default copy *(PR #36 — merge pending)*.
