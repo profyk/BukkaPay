@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.models.enums import NotificationType
-from app.models.mixins import CreatedOnlyMixin, UUIDFk, UUIDPk
+from app.models.mixins import CreatedOnlyMixin, OptionalTimestamp, UUIDFk, UUIDPk
 
 
 class Notification(Base, CreatedOnlyMixin):
@@ -23,3 +23,5 @@ class Notification(Base, CreatedOnlyMixin):
     read: Mapped[bool] = mapped_column(Boolean, default=False)
     related_id: Mapped[str | None] = mapped_column(Text)
     related_type: Mapped[str | None] = mapped_column(Text)
+    # Set once the push for this notification was handled (sent or skipped).
+    pushed_at: Mapped[OptionalTimestamp]

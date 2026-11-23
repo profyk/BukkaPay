@@ -305,6 +305,19 @@ async def settle_link_payment(
     link.remaining_balance = max(Decimal(0), new_remaining)
     link.status = new_status
     await db.flush()
+    if link.merchant_id is None and link.sender_id is not None:
+        from app.models.enums import NotificationType
+        from app.services import notification_service
+
+        done = new_status == PaymentLinkStatus.PAID
+        await notification_service.create_notification(
+            db, link.sender_id, NotificationType.SUCCESS,
+            "Payment link paid in full" if done else "Payment received",
+            f"{payer_name or 'Someone'} paid {link.currency} {pay_amount:.2f}"
+            + (f" for {link.description[:60]}." if link.description else ".")
+            + ("" if done else f" {link.currency} {max(Decimal(0), new_remaining):.2f} still to come."),
+            related_id=str(link.id), related_type="payment_link",
+        )
     return {
         "success": True,
         "amountPaid": f"{new_amount_paid:.2f}",

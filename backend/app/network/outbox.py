@@ -33,6 +33,19 @@ async def _handle(db: AsyncSession, event: OutboxEvent) -> None:
         from app.cards import service as card_service
 
         await card_service.issue_for_wallet(db, event.payload["wallet_card_id"])
+    elif event.topic == "push.notification":
+        from app.push import service as push_service
+
+        await push_service.deliver_notification(db, event.payload["notification_id"], event.payload.get("attempt", 0))
+    elif event.topic == "push.receipts":
+        from app.push import service as push_service
+
+        await push_service.check_receipts(db, event.payload["tickets"])
+    elif event.topic == "push.broadcast":
+        from app.push import service as push_service
+
+        await push_service.deliver_broadcast(db, event.payload["title"], event.payload["message"],
+                                             after_user_id=event.payload.get("after_user_id"))
     elif event.topic == "merchant.webhook":
         from app.merchants import webhooks_out
 

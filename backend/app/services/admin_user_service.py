@@ -140,6 +140,9 @@ async def delete_user(db: AsyncSession, user: User) -> None:
     user.biometric_enabled = False
     user.frozen = True
     user.deleted_at = datetime.now(UTC)
+    from app.push import service as push_service
+
+    await push_service.remove_all_devices(db, user.id)
     await db.flush()
 
 
@@ -151,7 +154,13 @@ async def broadcast(db: AsyncSession, *, type: str | None, title: str, message: 
     result = await db.execute(select(User.id))
     user_ids = [row[0] for row in result.all()]
     for user_id in user_ids:
-        await notification_service.create_notification(db, user_id, type or NotificationType.INFO, title, message)
+        await notification_service.create_notification(db, user_id, type or NotificationType.INFO, title, message,
+                                                        push=False)
+    # One paged push job for everyone who opted in to product news, instead
+    # of one push event per user.
+    from app.network import outbox
+
+    await outbox.enqueue(db, "push.broadcast", {"title": title, "message": message})
     return len(user_ids)
 
 

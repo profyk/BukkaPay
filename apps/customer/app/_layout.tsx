@@ -6,6 +6,7 @@ import { ThemeProvider } from "../lib/ThemeContext";
 import { CurrencyProvider } from "../lib/CurrencyContext";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { installIdempotency } from "../lib/idempotency";
+import PushBridge from "../components/PushBridge";
 
 // Every payment request carries an Idempotency-Key (see lib/idempotency).
 installIdempotency();
@@ -17,6 +18,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <CurrencyProvider>
+              <PushBridge />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="(auth)" />

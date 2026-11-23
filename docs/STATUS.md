@@ -65,6 +65,13 @@ and secret detection.
 - [x] **AfCFTA trade schema:** trade invoices + items, escrow contracts, append-only escrow events, hash-chained trade receipts.
 - [x] **Design doc:** [ledger-architecture.md](ledger-architecture.md).
 
+### Push notifications *(2026-11-23)*
+- [x] Every in-app notification is pushed through the outbox (same transaction), within ~10 s, to the person's phones (Expo push) and browsers (Web Push via /sw.js).
+- [x] Per-category switches (money, cards, trade, support, news opt-in); security/account alerts always on; "show amounts on lock screen" privacy switch.
+- [x] Tapping a notification opens the right screen; devices list, test send, home prompt; sign-out removes the device; a phone token moves to whoever signs in.
+- [x] New alerts: every approved card payment, and payment links paid. Admin broadcasts go only to people who opted in to news, in pages.
+- [x] Dead devices are removed (Expo receipts, Web Push 404/410); temporary failures retry with backoff.
+
 ### Workflows
 - [x] CI and deploy workflows all repaired (Trivy version, pinned ruff rules, admin TypeScript, Railway service names, scan permissions); customer web deploy is manual-only (Vercel builds production).
 
@@ -103,6 +110,7 @@ and secret detection.
 - [x] Cards page shows only issued Visa cards (virtual and physical) in the wallet-card design; tap a card to open it.
 - [x] Tap to pay, our side end to end: PIN-confirmed provisioning API, phone-token payments run through the contactless control, inactive/foreign tokens are declined (`token_inactive`), "Pay with your phone" screen with per-phone tap steps.
 - [ ] **Tap to pay, native last mile:** ship the `BukkaPayWalletProvisioning` native module (Apple PKAddPaymentPassViewController / Google TapAndPay pushTokenize) in an EAS build. Blocked on: signed BIN sponsor/issuer-processor, Apple payment-pass provisioning entitlement, Google TapAndPay allow-list. Until then the app explains this instead of creating tokens it can't finish.
+- [ ] **Push keys:** set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` on Railway API **and** worker (web push stays off until then); optional `EXPO_ACCESS_TOKEN`. Native pushes need an EAS build with FCM (Android) and APNs (iOS) credentials uploaded to Expo.
 - [ ] Physical card ordering (delivery address, fee, activation) once the issuer supports physical cards.
 - [ ] Add/withdraw via mobile money once a BW operator is signed.
 

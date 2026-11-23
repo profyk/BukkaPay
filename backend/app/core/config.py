@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     supabase_anon_key: str | None = Field(default=None, alias="SUPABASE_ANON_KEY")
     supabase_service_role_key: str | None = Field(default=None, alias="SUPABASE_SERVICE_ROLE_KEY")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
+    # Push notifications: Web Push (VAPID) for the web app, Expo for the phone apps.
+    vapid_public_key: str | None = Field(default=None, alias="VAPID_PUBLIC_KEY")
+    vapid_private_key: str | None = Field(default=None, alias="VAPID_PRIVATE_KEY")
+    vapid_subject: str = Field(default="mailto:support@bukkapay.com", alias="VAPID_SUBJECT")
+    expo_access_token: str | None = Field(default=None, alias="EXPO_ACCESS_TOKEN")
     resend_from_email: str | None = Field(default="noreply@bukkapay.com", alias="RESEND_FROM_EMAIL")
     bank_partner_api_url: str | None = Field(default=None, alias="BANK_PARTNER_API_URL")
     bank_partner_api_key: str | None = Field(default=None, alias="BANK_PARTNER_API_KEY")

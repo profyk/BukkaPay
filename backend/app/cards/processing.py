@@ -213,6 +213,14 @@ async def authorize(db: AsyncSession, req: AuthorizationRequest) -> CardAuthoriz
             + ("not enough balance." if auth.decline_reason == "insufficient_funds" else "your card is frozen."),
             related_id=str(card.id), related_type="issued_card",
         )
+    elif auth.status == "approved":
+        where = req.merchant_name or "a merchant"
+        how = {"wallet_token": "with your phone", "contactless": "by tap", "online": "online"}.get(req.channel, "")
+        await notification_service.create_notification(
+            db, card.user_id, NotificationType.INFO, f"{req.currency} {auth.amount} at {where}",
+            f"Card •••• {card.last4 or ''} paid {how}. Not you? Freeze the card in BukkaPay now.".replace("  ", " "),
+            related_id=str(card.id), related_type="issued_card",
+        )
     return auth
 
 

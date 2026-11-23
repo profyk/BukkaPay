@@ -64,7 +64,6 @@ export default function Profile() {
   const [showBiometricPasswordModal, setShowBiometricPasswordModal] = useState(false);
   const [biometricPassword, setBiometricPassword] = useState("");
   const [confirmingBiometric, setConfirmingBiometric] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hideBalance, setHideBalance] = useState(false);
   const [quickPayEnabled, setQuickPayEnabled] = useState(false);
 
@@ -78,8 +77,6 @@ export default function Profile() {
       }
       const lang = await AsyncStorage.getItem("app_language");
       if (lang) setSelectedLanguage(lang);
-      const notif = await AsyncStorage.getItem("notifications_enabled");
-      if (notif === "false") setNotificationsEnabled(false);
       const hide = await AsyncStorage.getItem("hide_balance");
       if (hide === "true") setHideBalance(true);
       const qp = await AsyncStorage.getItem("quick_pay");
@@ -219,11 +216,6 @@ export default function Profile() {
     }
   };
 
-  const handleNotificationsToggle = async (enabled: boolean) => {
-    setNotificationsEnabled(enabled);
-    await AsyncStorage.setItem("notifications_enabled", String(enabled));
-    toast({ title: enabled ? "Enabled" : "Disabled", description: enabled ? "Notifications enabled" : "Notifications disabled" });
-  };
 
   const handleHideBalanceToggle = async (enabled: boolean) => {
     setHideBalance(enabled);
@@ -390,7 +382,7 @@ export default function Profile() {
 
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>SECURITY & NOTIFICATIONS</Text>
       <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {renderSettingRow("notifications", "Push Notifications", "Transaction alerts & updates", notificationsEnabled, handleNotificationsToggle)}
+        {renderNavRow("notifications", "Notifications", "Alerts, devices and lock-screen privacy", () => router.push("/(screens)/notification-settings" as any))}
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
         {renderNavRow("shield-checkmark", "Security Settings", "PIN, 2FA & transaction limits", () => router.push("/(screens)/security-settings"))}
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />

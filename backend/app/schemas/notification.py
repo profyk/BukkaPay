@@ -13,6 +13,8 @@ class NotificationResponse(CamelModel):
     related_id: str | None
     related_type: str | None
     created_at: JsDateTime
+    category: str = "account"
+    url: str = "/notifications"
 
 
 class UnreadCountResponse(CamelModel):
