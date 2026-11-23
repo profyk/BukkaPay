@@ -125,14 +125,7 @@ export function Sidebar() {
       <div className="px-5 pt-5 pb-4 border-b border-sidebar-border">
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer">
-            <div className="w-10 h-10 rounded-xl bg-white shadow-lg shadow-violet-900/40 flex items-center justify-center overflow-hidden ring-1 ring-white/10">
-              <img
-                src={`${import.meta.env.BASE_URL}images/bukkapay-logo.png`}
-                alt=""
-                className="w-8 h-8 object-contain"
-                onError={(e) => { (e.target as HTMLImageElement).replaceWith(Object.assign(document.createElement("span"), { textContent: "B", className: "text-lg font-black text-violet-600" })) }}
-              />
-            </div>
+            <img src="/icons/icon-192.png" alt="" className="w-10 h-10 rounded-xl shadow-lg shadow-violet-900/40" />
             <div className="leading-tight">
               <p className="font-display text-lg font-bold tracking-tight text-sidebar-foreground">BukkaPay</p>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Admin Console</p>

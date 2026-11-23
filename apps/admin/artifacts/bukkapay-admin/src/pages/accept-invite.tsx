@@ -59,7 +59,7 @@ export default function AcceptInvitePage() {
     <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 px-4 py-10">
       <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-sm p-6 sm:p-8">
         <div className="flex items-center gap-3 mb-6">
-          <img src={`${import.meta.env.BASE_URL}images/bukkapay-logo.png`} alt="BukkaPay" className="h-9 w-auto" />
+          <img src="/icons/icon-192.png" alt="BukkaPay" className="h-10 w-10 rounded-xl" />
           <span className="text-sm text-muted-foreground">Admin panel</span>
         </div>
 
