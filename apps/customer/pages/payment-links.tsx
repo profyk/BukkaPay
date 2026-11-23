@@ -1,672 +1,285 @@
-import { useState, useEffect, useCallback } from "react";
+/**
+ * My payment links: what I'm collecting (per currency — never added across
+ * currencies) and links I've saved to pay. Share by WhatsApp, copy, cancel.
+ */
+import { useMemo, useState } from "react";
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  ActivityIndicator, RefreshControl, Share, Alert,
-  TextInput, Platform, Linking, Image,
+  ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { API_BASE, APP_URL } from "../lib/config";
-import { getAuthHeader } from "../lib/auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../lib/ThemeContext";
-import { getCurrency, CurrencyCode } from "../lib/currency";
+import { useToast } from "../hooks/use-toast";
+import {
+  canDelete, confirmAction, fetchPaymentLinks, isOpen, linkUrl, money, removeLink, shareLink, shareWhatsApp,
+  unsaveLink, type PaymentLink,
+} from "../lib/paymentLinks";
 
-const logoImage = require("../assets/logo.png");
-
-const PRIMARY = "#7C3AED";
-const PRIMARY_DARK = "#5B21B6";
-const GREEN = "#10B981";
-const AMBER = "#F59E0B";
-const BLUE = "#3B82F6";
-const RED = "#EF4444";
-
-interface PaymentLink {
-  id: string;
-  amount: string;
-  currency: string;
-  description: string | null;
-  status: string;
-  amountPaid: string;
-  remainingBalance: string;
-  allowPartialPayment: boolean;
-  type: string;
-  region: string;
-  destination: string;
-  createdAt: string;
-  paymentUrl?: string;
-  direction?: "sent" | "received";
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: AMBER,
-  partial: BLUE,
-  paid: GREEN,
-  cancelled: RED,
+const STATUS: Record<string, { label: string; color: string; icon: any }> = {
+  pending: { label: "Waiting", color: "#D97706", icon: "time-outline" },
+  partial: { label: "Part paid", color: "#2563EB", icon: "pie-chart-outline" },
+  paid: { label: "Paid", color: "#059669", icon: "checkmark-circle" },
+  expired: { label: "Expired", color: "#6B7280", icon: "hourglass-outline" },
+  cancelled: { label: "Cancelled", color: "#9CA3AF", icon: "close-circle-outline" },
 };
+const FILTERS = [
+  { key: "open", label: "Open" }, { key: "paid", label: "Paid" }, { key: "closed", label: "Closed" }, { key: "all", label: "All" },
+] as const;
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending",
-  partial: "Partial",
-  paid: "Paid",
-  cancelled: "Cancelled",
-};
+type Tab = "sent" | "received";
 
 export default function PaymentLinks() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { colors } = useTheme();
-  const [links, setLinks] = useState<PaymentLink[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<string>("all");
+  const { toast } = useToast();
+  const [tab, setTab] = useState<Tab>("sent");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("open");
   const [search, setSearch] = useState("");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const { data: links = [], isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ["payment-links"], queryFn: fetchPaymentLinks });
 
-  const fetchLinks = useCallback(async () => {
-    try {
-      const headers = await getAuthHeader();
-      const res = await fetch(`${API_BASE}/api/payment-links`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setLinks(data);
-      }
-    } catch (e) {
-      console.error("Failed to fetch payment links", e);
-    } finally {
-      setIsLoading(false);
-      setRefreshing(false);
+  const sent = links.filter((l) => l.direction !== "received");
+  const received = links.filter((l) => l.direction === "received");
+
+  // Totals per currency: collected so far and still outstanding on open links.
+  const totals = useMemo(() => {
+    const by: Record<string, { collected: number; outstanding: number; open: number }> = {};
+    for (const l of sent) {
+      const t = (by[l.currency] ??= { collected: 0, outstanding: 0, open: 0 });
+      t.collected += Number(l.amountPaid || 0);
+      if (isOpen(l)) { t.open += 1; t.outstanding += Number(l.remainingBalance ?? l.amount) || 0; }
     }
-  }, []);
+    return Object.entries(by).sort(([a], [b]) => a.localeCompare(b));
+  }, [links]);
 
-  useEffect(() => { fetchLinks(); }, [fetchLinks]);
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (tab === "sent" ? sent : received)
+      .filter((l) => tab === "received" || filter === "all"
+        || (filter === "open" && isOpen(l)) || (filter === "paid" && l.status === "paid")
+        || (filter === "closed" && (l.status === "cancelled" || l.status === "expired")))
+      .filter((l) => !q || (l.description || "").toLowerCase().includes(q) || l.currency.toLowerCase().includes(q) || l.amount.includes(q))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [links, tab, filter, search]);
 
-  const onRefresh = () => { setRefreshing(true); fetchLinks(); };
-
-  const getLinkUrl = (link: PaymentLink) => `${APP_URL}/pay/${link.id}`;
-
-  const shareLink = async (link: PaymentLink) => {
-    const url = getLinkUrl(link);
-    try {
-      await Share.share({ message: `Pay me ${link.currency} ${parseFloat(link.amount).toFixed(2)} via BukkaPay: ${url}`, url });
-    } catch {}
-  };
-
-  const shareViaWhatsApp = async (link: PaymentLink) => {
-    const url = getLinkUrl(link);
-    const sym = link.currency === "ZAR" ? "R" : link.currency + " ";
-    const msg = `💳 *Payment Request*\n\nPlease pay me *${sym}${parseFloat(link.amount).toFixed(2)}*${link.description ? `\nFor: _${link.description}_` : ""}\n\nPay securely here 👇\n${url}\n\n_Powered by BukkaPay_`;
-    const encoded = encodeURIComponent(msg);
-    const waUrl = `whatsapp://send?text=${encoded}`;
-    const waWeb = `https://wa.me/?text=${encoded}`;
-    try {
-      const canOpen = await Linking.canOpenURL(waUrl);
-      await Linking.openURL(canOpen ? waUrl : waWeb);
-    } catch {
-      try { await Share.share({ message: msg }); } catch {}
-    }
-  };
-
-  // react-native-web's Alert.alert() is a no-op — it never shows a dialog or
-  // fires button callbacks — so every Alert.alert call in this screen was
-  // silently doing nothing on the web build. Route web through window.confirm
-  // / window.alert instead; native platforms keep the real Alert.
-  const notify = (title: string, message?: string) => {
-    if (Platform.OS === "web") { window.alert(message ? `${title}\n\n${message}` : title); return; }
-    Alert.alert(title, message);
-  };
-
-  const confirm = (title: string, message: string, onConfirm: () => void) => {
-    if (Platform.OS === "web") {
-      if (window.confirm(`${title}\n\n${message}`)) onConfirm();
-      return;
-    }
-    Alert.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: onConfirm },
-    ]);
-  };
-
-  const copyLink = async (link: PaymentLink) => {
-    const url = getLinkUrl(link);
-    await Clipboard.setStringAsync(url);
-    notify("Copied!", "Payment link copied to clipboard.");
-  };
-
-  const confirmDelete = (link: PaymentLink) => {
-    confirm(
-      "Delete Payment Link",
-      `Are you sure you want to delete "${link.description || "this payment link"}"? This action cannot be undone.`,
-      () => deleteLink(link.id)
+  const copy = async (l: PaymentLink) => { await Clipboard.setStringAsync(linkUrl(l)); toast({ title: "Link copied" }); };
+  const remove = (l: PaymentLink) => {
+    const del = canDelete(l);
+    confirmAction(
+      del ? "Delete this link?" : "Cancel this link?",
+      del ? "Nobody has paid it yet, so it will be removed." : `It has already received ${money(l.amountPaid, l.currency)}. Cancelling stops new payments; that money and the history are kept.`,
+      del ? "Delete" : "Cancel link",
+      async () => {
+        setBusy(l.id);
+        try { const r = await removeLink(l); toast({ title: r === "deleted" ? "Link deleted" : "Link cancelled" }); qc.invalidateQueries({ queryKey: ["payment-links"] }); }
+        catch (e: any) { toast({ title: "Couldn't update the link", description: e.message, variant: "destructive" }); }
+        finally { setBusy(null); }
+      },
     );
   };
-
-  const deleteLink = async (id: string) => {
-    setDeletingId(id);
-    try {
-      const headers = await getAuthHeader();
-      const res = await fetch(`${API_BASE}/api/payment-links/${id}`, {
-        method: "DELETE",
-        headers,
-      });
-      if (res.ok) {
-        setLinks(prev => prev.filter(l => l.id !== id));
-      } else {
-        const d = await res.json().catch(() => ({}));
-        notify("Error", d.error || "Could not delete this link. Please try again.");
-      }
-    } catch {
-      notify("Error", "Network error. Please check your connection.");
-    } finally {
-      setDeletingId(null);
-    }
+  const unsave = async (l: PaymentLink) => {
+    setBusy(l.id);
+    try { await unsaveLink(l.id); qc.invalidateQueries({ queryKey: ["payment-links"] }); }
+    catch (e: any) { toast({ title: "Couldn't remove it", description: e.message, variant: "destructive" }); }
+    finally { setBusy(null); }
   };
 
-  const sentLinks = links.filter(l => l.direction !== "received");
-  const receivedLinks = links.filter(l => l.direction === "received");
-
-  const baseFiltered = filter === "all"
-    ? links
-    : filter === "received"
-    ? receivedLinks
-    : sentLinks.filter(l => l.status === filter);
-
-  const filteredLinks = search.trim()
-    ? baseFiltered.filter(l =>
-        (l.description || "").toLowerCase().includes(search.toLowerCase()) ||
-        l.currency.toLowerCase().includes(search.toLowerCase())
-      )
-    : baseFiltered;
-
-  // Analytics
-  const totalRevenue = sentLinks.filter(l => l.status === "paid").reduce((s, l) => s + parseFloat(l.amountPaid), 0);
-  const totalPending = sentLinks.filter(l => l.status === "pending" || l.status === "partial").reduce((s, l) => s + parseFloat(l.remainingBalance), 0);
-  const totalPartial = sentLinks.filter(l => l.status === "partial").reduce((s, l) => s + parseFloat(l.amountPaid), 0);
-  const activeLinks = sentLinks.filter(l => l.status === "pending" || l.status === "partial").length;
-  const conversionRate = sentLinks.length > 0
-    ? Math.round((sentLinks.filter(l => l.status === "paid" || l.status === "partial").length / sentLinks.length) * 100)
-    : 0;
-  const mainCurrency = sentLinks[0]?.currency || "ZAR";
-  const mainSymbol = getCurrency(mainCurrency as CurrencyCode).symbol;
-
-  const fmtAmt = (amount: number) => {
-    if (amount >= 1000000) return `${mainSymbol}${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `${mainSymbol}${(amount / 1000).toFixed(1)}K`;
-    return `${mainSymbol}${amount.toFixed(2)}`;
-  };
-
-  if (isLoading) {
-    return (
-      <View style={[s.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={PRIMARY} />
-      </View>
-    );
-  }
+  const create = () => router.push("/(screens)/create-payment-link" as any);
 
   return (
-    <View style={[s.container, { backgroundColor: colors.background }]}>
-      {/* ── Top Bar ── */}
-      <View style={[s.topBar, { backgroundColor: colors.headerBg, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+    <View style={[st.container, { backgroundColor: colors.background }]}>
+      <View style={[st.topBar, { backgroundColor: colors.headerBg, borderColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={st.iconBtn} accessibilityLabel="Back">
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
-        <View style={s.topBarCenter}>
-          <Image source={logoImage} style={s.topBarLogo} />
-          <Text style={[s.topBarTitle, { color: colors.text }]}>Payment Links</Text>
-        </View>
-        <View style={s.topBarActions}>
-          <TouchableOpacity
-            style={s.inboxBtn}
-            onPress={() => router.push("/(screens)/received-links" as any)}
-          >
-            <Ionicons name="file-tray" size={17} color={PRIMARY} />
-            {receivedLinks.length > 0 && (
-              <View style={s.inboxBadge}>
-                <Text style={s.inboxBadgeText}>{receivedLinks.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.newLinkBtn}
-            onPress={() => router.push("/(screens)/create-payment-link" as any)}
-          >
-            <Ionicons name="add" size={20} color="#fff" />
-            <Text style={s.newLinkBtnText}>New</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={[st.title, { color: colors.text }]}>Payment links</Text>
+        <TouchableOpacity style={[st.newBtn, { backgroundColor: colors.primary }]} onPress={create} accessibilityLabel="New payment link">
+          <Ionicons name="add" size={18} color="#fff" /><Text style={st.newBtnText}>New</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY} />}
-      >
-        {/* ── Hero Analytics Banner ── */}
-        <View style={s.heroBanner}>
-          <View style={s.heroTop}>
-            <View style={s.heroTitleRow}>
-              <Ionicons name="bar-chart-outline" size={18} color="rgba(255,255,255,0.8)" />
-              <Text style={s.heroLabel}>Revenue Overview</Text>
-            </View>
-            <View style={s.conversionBadge}>
-              <Ionicons name="trending-up" size={12} color="#10B981" />
-              <Text style={s.conversionBadgeText}>{conversionRate}% conversion</Text>
-            </View>
-          </View>
-          <Text style={s.heroAmount}>{fmtAmt(totalRevenue + totalPartial)}</Text>
-          <Text style={s.heroSub}>Total collected across {sentLinks.length} link{sentLinks.length !== 1 ? "s" : ""}</Text>
-
-          <View style={s.heroStatsRow}>
-            <View style={s.heroStat}>
-              <Text style={s.heroStatValue}>{fmtAmt(totalRevenue)}</Text>
-              <Text style={s.heroStatLabel}>Fully Paid</Text>
-            </View>
-            <View style={s.heroStatDivider} />
-            <View style={s.heroStat}>
-              <Text style={[s.heroStatValue, { color: "#FDE68A" }]}>{fmtAmt(totalPending)}</Text>
-              <Text style={s.heroStatLabel}>Outstanding</Text>
-            </View>
-            <View style={s.heroStatDivider} />
-            <View style={s.heroStat}>
-              <Text style={s.heroStatValue}>{activeLinks}</Text>
-              <Text style={s.heroStatLabel}>Active</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Metric Cards Row ── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.metricsScroll} contentContainerStyle={s.metricsRow}>
-          <MetricCard icon="checkmark-circle" label="Paid Links" value={sentLinks.filter(l => l.status === "paid").length.toString()} color={GREEN} bg="#ECFDF5" />
-          <MetricCard icon="time-outline" label="Pending" value={sentLinks.filter(l => l.status === "pending").length.toString()} color={AMBER} bg="#FFFBEB" />
-          <MetricCard icon="reload-outline" label="Partial" value={sentLinks.filter(l => l.status === "partial").length.toString()} color={BLUE} bg="#EFF6FF" />
-          <MetricCard icon="arrow-down-circle-outline" label="Received" value={receivedLinks.length.toString()} color="#8B5CF6" bg="#F5F3FF" />
-        </ScrollView>
-
-        {/* ── Search Bar ── */}
-        <View style={[s.searchWrap, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Ionicons name="search-outline" size={18} color={colors.textMuted} style={s.searchIcon} />
-          <TextInput
-            style={[s.searchInput, { color: colors.text }]}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search by description or currency…"
-            placeholderTextColor={colors.textMuted}
-            clearButtonMode="while-editing"
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* ── Filter Chips ── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterScroll} contentContainerStyle={s.filterContainer}>
-          {[
-            { key: "all", label: `All (${links.length})` },
-            { key: "received", label: `Received (${receivedLinks.length})` },
-            { key: "pending", label: `Pending (${sentLinks.filter(l => l.status === "pending").length})` },
-            { key: "partial", label: `Partial (${sentLinks.filter(l => l.status === "partial").length})` },
-            { key: "paid", label: `Paid (${sentLinks.filter(l => l.status === "paid").length})` },
-            { key: "cancelled", label: `Cancelled (${sentLinks.filter(l => l.status === "cancelled").length})` },
-          ].map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[s.filterChip, { backgroundColor: colors.surface, borderColor: colors.border }, filter === f.key && s.filterChipActive]}
-              onPress={() => setFilter(f.key)}
-            >
-              <Text style={[s.filterChipText, { color: colors.textSecondary }, filter === f.key && s.filterChipTextActive]}>{f.label}</Text>
+      <ScrollView contentContainerStyle={st.body} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}>
+        {/* Collecting vs to pay */}
+        <View style={[st.segment, { backgroundColor: colors.surface }]}>
+          {([["sent", "I'm collecting", sent.length], ["received", "To pay", received.filter(isOpen).length]] as const).map(([k, label, n]) => (
+            <TouchableOpacity key={k} onPress={() => setTab(k)} style={[st.segBtn, tab === k && { backgroundColor: colors.card }]} accessibilityRole="tab" accessibilityState={{ selected: tab === k }}>
+              <Text style={[st.segText, { color: tab === k ? colors.text : colors.textMuted }]}>{label}{n ? ` · ${n}` : ""}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
 
-        {/* ── Empty State ── */}
-        {filteredLinks.length === 0 ? (
-          <View style={s.emptyState}>
-            <View style={[s.emptyIconWrap, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="link-outline" size={36} color="#C4B5FD" />
-            </View>
-            <Text style={[s.emptyTitle, { color: colors.text }]}>
-              {search ? "No results found" : filter === "all" ? "No payment links yet" : `No ${filter === "received" ? "received" : STATUS_LABELS[filter]?.toLowerCase()} links`}
-            </Text>
-            <Text style={[s.emptySubtitle, { color: colors.textMuted }]}>
-              {search ? "Try a different search term" : "Create a payment link to start collecting payments from anyone, anywhere."}
-            </Text>
-            {!search && (
-              <TouchableOpacity style={s.emptyBtn} onPress={() => router.push("/(screens)/create-payment-link" as any)}>
-                <Ionicons name="add" size={18} color="#FFFFFF" />
-                <Text style={s.emptyBtnText}>Create Payment Link</Text>
+        {tab === "sent" && totals.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+            {totals.map(([ccy, t]) => (
+              <View key={ccy} style={[st.summary, { backgroundColor: "#001A72" }]}>
+                <Text style={st.summaryCcy}>{ccy}</Text>
+                <Text style={st.summaryBig}>{money(t.collected, ccy)}</Text>
+                <Text style={st.summarySub}>collected</Text>
+                <View style={st.summaryRow}>
+                  <View><Text style={st.summaryVal}>{money(t.outstanding, ccy)}</Text><Text style={st.summarySub}>still owed</Text></View>
+                  <View><Text style={st.summaryVal}>{t.open}</Text><Text style={st.summarySub}>open links</Text></View>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        <View style={[st.search, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Ionicons name="search-outline" size={18} color={colors.textMuted} />
+          <TextInput value={search} onChangeText={setSearch} placeholder="Search by what it's for, amount or currency"
+            placeholderTextColor={colors.textMuted} style={[st.searchInput, { color: colors.text }]} accessibilityLabel="Search payment links" />
+          {!!search && <TouchableOpacity onPress={() => setSearch("")} accessibilityLabel="Clear search"><Ionicons name="close-circle" size={18} color={colors.textMuted} /></TouchableOpacity>}
+        </View>
+
+        {tab === "sent" && (
+          <View style={st.filters}>
+            {FILTERS.map((f) => (
+              <TouchableOpacity key={f.key} onPress={() => setFilter(f.key)}
+                style={[st.chip, { borderColor: colors.border, backgroundColor: colors.card }, filter === f.key && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                <Text style={[st.chipText, { color: filter === f.key ? "#fff" : colors.textSecondary }]}>{f.label}</Text>
               </TouchableOpacity>
-            )}
+            ))}
           </View>
-        ) : (
-          <>
-            <View style={s.listHeader}>
-              <Text style={[s.listCount, { color: colors.textSecondary }]}>{filteredLinks.length} link{filteredLinks.length !== 1 ? "s" : ""}</Text>
-              <Text style={[s.listSort, { color: colors.textMuted }]}>Newest first</Text>
-            </View>
-            <View style={s.linksList}>
-              {filteredLinks.map(link => (
-                <PaymentLinkCard
-                  key={link.id}
-                  link={link}
-                  isDeleting={deletingId === link.id}
-                  onShare={() => shareLink(link)}
-                  onWhatsApp={() => shareViaWhatsApp(link)}
-                  onCopy={() => copyLink(link)}
-                  onDelete={() => confirmDelete(link)}
-                  onPayNow={() => router.push(`/pay/${link.id}` as any)}
-                  onViewDetails={() => router.push(`/(screens)/payment-link-detail?id=${link.id}` as any)}
-                />
-              ))}
-            </View>
-          </>
         )}
 
-        {/* ── CTA footer ── */}
-        {links.length > 0 && (
-          <TouchableOpacity style={[s.fabFooter, { backgroundColor: colors.primaryLight }]} onPress={() => router.push("/(screens)/create-payment-link" as any)}>
-            <Ionicons name="add-circle" size={20} color={PRIMARY} />
-            <Text style={s.fabFooterText}>Create New Payment Link</Text>
-          </TouchableOpacity>
-        )}
-
+        {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+          : error ? (
+            <View style={st.empty}>
+              <Ionicons name="cloud-offline-outline" size={36} color={colors.textMuted} />
+              <Text style={[st.emptyTitle, { color: colors.text }]}>Couldn't load your links</Text>
+              <Text style={[st.emptySub, { color: colors.textMuted }]}>{(error as Error).message}</Text>
+              <TouchableOpacity style={[st.cta, { backgroundColor: colors.primary }]} onPress={() => refetch()}><Text style={st.ctaText}>Try again</Text></TouchableOpacity>
+            </View>
+          ) : shown.length === 0 ? (
+            <View style={st.empty}>
+              <View style={[st.emptyIcon, { backgroundColor: colors.primaryLight }]}><Ionicons name="link-outline" size={30} color={colors.primary} /></View>
+              <Text style={[st.emptyTitle, { color: colors.text }]}>
+                {search ? "Nothing matches" : tab === "received" ? "Nothing to pay" : filter === "open" ? "No open links" : "No links here"}
+              </Text>
+              <Text style={[st.emptySub, { color: colors.textMuted }]}>
+                {tab === "received" ? "Payment links people send you appear here once you open them."
+                  : "Create a link, send it on WhatsApp, and see it marked paid the moment the money arrives."}
+              </Text>
+              {tab === "sent" && !search && <TouchableOpacity style={[st.cta, { backgroundColor: colors.primary }]} onPress={create}><Text style={st.ctaText}>Create a payment link</Text></TouchableOpacity>}
+            </View>
+          ) : shown.map((l) => (
+            <LinkRow key={l.id} link={l} busy={busy === l.id} colors={colors}
+              onOpen={() => router.push(`/(screens)/payment-link-detail?id=${l.id}` as any)}
+              onPay={() => router.push(`/pay/${l.id}` as any)}
+              onWhatsApp={() => shareWhatsApp(l)} onShare={() => shareLink(l)} onCopy={() => copy(l)}
+              onRemove={() => (l.direction === "received" ? unsave(l) : remove(l))} />
+          ))}
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
-function MetricCard({ icon, label, value, color, bg }: {
-  icon: any; label: string; value: string; color: string; bg: string;
+function LinkRow({ link: l, busy, colors, onOpen, onPay, onWhatsApp, onShare, onCopy, onRemove }: {
+  link: PaymentLink; busy: boolean; colors: any;
+  onOpen: () => void; onPay: () => void; onWhatsApp: () => void; onShare: () => void; onCopy: () => void; onRemove: () => void;
 }) {
-  const { colors } = useTheme();
-  return (
-    <View style={[s.metricCard, { backgroundColor: bg }]}>
-      <View style={[s.metricIcon, { backgroundColor: color + "20" }]}>
-        <Ionicons name={icon} size={18} color={color} />
-      </View>
-      <Text style={[s.metricValue, { color }]}>{value}</Text>
-      <Text style={[s.metricLabel, { color: colors.textMuted }]}>{label}</Text>
-    </View>
-  );
-}
-
-function PaymentLinkCard({
-  link, isDeleting, onShare, onWhatsApp, onCopy, onDelete, onPayNow, onViewDetails,
-}: {
-  link: PaymentLink;
-  isDeleting: boolean;
-  onShare: () => void;
-  onWhatsApp: () => void;
-  onCopy: () => void;
-  onDelete: () => void;
-  onPayNow: () => void;
-  onViewDetails: () => void;
-}) {
-  const { colors } = useTheme();
-  const progress = parseFloat(link.amount) > 0
-    ? parseFloat(link.amountPaid) / parseFloat(link.amount) : 0;
-  const isReceived = link.direction === "received";
-  const isPaid = link.status === "paid";
-  const statusColor = STATUS_COLORS[link.status] || "#6B7280";
-  const displayAmount = `${getCurrency(link.currency as CurrencyCode).symbol}${parseFloat(link.amount).toFixed(2)}`;
+  const s = STATUS[l.status] ?? STATUS.pending;
+  const paid = Number(l.amountPaid || 0), total = Number(l.amount || 0);
+  const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
+  const received = l.direction === "received";
+  const open = isOpen(l);
+  const date = new Date(l.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const expires = l.expiresAt && open ? ` · expires ${new Date(l.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "";
 
   return (
-    <TouchableOpacity
-      style={[s.card, { backgroundColor: colors.card }, isDeleting && { opacity: 0.5 }]}
-      onPress={onViewDetails}
-      activeOpacity={0.85}
-    >
-      {/* Card Header */}
-      <View style={s.cardTopRow}>
-        <View style={[s.cardIcon, { backgroundColor: isReceived ? "#EFF6FF" : statusColor + "18" }]}>
-          <Ionicons
-            name={isReceived ? "arrow-down-circle" : isPaid ? "checkmark-circle" : "link"}
-            size={22}
-            color={isReceived ? BLUE : statusColor}
-          />
+    <TouchableOpacity onPress={onOpen} activeOpacity={0.85} style={[st.row, { backgroundColor: colors.card, borderColor: colors.border }, busy && { opacity: 0.5 }]}>
+      <View style={st.rowTop}>
+        <View style={[st.rowIcon, { backgroundColor: s.color + "18" }]}><Ionicons name={received ? "arrow-down-circle-outline" : s.icon} size={22} color={s.color} /></View>
+        <View style={{ flex: 1 }}>
+          <Text style={[st.rowTitle, { color: colors.text }]} numberOfLines={1}>{l.description || "Payment request"}</Text>
+          <Text style={[st.rowMeta, { color: colors.textMuted }]}>{date}{expires}</Text>
         </View>
-
-        <View style={{ flex: 1, marginHorizontal: 10 }}>
-          <View style={s.descRow}>
-            <Text style={[s.cardDescription, { color: colors.text }]} numberOfLines={1}>
-              {link.description || "Payment Request"}
-            </Text>
-            {isReceived && <View style={s.dirBadge}><Text style={s.dirBadgeText}>IN</Text></View>}
-          </View>
-          <Text style={[s.cardDate, { color: colors.textMuted }]}>{new Date(link.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</Text>
-        </View>
-
-        <View style={s.cardRightCol}>
-          <View style={[s.statusPill, { backgroundColor: statusColor + "15" }]}>
-            <View style={[s.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[s.statusPillText, { color: statusColor }]}>{STATUS_LABELS[link.status]}</Text>
-          </View>
-          <Text style={[s.cardAmount, { color: colors.text }]}>{displayAmount}</Text>
+        <View style={{ alignItems: "flex-end", gap: 4 }}>
+          <Text style={[st.rowAmount, { color: colors.text }]}>{money(l.amount, l.currency)}</Text>
+          <View style={[st.pill, { backgroundColor: s.color + "18" }]}><Text style={[st.pillText, { color: s.color }]}>{s.label}</Text></View>
         </View>
       </View>
 
-      {/* Progress bar for partial */}
-      {parseFloat(link.amountPaid) > 0 && !isPaid && (
-        <View style={s.progressWrap}>
-          <View style={[s.progressTrack, { backgroundColor: colors.divider }]}>
-            <View style={[s.progressFill, { width: `${Math.min(progress * 100, 100)}%` as any, backgroundColor: statusColor }]} />
-          </View>
-          <Text style={[s.progressLabel, { color: colors.textMuted }]}>{Math.round(progress * 100)}% collected</Text>
+      {paid > 0 && l.status !== "paid" && (
+        <View style={st.progressRow}>
+          <View style={[st.track, { backgroundColor: colors.border }]}><View style={[st.fill, { width: `${pct}%` as any, backgroundColor: s.color }]} /></View>
+          <Text style={[st.rowMeta, { color: colors.textMuted }]}>{money(paid, l.currency)} of {money(total, l.currency)}</Text>
         </View>
       )}
 
-      {/* Quick Actions */}
-      <View style={[s.actionsBar, { borderColor: colors.divider }]}>
-        {isReceived ? (
+      <View style={[st.actions, { borderColor: colors.border }]}>
+        {received ? (
           <>
-            {!isPaid && (
-              <ActionBtn icon="wallet" label="Pay Now" color="#fff" bg={GREEN} onPress={onPayNow} />
-            )}
-            <ActionBtn icon="logo-whatsapp" label="WhatsApp" color="#fff" bg="#25D366" onPress={onWhatsApp} />
-            <ActionBtn icon="copy-outline" label="Copy" color={colors.textSecondary} onPress={onCopy} />
+            {open && <Act icon="wallet-outline" label="Pay now" onPress={onPay} solid="#059669" />}
+            <Act icon="close-outline" label="Remove" onPress={onRemove} color={colors.textMuted} disabled={busy} />
           </>
         ) : (
           <>
-            <ActionBtn icon="logo-whatsapp" label="WhatsApp" color="#fff" bg="#25D366" onPress={onWhatsApp} />
-            <ActionBtn icon="share-social-outline" label="Share" color={PRIMARY} onPress={onShare} />
-            <ActionBtn icon="copy-outline" label="Copy" color={colors.textSecondary} onPress={onCopy} />
-            <ActionBtn
-              icon="trash-outline" label="Delete" color={RED}
-              onPress={onDelete}
-              disabled={isDeleting}
-            />
+            {open && <Act icon="logo-whatsapp" label="WhatsApp" onPress={onWhatsApp} solid="#25D366" />}
+            {open && <Act icon={Platform.OS === "ios" ? "share-outline" : "share-social-outline"} label="Share" onPress={onShare} color={colors.primary} />}
+            <Act icon="copy-outline" label="Copy" onPress={onCopy} color={colors.textSecondary} />
+            {open && <Act icon={canDelete(l) ? "trash-outline" : "close-circle-outline"} label={canDelete(l) ? "Delete" : "Cancel"} onPress={onRemove} color="#DC2626" disabled={busy} />}
           </>
         )}
-        <TouchableOpacity style={[s.expandToggle, { borderColor: colors.border }]} onPress={onViewDetails}>
-          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
 }
 
-function ActionBtn({ icon, label, color, bg, onPress, disabled }: {
-  icon: any; label: string; color: string; bg?: string; onPress: () => void; disabled?: boolean;
-}) {
-  const { colors } = useTheme();
+function Act({ icon, label, onPress, color, solid, disabled }: { icon: any; label: string; onPress: () => void; color?: string; solid?: string; disabled?: boolean }) {
   return (
-    <TouchableOpacity
-      style={[s.actionBtn, { borderColor: colors.border }, bg ? { backgroundColor: bg, borderColor: bg } : {}, disabled && { opacity: 0.5 }]}
-      onPress={onPress}
-      disabled={disabled}
-      activeOpacity={0.75}
-    >
-      <Ionicons name={icon} size={15} color={bg ? "#fff" : color} />
-      <Text style={[s.actionBtnText, { color: bg ? "#fff" : color }]}>{label}</Text>
+    <TouchableOpacity onPress={onPress} disabled={disabled} accessibilityLabel={label}
+      style={[st.act, solid ? { backgroundColor: solid, borderColor: solid } : { borderColor: "rgba(0,0,0,0.08)" }]}>
+      <Ionicons name={icon} size={15} color={solid ? "#fff" : color} />
+      <Text style={[st.actText, { color: solid ? "#fff" : color }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function AmountPill({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <View style={s.amountPill}>
-      <Text style={s.amountPillLabel}>{label}</Text>
-      <Text style={[s.amountPillValue, { color }]}>{value}</Text>
-    </View>
-  );
-}
-
-function MetaTag({ label }: { label: string }) {
-  return (
-    <View style={s.metaTag}>
-      <Text style={s.metaTagText}>{label}</Text>
-    </View>
-  );
-}
-
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F3FF" },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F4F3FF" },
-
-  // Top Bar
-  topBar: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 52 : 40, paddingHorizontal: 20, paddingBottom: 14,
-    backgroundColor: "#fff", borderBottomWidth: 1, borderColor: "#EDE9FE",
-  },
-  backBtn: { padding: 6 },
-  topBarCenter: { flexDirection: "row", alignItems: "center", gap: 7 },
-  topBarLogo: { width: 26, height: 26, borderRadius: 7 },
-  topBarTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A2E" },
-  topBarActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  inboxBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center",
-  },
-  inboxBadge: {
-    position: "absolute", top: -3, right: -3,
-    minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
-  },
-  inboxBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
-  newLinkBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: PRIMARY, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
-  },
-  newLinkBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-
-  // Hero Banner
-  heroBanner: {
-    margin: 16, borderRadius: 24, padding: 22,
-    backgroundColor: PRIMARY,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 20, elevation: 10,
-  },
-  heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  heroTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heroLabel: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.75)" },
-  conversionBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(16,185,129,0.2)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
-  conversionBadgeText: { fontSize: 11, fontWeight: "700", color: "#6EE7B7" },
-  heroAmount: { fontSize: 32, fontWeight: "900", color: "#fff", letterSpacing: -0.5 },
-  heroSub: { fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2, marginBottom: 14 },
-  heroStatsRow: { flexDirection: "row", borderTopWidth: 1, borderColor: "rgba(255,255,255,0.15)", paddingTop: 14 },
-  heroStat: { flex: 1, alignItems: "center" },
-  heroStatDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.15)" },
-  heroStatValue: { fontSize: 15, fontWeight: "800", color: "#fff" },
-  heroStatLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2 },
-
-  // Metrics Row
-  metricsScroll: { marginBottom: 4 },
-  metricsRow: { paddingHorizontal: 16, gap: 10, paddingVertical: 4 },
-  metricCard: { width: 90, borderRadius: 14, padding: 12, alignItems: "center" },
-  metricIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  metricValue: { fontSize: 18, fontWeight: "900" },
-  metricLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600", marginTop: 2, textAlign: "center" },
-
-  // Search
-  searchWrap: {
-    flexDirection: "row", alignItems: "center", margin: 16, marginBottom: 8,
-    backgroundColor: "#fff", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1.5, borderColor: "#EDE9FE",
-    shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
-  },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: "#1A1A2E" },
-
-  // Filter chips
-  filterScroll: { marginBottom: 8, height: 44 },
-  filterContainer: { paddingHorizontal: 16, gap: 8, alignItems: 'center', height: 44 },
-  filterChip: { paddingHorizontal: 13, paddingVertical: 6, borderRadius: 20, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#E5E7EB" },
-  filterChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  filterChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
-  filterChipTextActive: { color: "#fff" },
-
-  // List header
-  listHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  listCount: { fontSize: 13, fontWeight: "700", color: "#6B7280" },
-  listSort: { fontSize: 12, color: "#9CA3AF" },
-
-  // Empty state
-  emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 40 },
-  emptyIconWrap: { width: 72, height: 72, borderRadius: 22, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#1A1A2E", textAlign: "center" },
-  emptySubtitle: { fontSize: 13, color: "#9CA3AF", textAlign: "center", marginTop: 6, lineHeight: 20, marginBottom: 24 },
-  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: PRIMARY, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 14 },
-  emptyBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },
-
-  // Links list
-  linksList: { paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
-
-  // Card
-  card: {
-    backgroundColor: "#fff", borderRadius: 20, padding: 16,
-    shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3,
-    borderWidth: 1, borderColor: "#F3F0FF",
-  },
-  cardTopRow: { flexDirection: "row", alignItems: "center" },
-  cardIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  descRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardDescription: { fontSize: 14, fontWeight: "700", color: "#1A1A2E", flexShrink: 1 },
-  dirBadge: { backgroundColor: "#EFF6FF", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
-  dirBadgeText: { fontSize: 9, fontWeight: "800", color: BLUE },
-  cardDate: { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
-  cardRightCol: { alignItems: "flex-end", gap: 4 },
-  statusPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
-  statusDot: { width: 5, height: 5, borderRadius: 3 },
-  statusPillText: { fontSize: 10, fontWeight: "700" },
-  cardAmount: { fontSize: 13, fontWeight: "800", color: "#1A1A2E" },
-
-  // Progress
-  progressWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 2 },
-  progressTrack: { flex: 1, height: 5, backgroundColor: "#F3F4F6", borderRadius: 3, overflow: "hidden" },
-  progressFill: { height: 5, borderRadius: 3 },
-  progressLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600", minWidth: 60, textAlign: "right" },
-
-  // Expanded
-  expandedBlock: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderColor: "#F3F4F6" },
-  expandedRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
-  amountPill: { alignItems: "center", flex: 1 },
-  amountPillLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600", marginBottom: 2 },
-  amountPillValue: { fontSize: 13, fontWeight: "700" },
-  metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  metaTag: { backgroundColor: "#F4F3FF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  metaTagText: { fontSize: 10, fontWeight: "600", color: "#7C3AED", textTransform: "capitalize" },
-
-  // Actions bar
-  actionsBar: {
-    flexDirection: "row", gap: 7, marginTop: 12,
-    paddingTop: 12, borderTopWidth: 1, borderColor: "#F3F4F6",
-    alignItems: "center",
-  },
-  actionBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 4, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: "#E5E7EB",
-  },
-  actionBtnText: { fontSize: 11, fontWeight: "700" },
-  expandToggle: { padding: 6, borderRadius: 8, borderWidth: 1.5, borderColor: "#E5E7EB" },
-
-  // CTA footer
-  fabFooter: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, margin: 16, marginTop: 8,
-    paddingVertical: 14, borderRadius: 14,
-    borderWidth: 2, borderStyle: "dashed", borderColor: PRIMARY + "60",
-    backgroundColor: "#F5F3FF",
-  },
-  fabFooterText: { color: PRIMARY, fontWeight: "700", fontSize: 14 },
+const st = StyleSheet.create({
+  container: { flex: 1 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: Platform.OS === "ios" ? 52 : 40, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
+  iconBtn: { width: 40, height: 40, justifyContent: "center" },
+  title: { fontSize: 18, fontWeight: "800" },
+  newBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  newBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  body: { padding: 16, gap: 12 },
+  segment: { flexDirection: "row", borderRadius: 14, padding: 4 },
+  segBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 11 },
+  segText: { fontWeight: "700", fontSize: 13 },
+  summary: { width: 250, borderRadius: 20, padding: 18 },
+  summaryCcy: { color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: "700", letterSpacing: 1 },
+  summaryBig: { color: "#fff", fontSize: 26, fontWeight: "800", marginTop: 4 },
+  summarySub: { color: "rgba(255,255,255,0.55)", fontSize: 11 },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  summaryVal: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: Platform.OS === "web" ? 10 : 8 },
+  searchInput: { flex: 1, fontSize: 14 },
+  filters: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  chip: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7 },
+  chipText: { fontSize: 12, fontWeight: "700" },
+  empty: { alignItems: "center", paddingVertical: 40, paddingHorizontal: 24, gap: 8 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontSize: 17, fontWeight: "700", textAlign: "center" },
+  emptySub: { fontSize: 13, textAlign: "center", lineHeight: 19 },
+  cta: { marginTop: 8, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12 },
+  ctaText: { color: "#fff", fontWeight: "700" },
+  row: { borderRadius: 18, borderWidth: 1, padding: 14 },
+  rowTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  rowIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  rowTitle: { fontSize: 15, fontWeight: "700" },
+  rowMeta: { fontSize: 12, marginTop: 2 },
+  rowAmount: { fontSize: 15, fontWeight: "800" },
+  pill: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  pillText: { fontSize: 10, fontWeight: "800" },
+  progressRow: { marginTop: 10, gap: 4 },
+  track: { height: 5, borderRadius: 3, overflow: "hidden" },
+  fill: { height: 5, borderRadius: 3 },
+  actions: { flexDirection: "row", gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  act: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  actText: { fontSize: 11, fontWeight: "700" },
 });

@@ -75,6 +75,7 @@ class PaymentLinkResponse(CamelModel):
     currency: str
     description: str | None
     amount_paid: MoneyStr
+    expires_at: OptionalJsDateTime = None
     remaining_balance: OptionalMoneyStr
     allow_partial_payment: bool
     minimum_payment: OptionalMoneyStr

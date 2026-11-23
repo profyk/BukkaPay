@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
+import { canDelete, confirmAction, removeLink } from "../lib/paymentLinks";
 import { useTheme } from "../lib/ThemeContext";
 
 const PRIMARY = "#7C3AED";
@@ -118,34 +119,25 @@ export default function PaymentLinkDetail() {
     enabled: !!id,
   });
 
-  const deleteLink = async () => {
-    Alert.alert(
-      "Delete Payment Link",
-      "This cannot be undone. Are you sure?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete", style: "destructive",
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              const headers = await getAuthHeader();
-              const res = await fetch(`${API_BASE}/api/payment-links/${id}`, {
-                method: "DELETE", headers,
-              });
-              if (res.ok) {
-                qc.invalidateQueries({ queryKey: ["payment-links"] });
-                router.back();
-              } else {
-                const d = await res.json().catch(() => ({}));
-                Alert.alert("Error", d.error || "Could not delete link.");
-              }
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ]
+  // Unpaid links are deleted; links that already took money are cancelled
+  // (payments and history kept). Works on web, where Alert.alert is a no-op.
+  const deleteLink = () => {
+    if (!link) return;
+    const del = canDelete(link as any);
+    confirmAction(
+      del ? "Delete this link?" : "Cancel this link?",
+      del ? "Nobody has paid it yet, so it will be removed." : "It has already received money. Cancelling stops new payments; the money and history are kept.",
+      del ? "Delete" : "Cancel link",
+      async () => {
+        setDeleting(true);
+        try {
+          await removeLink(link as any);
+          qc.invalidateQueries({ queryKey: ["payment-links"] });
+          if (del) router.back(); else refetch();
+        } catch (e: any) {
+          if (Platform.OS === "web") window.alert(e.message); else Alert.alert("Couldn't update the link", e.message);
+        } finally { setDeleting(false); }
+      },
     );
   };
 
@@ -269,7 +261,7 @@ export default function PaymentLinkDetail() {
             <Ionicons name="copy-outline" size={18} color={colors.text} />
             <Text style={[s.actionBtnTextOutline, { color: colors.text }]}>Copy Link</Text>
           </TouchableOpacity>
-          {isOwner && (
+          {isOwner && (link?.status === "pending" || link?.status === "partial") && (
             <TouchableOpacity
               style={[s.actionBtn, s.actionBtnDanger]}
               onPress={deleteLink}
@@ -279,7 +271,7 @@ export default function PaymentLinkDetail() {
                 ? <ActivityIndicator size="small" color={RED} />
                 : <Ionicons name="trash-outline" size={18} color={RED} />
               }
-              <Text style={s.actionBtnTextDanger}>Delete</Text>
+              <Text style={s.actionBtnTextDanger}>{link && !canDelete(link as any) ? "Cancel link" : "Delete"}</Text>
             </TouchableOpacity>
           )}
         </View>

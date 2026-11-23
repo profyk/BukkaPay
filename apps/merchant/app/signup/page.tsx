@@ -9,6 +9,7 @@ import { SocialSignIn } from "@/components/social-sign-in"
 import {
   EmailCodeDialog, ProfileFields, profileComplete, useOperatingCountries, type Profile,
 } from "@/components/account-forms"
+import { AuthShell } from "@/components/auth-shell"
 
 /** Business account sign-up for the merchant dashboard. */
 export default function SignupPage() {
@@ -56,12 +57,11 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={submit} className="w-full max-w-md space-y-5">
+    <AuthShell>
+      <form onSubmit={submit} className="space-y-5">
         <div>
-          <p className="font-display text-lg font-semibold">BukkaPay <span className="text-brand-600">for Business</span></p>
-          <h1 className="font-display text-2xl font-semibold mt-4">Create your business account</h1>
-          <p className="text-sm text-ink-muted mt-1">For shops, vendors, landlords and online sellers. You'll add your business details next.</p>
+          <h1 className="font-display text-3xl font-semibold">Create your business account</h1>
+          <p className="text-sm text-ink-muted mt-1">For shops, market vendors, wholesalers and online sellers. You'll add your business details next.</p>
         </div>
         {error && <Notice tone="error">{error}</Notice>}
         <SocialSignIn mode="signup" onSignedIn={() => router.replace("/businesses")} onError={setError} />
@@ -80,6 +80,6 @@ export default function SignupPage() {
         <p className="text-xs text-ink-muted">Want to send and receive money personally? Use the BukkaPay app at app.bukkapay.com — personal and business accounts are separate.</p>
       </form>
       <EmailCodeDialog email={confirmEmail} onVerified={() => router.replace("/businesses")} />
-    </main>
+    </AuthShell>
   )
 }

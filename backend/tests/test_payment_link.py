@@ -87,3 +87,23 @@ async def test_get_link_public_no_auth_required(client: AsyncClient, user: dict)
     r = await client.get(f"/api/payment-links/{link_id}")
     assert r.status_code == 200
     assert r.json()["senderName"]
+
+
+async def test_paid_link_cannot_be_deleted_only_cancelled(client: AsyncClient, user: dict, funded_user: dict, other_user: dict):
+    r = await client.post("/api/payment-links", json={"amount": "200.00", "allowPartialPayment": True}, headers=user["headers"])
+    link = r.json()
+    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, "amount": "50.00"},
+                          headers=funded_user["headers"])
+    assert r.status_code == 200, r.text
+    # Money has moved: deleting would erase financial records.
+    r = await client.delete(f"/api/payment-links/{link['id']}", headers=user["headers"])
+    assert r.status_code == 409
+    r = await client.post(f"/api/payment-links/{link['id']}/cancel", headers=other_user["headers"])
+    assert r.status_code == 403
+    r = await client.post(f"/api/payment-links/{link['id']}/cancel", headers=user["headers"])
+    assert r.status_code == 200 and r.json()["status"] == "cancelled"
+    assert r.json()["amountPaid"] in ("50.00", "50")
+    # A cancelled link takes no more money.
+    r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, "amount": "10.00"},
+                          headers=funded_user["headers"])
+    assert r.status_code >= 400
