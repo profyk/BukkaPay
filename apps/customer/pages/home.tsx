@@ -62,7 +62,10 @@ export default function Home() {
         )}
         {mainCard && (
           <WalletCard
-            {...mainCard}
+            title={mainCard.title}
+            cardNumber={mainCard.issuedCard?.last4 ? mainCard.cardNumber : ""}
+            expiryDate={mainCard.issuedCard?.last4 ? mainCard.expiryDate : null}
+            cardStatus={mainCard.issuedCard?.status ?? null}
             balance={mainCard.balance}
             currency={getCurrency(mainCard.currency).symbol}
           />

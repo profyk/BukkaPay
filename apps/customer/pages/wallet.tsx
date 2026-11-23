@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from "
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import PremiumCard from "../components/PremiumCard";
+import WalletCard from "../components/WalletCard";
 import AddCardDialog from "../components/AddCardDialog";
 import { fetchCards, setDefaultCard } from "../lib/api";
 import { mapCardFromAPI } from "../lib/mappers";
@@ -13,7 +13,6 @@ import { useTheme } from "../lib/ThemeContext";
 import { queryClient } from "../lib/queryClient";
 import { useToast } from "../hooks/use-toast";
 
-const cardColors: Array<"blue" | "gold" | "black" | "purple"> = ["blue", "gold", "black", "purple"];
 
 export default function Wallet() {
   const router = useRouter();
@@ -113,14 +112,14 @@ export default function Wallet() {
 
       {mappedCards.map((card: any, index: number) => (
         <View key={card.id} style={[styles.cardContainer, { backgroundColor: colors.card, borderColor: card.isDefault ? colors.primary : colors.cardBorder, borderWidth: card.isDefault ? 2 : 1 }]}>
-          <PremiumCard
+          <WalletCard
+            title={card.title}
             cardNumber={card.issuedCard?.last4 ? card.cardNumber : ""}
             cardStatus={card.issuedCard?.status ?? null}
             expiryDate={card.issuedCard?.last4 ? (card.expiryDate || "—") : "—"}
             holderName={userName}
             balance={Number(card.balance)}
             currency={getCurrency(card.currency).symbol}
-            color={cardColors[index % cardColors.length]}
           />
           <View style={styles.cardInfo}>
             <View style={styles.cardTitleRow}>

@@ -4,7 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import PremiumCard from "../components/PremiumCard";
+import WalletCard from "../components/WalletCard";
 import PinPrompt from "../components/PinPrompt";
 import {
   addCardToWallet, cardAuthorizations, fetchCards, fetchIssuedCard, freezeCard, removeCardFromWallet,
@@ -139,7 +139,9 @@ export default function CardScreen() {
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       {header}
 
-      <PremiumCard
+      <WalletCard
+        title={wallet.title || `${currency} wallet`}
+        cardStatus={card.status}
         cardNumber={revealed?.pan ? revealed.pan.replace(/(.{4})/g, "$1 ").trim() : `•••• •••• •••• ${card.last4 || "••••"}`}
         holderName={card.cardholderName}
         expiryDate={expiry}

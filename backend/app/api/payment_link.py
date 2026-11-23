@@ -88,6 +88,19 @@ async def delete_payment_link(
     return {"success": True}
 
 
+@router.post("/payment-links/{link_id}/cancel")
+async def cancel_payment_link(
+    link_id: str, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+) -> PaymentLinkResponse:
+    link = await payment_link_service.get_payment_link(db, link_id)
+    if link is None:
+        raise ApiError("Payment link not found", status_code=404)
+    if link.sender_id != user_id:
+        raise ApiError("You can only cancel your own payment links", status_code=403)
+    link = await payment_link_service.cancel_payment_link(db, link)
+    return _to_response(link, direction="sent")
+
+
 @router.get("/payment-links/{link_id}")
 async def get_payment_link(link_id: str, db: AsyncSession = Depends(get_db)) -> PaymentLinkResponse:
     link = await payment_link_service.get_payment_link(db, link_id)

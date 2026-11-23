@@ -146,9 +146,32 @@ async def unsave_link(db: AsyncSession, user_id: uuid.UUID, link_id: str) -> Non
         await db.flush()
 
 
+async def has_payments(db: AsyncSession, link: PaymentLink) -> bool:
+    if (link.amount_paid or 0) > 0:
+        return True
+    found = await db.execute(select(InvoicePayment.id).where(InvoicePayment.payment_link_id == link.id).limit(1))
+    return found.first() is not None
+
+
 async def delete_payment_link(db: AsyncSession, link: PaymentLink) -> None:
+    """Only a link nobody has paid can be deleted. Once money has moved, the
+    link and its payments are financial records: cancel it instead."""
+    if await has_payments(db, link):
+        raise ApiError("This link has received payments, so it can't be deleted. Cancel it to stop new payments; "
+                       "its history is kept.", status_code=409)
     await db.delete(link)
     await db.flush()
+
+
+async def cancel_payment_link(db: AsyncSession, link: PaymentLink) -> PaymentLink:
+    """Stop a link accepting payments. Money already received stays received."""
+    locked = await lock_link(db, link.id)
+    if locked.status == PaymentLinkStatus.PAID:
+        raise ApiError("This link is already fully paid", status_code=409)
+    if locked.status != PaymentLinkStatus.CANCELLED:
+        locked.status = PaymentLinkStatus.CANCELLED
+        await db.flush()
+    return locked
 
 
 async def get_invoice_by_link(db: AsyncSession, link_id: uuid.UUID) -> Invoice | None:

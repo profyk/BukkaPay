@@ -18,7 +18,7 @@ import { createCard, getCardPricing } from "../lib/api";
 import { getCurrentUser } from "../lib/auth";
 import { getCurrency } from "../lib/currency";
 import { useTheme } from "../lib/ThemeContext";
-import PremiumCard from "./PremiumCard";
+import WalletCard from "./WalletCard";
 
 const PREVIEW_NUMBER = "•••• •••• •••• ••••";
 
@@ -94,12 +94,12 @@ export default function AddCardDialog() {
 
             {/* Card Preview */}
             <View style={styles.previewWrap}>
-              <PremiumCard
+              <WalletCard
+                title={cardName.trim() || `${currency} wallet`}
                 cardNumber={PREVIEW_NUMBER}
                 holderName={userName}
                 balance={0}
                 currency={getCurrency(currency).symbol}
-                color="blue"
                 showBalanceToggle={false}
               />
               <View style={[styles.stitchBadge, { backgroundColor: colors.primaryLight }]}>
