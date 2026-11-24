@@ -23,7 +23,7 @@
     "@react-navigation/bottom-tabs": "^7.22.0",
     "@react-navigation/elements": "^2.9.46",
     "@react-navigation/native": "^7.1.8",
-    "@tanstack/react-query": "^5.108.1",
+    "@tanstack/react-query": "^5.108.2",
     "date-fns": "^4.4.0",
     "eas-cli": "^18.13.1",
     "expo": "~54.0.33",
