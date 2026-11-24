@@ -380,11 +380,12 @@ async def _complete_link_by_provider_ref(db: AsyncSession, link_id: str, payment
 async def payment_link_callback_redirect(
     db: AsyncSession, *, link_id: str, ref: str, payment_request_id: str | None,
 ) -> str:
-    app_url = get_settings().app_url
+    # Back to the public pay page the payer came from.
+    pay_url = get_settings().pay_web_url.rstrip("/")
     if not payment_request_id:
-        return f"{app_url}/pay/{link_id}?status=error"
+        return f"{pay_url}/{link_id}?status=error"
     status = await _complete_link_by_provider_ref(db, link_id, payment_request_id)
-    return f"{app_url}/pay/{link_id}?status={status}&ref={ref}"
+    return f"{pay_url}/{link_id}?status={status}&ref={ref}"
 
 
 async def verify_payment_link_stitch(db: AsyncSession, link_id: str, payment_request_id: str) -> str:

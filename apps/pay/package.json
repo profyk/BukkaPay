@@ -1,0 +1,23 @@
+{
+  "name": "bukkapay-pay",
+  "private": true,
+  "version": "1.0.0",
+  "description": "pay.bukkapay.com: public pages to pay a BukkaPay payment link, claim money, or view a trade invoice. No sign-in, no stored tokens.",
+  "scripts": {
+    "dev": "next dev -p 3003",
+    "build": "next build",
+    "start": "next start -p 3003",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "15.5.29",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "5.9.3"
+  }
+}

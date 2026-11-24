@@ -54,7 +54,7 @@ async def test_invoice_create_and_public_view(client: AsyncClient, user: dict):
     owner, mid = await _supplier(client)
     inv = await _invoice(client, owner, mid)
     assert inv["total"] == "455.00" and inv["items"][0]["lineTotal"] == "455.00"
-    assert inv["payUrl"].endswith(f"/trade/{inv['reference']}")
+    assert inv["payUrl"] == f"https://pay.bukkapay.com/t/{inv['reference']}"
     r = await client.get(f"/api/public/trade-invoices/{inv['reference']}")
     assert r.status_code == 200 and "buyerName" not in r.json() and r.json()["seller"]["verified"] is True
     # A personal account can't issue invoices (business route).

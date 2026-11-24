@@ -29,8 +29,8 @@ async def test_transfer_insufficient_balance(client: AsyncClient, user: dict):
     r = await client.post("/api/transfer", json={"pin": TEST_PIN, 
         "fromCardId": card_id, "toUserId": recipient_wallet_id, "amount": "50.00",
     }, headers=user["headers"])
-    assert r.status_code == 400
-    assert "insufficient" in r.json()["error"].lower()
+    assert r.status_code == 402
+    assert r.json()["code"] == "no_funds"
 
 
 async def test_transfer_to_self_rejected(client: AsyncClient, funded_user: dict):

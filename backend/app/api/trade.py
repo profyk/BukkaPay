@@ -250,7 +250,7 @@ async def create_trade_invoice(merchant_id: str, body: InvoiceIn, user_id=Depend
         expires_days=body.expires_days)
     from app.core.config import get_settings
 
-    pay_url = f"{get_settings().app_url.rstrip('/')}/trade/{inv.reference}"
+    pay_url = f"{get_settings().pay_web_url.rstrip('/')}/t/{inv.reference}"
     return {**_invoice_out(inv, await trade.invoice_items(db, inv), merchant), "payUrl": pay_url}
 
 

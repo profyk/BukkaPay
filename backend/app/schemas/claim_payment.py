@@ -46,7 +46,8 @@ class ClaimPaymentPublicResponse(CamelModel):
     status: str
     claimed: bool
     claim_method: str | None
-    pickup_code: str | None
+    # No pickup_code here: the cash code is the bearer secret and is only
+    # returned by claim-cash after the PIN is checked.
     pickup_status: str
     expires_at: JsDateTime
     created_at: JsDateTime

@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import require
 from app.api.deps import get_current_user_id
+from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
@@ -23,7 +24,6 @@ from app.services import claim_payment_service as svc
 
 router = APIRouter(prefix="/api", tags=["claim-payments"])
 
-CLAIM_URL_BASE = "https://app.bukkapay.com/claim"
 
 
 @router.post("/claim-payments", status_code=201)
@@ -38,7 +38,7 @@ async def create_claim_payment(
         amount=body.amount, currency=body.currency, note=body.note, pin=body.pin,
     )
     return CreateClaimPaymentResponse.model_validate({
-        "id": claim.id, "claimUrl": f"{CLAIM_URL_BASE}/{claim.id}", "expiresAt": claim.expires_at,
+        "id": claim.id, "claimUrl": f"{get_settings().pay_web_url.rstrip('/')}/claim/{claim.id}", "expiresAt": claim.expires_at,
         "recipientName": claim.recipient_name, "amount": claim.amount, "currency": claim.currency,
     })
 

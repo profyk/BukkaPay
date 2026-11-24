@@ -127,6 +127,8 @@ class Settings(BaseSettings):
     # URLs
     api_base_url: str = Field(default="http://localhost:5000", alias="API_BASE_URL")
     app_url: str = Field(default="http://localhost:8081", alias="APP_URL")
+    # Public pages (payment links, claims, trade invoices): a separate app.
+    pay_web_url: str = Field(default="https://pay.bukkapay.com", alias="PAY_WEB_URL")
 
     @property
     def is_production(self) -> bool:

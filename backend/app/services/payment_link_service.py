@@ -17,11 +17,11 @@ from app.models.wallet import Transaction, WalletCard
 from app.network import fees
 from app.services.stitch_service import STITCH_BANKS
 
-PAYMENT_URL_BASE = "https://app.bukkapay.com/pay"
-
 
 def payment_url(link_id: uuid.UUID) -> str:
-    return f"{PAYMENT_URL_BASE}/{link_id}"
+    from app.core.config import get_settings
+
+    return f"{get_settings().pay_web_url.rstrip('/')}/{link_id}"
 
 
 async def create_payment_link(

@@ -170,7 +170,7 @@ async def test_concurrent_transfers_cannot_overspend(client: AsyncClient):
     results = await asyncio.gather(*(send(r) for r in recipients))
     ok = [r for r in results if r.status_code == 200]
     assert len(ok) == 1, [r.text for r in results]
-    assert all("insufficient" in r.json()["error"].lower() for r in results if r.status_code != 200)
+    assert all(r.json().get("code") in ("no_funds", "insufficient_funds") for r in results if r.status_code != 200)
     assert await card_balance(sender["card_id"]) == Decimal("40.00")
     await assert_ledger_consistent()
 

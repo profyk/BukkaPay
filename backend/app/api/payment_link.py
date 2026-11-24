@@ -140,15 +140,27 @@ async def pay_with_wallet(
     return PayWalletResponse.model_validate(result)
 
 
-@router.get("/payment-links/{link_id}/invoice/pdf")
-async def download_invoice_pdf(link_id: str, db: AsyncSession = Depends(get_db)) -> Response:
+@router.get("/payment-links/{link_id}/invoice/pdf", dependencies=[Depends(rate_limit("public-link", 120, 60))])
+async def download_invoice_pdf(link_id: str, user_id=Depends(get_optional_user_id),
+                               db: AsyncSession = Depends(get_db)) -> Response:
+    from types import SimpleNamespace
+
     link = await payment_link_service.get_payment_link(db, link_id)
     if link is None:
         raise ApiError("Payment link not found", status_code=404)
     invoice = await payment_link_service.get_invoice_by_link(db, link.id)
-    payments = await payment_link_service.get_payments_by_link(db, link.id)
     sender_result = await db.execute(select(User).where(User.id == link.sender_id))
     sender = sender_result.scalar_one_or_none()
+    if user_id is not None and user_id == link.sender_id:
+        payments = await payment_link_service.get_payments_by_link(db, link.id)
+    else:
+        # Same rule as the public JSON view: no payers, no customer contact
+        # details, and not the owner's personal email.
+        payments = []
+        if invoice is not None:
+            fields = {c.key: getattr(invoice, c.key) for c in invoice.__table__.columns}
+            invoice = SimpleNamespace(**{**fields, "customer_email": None, "customer_phone": None})
+        sender = SimpleNamespace(name=sender.name, email=None) if sender else None
 
     pdf_bytes = generate_invoice_pdf(link=link, invoice=invoice, sender=sender, payments=payments)
     filename = f"invoice-{str(link.id)[:8]}.pdf"
