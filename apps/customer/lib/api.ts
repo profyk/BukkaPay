@@ -98,6 +98,10 @@ export type CardAuthorization = {
 export const fetchIssuedCards = () => call<IssuedCard[]>("GET", "/api/issued-cards");
 export const fetchIssuedCard = (id: string) => call<IssuedCard>("GET", `/api/issued-cards/${id}`);
 export const requestWalletCard = (walletId: string) => call<IssuedCard>("POST", `/api/wallets/${walletId}/issued-card`);
+/** Choose which wallet the one Visa card spends from (PIN required). */
+export const setCardWallet = (cardId: string, walletId: string, pin: string) =>
+  call<IssuedCard>("POST", `/api/issued-cards/${cardId}/active-wallet`, { walletId, pin });
+export const terminateCard = (cardId: string, pin: string) => call<IssuedCard>("POST", `/api/issued-cards/${cardId}/terminate`, { pin });
 export const freezeCard = (id: string) => call<IssuedCard>("POST", `/api/issued-cards/${id}/freeze`);
 export const unfreezeCard = (id: string, pin: string) => call<IssuedCard>("POST", `/api/issued-cards/${id}/unfreeze`, { pin });
 export const replaceCard = (id: string, pin: string) => call<IssuedCard>("POST", `/api/issued-cards/${id}/replace`, { pin });

@@ -47,7 +47,7 @@ export default function AddCardDialog() {
     mutationFn: createCard,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cards"] });
-      toast({ title: "Card Created", description: `"${cardName.trim()}" wallet created. Its Visa card is on the way.` });
+      toast({ title: "Wallet opened", description: `"${cardName.trim()}" is ready. Your Visa card can spend from it: choose it under "Spends from".` });
       handleClose();
     },
     onError: (error: Error) => {
@@ -72,7 +72,7 @@ export default function AddCardDialog() {
     <>
       <TouchableOpacity style={[styles.trigger, { borderColor: colors.border }]} onPress={() => setOpen(true)}>
         <Ionicons name="add" size={20} color={colors.textSecondary} />
-        <Text style={[styles.triggerText, { color: colors.textSecondary }]}>Add another virtual card</Text>
+        <Text style={[styles.triggerText, { color: colors.textSecondary }]}>Open another wallet (USD, BWP…)</Text>
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
@@ -86,7 +86,7 @@ export default function AddCardDialog() {
 
             {/* Header */}
             <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.text }]}>New Virtual Card</Text>
+              <Text style={[styles.title, { color: colors.text }]}>New Wallet</Text>
               <TouchableOpacity onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -104,13 +104,13 @@ export default function AddCardDialog() {
               />
               <View style={[styles.stitchBadge, { backgroundColor: colors.primaryLight }]}>
                 <Ionicons name="shield-checkmark" size={12} color={colors.primary} />
-                <Text style={[styles.stitchBadgeText, { color: colors.primary }]}>Visa · online & tap to pay</Text>
+                <Text style={[styles.stitchBadgeText, { color: colors.primary }]}>Use it with your one Visa card</Text>
               </View>
             </View>
 
             {/* Card Name Input */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Card Name</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Wallet Name</Text>
               <TextInput
                 style={[styles.input, { borderColor: colors.primary, backgroundColor: colors.inputBg, color: colors.text }]}
                 value={cardName}
@@ -120,7 +120,7 @@ export default function AddCardDialog() {
                 autoFocus
                 maxLength={32}
               />
-              <Text style={[styles.hint, { color: colors.textMuted }]}>Each wallet gets its own Visa virtual card once your ID is verified.</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>You have one Visa card. Switch which wallet it spends from at any time.</Text>
               {pricing && (Number(pricing.issuanceFee) > 0 || Number(pricing.monthlyFee) > 0) && (
                 <Text style={[styles.hint, { color: colors.textMuted }]}>
                   {Number(pricing.issuanceFee) > 0 ? `${getCurrency(currency).symbol}${pricing.issuanceFee} issuance fee` : ""}
@@ -140,7 +140,7 @@ export default function AddCardDialog() {
               {createCardMutation.isPending ? (
                 <>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.createBtnText}>Issuing Card…</Text>
+                  <Text style={styles.createBtnText}>Opening wallet…</Text>
                 </>
               ) : (
                 <>
