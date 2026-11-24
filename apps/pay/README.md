@@ -41,4 +41,4 @@ Environment (optional; defaults are production):
 - `NEXT_PUBLIC_API_URL` = `https://api.bukkapay.com`
 - `NEXT_PUBLIC_APP_URL` = `https://app.bukkapay.com`
 
-The API must list `https://pay.bukkapay.com` in `ALLOWED_ORIGINS`, and `PAY_WEB_URL` (default `https://pay.bukkapay.com`) decides the links the API generates. Old `app.bukkapay.com/pay/{id}` links redirect here permanently (see `apps/customer/vercel.json`).
+The API must list `https://pay.bukkapay.com` in `ALLOWED_ORIGINS`, and `PAY_WEB_URL` (default `https://pay.bukkapay.com`) decides the links the API generates. Links already shared as `app.bukkapay.com/pay/{id}` keep working in the app; every new link points here. Once all old links have expired, `apps/customer/vercel.json` can redirect `/pay/:id` here.

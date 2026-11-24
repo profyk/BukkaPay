@@ -79,7 +79,7 @@ and secret detection.
 - [x] **App:** Transfer tab rebuilt (it only faked success before): send, move between own wallets (`POST /api/wallets/move`), swap, withdraw. Top-up checks Stitch status and handles the bank return. The card Verify button opens ID verification. Profile and settings redesigned.
 
 ### Public pay app *(2026-11-24)*: `apps/pay` → pay.bukkapay.com
-- [x] Payment links, claims and trade invoices on their own app with no session, a nonce CSP, no-referrer/noindex/no-store and allow-listed redirects. Old `app.bukkapay.com/pay/{id}` links redirect permanently.
+- [x] Payment links, claims and trade invoices on their own app with no session, a nonce CSP, no-referrer/noindex/no-store and allow-listed redirects. Old `app.bukkapay.com/pay/{id}` links keep working; new links use pay.bukkapay.com.
 - [x] API privacy: public link view and invoice PDF hide payers, payout bank details, billed-customer contact and owner ID; public claim data no longer includes the cash pickup code.
 
 ### Workflows
@@ -121,7 +121,7 @@ and secret detection.
 - [x] Tap to pay, our side end to end: PIN-confirmed provisioning API, phone-token payments run through the contactless control, inactive/foreign tokens are declined (`token_inactive`), "Pay with your phone" screen with per-phone tap steps.
 - [ ] **Tap to pay, native last mile:** ship the `BukkaPayWalletProvisioning` native module (Apple PKAddPaymentPassViewController / Google TapAndPay pushTokenize) in an EAS build. Blocked on: signed BIN sponsor/issuer-processor, Apple payment-pass provisioning entitlement, Google TapAndPay allow-list. Until then the app explains this instead of creating tokens it can't finish.
 - [ ] **Stitch production credentials** on Railway (API reports `configured: false`, so top-ups and withdrawals are off until set).
-- [ ] **pay.bukkapay.com:** add `https://pay.bukkapay.com` to `ALLOWED_ORIGINS` on Railway (API + worker), deploy the backend (`railway up`), and point the domain at the `bukkapay-pay` Vercel project.
+- [ ] **pay.bukkapay.com:** `ALLOWED_ORIGINS` already includes it on Railway (queued, applies on the next deploy). Deploy the backend (`railway up` for API and worker).
 - [ ] **Screening:** `SCREENING_API_URL=https://api.opensanctions.org` + `SCREENING_API_KEY` on Railway API and worker.
 - [ ] **Partners** (in this order, see payment-stack.md §5): custodian trust accounts (SA, BW) → Paymentology + sponsor bank → Orange Money BW → Onafriq/Thunes quotes → Smile ID KYB.
 - [ ] **Push keys:** set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` on Railway API **and** worker (web push stays off until then); optional `EXPO_ACCESS_TOKEN`. Native pushes need an EAS build with FCM (Android) and APNs (iOS) credentials uploaded to Expo.

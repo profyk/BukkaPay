@@ -7,6 +7,10 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/pay/:linkId",
+      "destination": "/pay/[linkId].html"
+    },
+    {
       "source": "/claim/:id",
       "destination": "/claim/[id].html"
     },
@@ -37,13 +41,6 @@
           "value": "application/manifest+json"
         }
       ]
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/pay/:linkId",
-      "destination": "https://pay.bukkapay.com/:linkId",
-      "permanent": true
     }
   ]
 }
