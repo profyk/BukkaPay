@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useToast } from "../hooks/use-toast";
 import { getCurrentUser, getAuthToken } from "../lib/auth";
-import { API_BASE } from "../lib/config";
+import { API_BASE, APP_URL } from "../lib/config";
 import * as Clipboard from "expo-clipboard";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -78,7 +78,8 @@ export default function Request() {
     }
   };
 
-  const requestLink = `${API_BASE}/pay/${requestId}`;
+  // Requests go to a BukkaPay user: the link opens their incoming requests.
+  const requestLink = `${APP_URL}/request?id=${requestId}`;
 
   const handleCopyLink = async () => {
     try {

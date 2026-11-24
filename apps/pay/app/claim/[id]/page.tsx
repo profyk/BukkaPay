@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { notFound, useParams } from "next/navigation";
 import { APP, ApiError, api, isId, money } from "@/lib/api";
+import { Bank, Check, Lock, Shield, Wallet } from "@/lib/icons";
 
 type Claim = {
   id: string; recipientName: string; amount: string; currency: string; note: string | null; status: string;
@@ -60,13 +61,19 @@ export default function ClaimPage() {
 
   return (
     <>
-      <section className="card hero" aria-label="Money for you">
-        <p className="from">Money for {claim.recipientName}</p>
-        <p className="amount">{money(claim.currency, claim.amount)}</p>
-        {claim.note && <p className="desc">“{claim.note}”</p>}
-        <div style={{ marginTop: 10 }}>
-          {closed ? <span className="pill ok">Already claimed</span>
-            : <span className="pill warn">Claim by {new Date(claim.expiresAt).toLocaleDateString()}</span>}
+      <section className="payhero" aria-label="Money for you">
+        <div className="payee">
+          <div className="avatar"><Wallet size={22} /></div>
+          <div>
+            <div className="payee-name">Money for {claim.recipientName}</div>
+            <div className="payee-sub">Sent with BukkaPay</div>
+          </div>
+        </div>
+        <p className="big">{money(claim.currency, claim.amount)} <small>{claim.currency}</small></p>
+        {claim.note && <p className="for">“{claim.note}”</p>}
+        <div className="chips">
+          {closed ? <span className="chip"><Check size={12} /> Already claimed</span>
+            : <span className="chip"><Lock size={12} /> Claim by {new Date(claim.expiresAt).toLocaleDateString()}</span>}
         </div>
       </section>
 
@@ -84,10 +91,22 @@ export default function ClaimPage() {
 
       {!closed && step === "choose" && (
         <section className="card">
-          <h2>How do you want it?</h2>
-          <a className="btn dark" href={`${APP}/claim/${encodeURIComponent(claim.id)}`} rel="noopener">Into my BukkaPay wallet (instant)</a>
-          <button className="btn primary" onClick={() => setStep("bank")}>To my bank account</button>
-          <button className="btn ghost" onClick={claimCash} disabled={busy}>{busy ? "…" : "Cash pickup code"}</button>
+          <h2>How do you want your money?</h2>
+          <div className="methods">
+            <a className="method" href={`${APP}/claim/${encodeURIComponent(claim.id)}`} rel="noopener">
+              <span className="ic"><Wallet size={20} /></span>
+              <span><b>BukkaPay wallet</b><span>Instant · sign in or create a free account</span></span>
+              <span className="tag">FASTEST</span>
+            </a>
+            <button type="button" className="method" onClick={() => setStep("bank")}>
+              <span className="ic"><Bank size={20} /></span>
+              <span><b>Bank account</b><span>Usually the same day, at most 1–2 business days</span></span>
+            </button>
+            <button type="button" className="method" onClick={claimCash} disabled={busy}>
+              <span className="ic"><Shield size={20} /></span>
+              <span><b>Cash pickup</b><span>{busy ? "Creating your code…" : "Get a code to collect cash with your ID"}</span></span>
+            </button>
+          </div>
           {error && <div className="notice bad" role="alert" style={{ marginTop: 12 }}>{error}</div>}
         </section>
       )}

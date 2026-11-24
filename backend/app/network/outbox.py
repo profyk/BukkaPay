@@ -4,7 +4,7 @@ retries and backoff. Handlers must be idempotent."""
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.platform import OutboxEvent
@@ -90,7 +90,10 @@ async def _process_batch(session_factory, *, limit: int, now: datetime) -> tuple
                 await db.execute(
                     select(OutboxEvent.id)
                     .where(OutboxEvent.status == "pending", OutboxEvent.available_at <= now)
-                    .order_by(OutboxEvent.available_at)
+                    # Money first: settlements and card events never wait
+                    # behind a burst of notifications.
+                    .order_by(case((OutboxEvent.topic.like("rail.%"), 0), (OutboxEvent.topic.like("push.%"), 2), else_=1),
+                              OutboxEvent.available_at)
                     .limit(limit)
                 )
             ).scalars()

@@ -71,7 +71,8 @@ async def test_book_rail_settles_instantly_and_tracks_pool_positions(client: Asy
         r = await _send(client, sender, recipient, "200.00")
         assert r.status_code == 200, r.text
         assert r.json()["status"] == "instructed"
-        await outbox.process_due(get_session_factory())  # no delay: settles on the next worker tick
+        # No delay: settles on the next worker tick (rail events run before any other backlog).
+        await outbox.process_due(get_session_factory(), limit=20)
         status = (await client.get(f"/api/transfers/{r.json()['reference']}", headers=sender["headers"])).json()
         assert status["status"] == "credited"
         cards = (await client.get("/api/cards", headers=recipient["headers"])).json()

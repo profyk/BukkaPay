@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { notFound, useParams } from "next/navigation";
 import { APP, ApiError, api, isRef, money } from "@/lib/api";
+import { Badge, Lock, Shield } from "@/lib/icons";
 
 type Invoice = {
   reference: string; status: string; currency: string; subtotal: string; taxTotal: string; total: string;
@@ -32,12 +33,19 @@ export default function TradeInvoice() {
   const open = !["paid", "cancelled", "expired", "released", "settled"].includes(inv.status);
   return (
     <>
-      <section className="card hero" aria-label="Trade invoice">
-        <p className="from">Invoice {inv.reference} from {seller?.name || "a BukkaPay business"}</p>
-        <p className="amount">{money(inv.currency, inv.total)}</p>
-        <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-          {seller?.verified && <span className="pill ok">Verified business</span>}
-          <span className={`pill ${open ? "warn" : "ok"}`}>{open ? "Awaiting payment" : inv.status.replace(/_/g, " ")}</span>
+      <section className="payhero" aria-label="Trade invoice">
+        <div className="payee">
+          <div className="avatar">{(seller?.name || "B").slice(0, 1).toUpperCase()}</div>
+          <div>
+            <div className="payee-name">{seller?.name || "A BukkaPay business"}</div>
+            <div className="payee-sub">Trade invoice {inv.reference}{seller?.country ? ` · ${seller.country}` : ""}</div>
+          </div>
+        </div>
+        <p className="big">{money(inv.currency, inv.total)} <small>{inv.currency}</small></p>
+        <div className="chips">
+          {seller?.verified && <span className="chip"><Badge size={12} /> Verified business</span>}
+          <span className="chip">{open ? <><Lock size={12} /> Awaiting payment</> : inv.status.replace(/_/g, " ")}</span>
+          {open && <span className="chip"><Shield size={12} /> Escrow available</span>}
         </div>
       </section>
 
