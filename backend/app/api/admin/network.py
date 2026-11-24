@@ -339,6 +339,7 @@ class CorridorIn(CamelModel):
     from_currency: str
     to_currency: str
     rail_provider_id: str | None = None
+    fallback_provider_ids: list[str] = []
     settlement_model: str = "prefunded"
     min_amount: Decimal = Decimal("10")
     max_amount: Decimal = Decimal("50000")
@@ -351,6 +352,7 @@ class CorridorIn(CamelModel):
 
 class CorridorPatch(CamelModel):
     rail_provider_id: str | None = None
+    fallback_provider_ids: list[str] | None = None
     settlement_model: str | None = None
     min_amount: Decimal | None = None
     max_amount: Decimal | None = None
@@ -364,6 +366,15 @@ class CorridorPatch(CamelModel):
 class RateIn(CamelModel):
     rate: Decimal = Field(gt=0)
     source: str = "manual"
+
+
+@router.get("/network/treasury/book-positions")
+async def book_positions(_=Depends(require("network.view")), db: AsyncSession = Depends(get_db)):
+    """What each country pool has fronted for book transfers (top up) or
+    holds spare (surplus). Rebalance with the `treasury.rebalance` approval."""
+    from app.network import treasury
+
+    return await treasury.positions(db)
 
 
 @router.get("/network/corridors")
@@ -382,6 +393,7 @@ async def create_corridor(body: CorridorIn, _=Depends(require("network.manage"))
         await _get(db, Country, code.upper())
     data = body.model_dump()
     data["rail_provider_id"] = _uuid(body.rail_provider_id) if body.rail_provider_id else None
+    data["fallback_provider_ids"] = [str(_uuid(i)) for i in body.fallback_provider_ids]
     corridor = PaymentCorridor(**{**data, "from_country": body.from_country.upper(),
                                   "to_country": body.to_country.upper(),
                                   "from_currency": body.from_currency.upper(),
@@ -399,6 +411,8 @@ async def update_corridor(corridor_id: str, body: CorridorPatch, _=Depends(requi
     data = body.model_dump(exclude_unset=True)
     if "rail_provider_id" in data and data["rail_provider_id"]:
         data["rail_provider_id"] = _uuid(data["rail_provider_id"])
+    if data.get("fallback_provider_ids") is not None:
+        data["fallback_provider_ids"] = [str(_uuid(i)) for i in data["fallback_provider_ids"]]
     for k, v in data.items():
         setattr(corridor, k, v)
     await db.flush()
@@ -825,10 +839,14 @@ async def kyb_decide(merchant_id: str, body: KybDecision, _=Depends(require("mer
         raise ApiError(f"Merchant KYB is {merchant.kyb_status}", status_code=409)
     merchant.kyb_reviewed_at = datetime.now(UTC)
     if body.approve:
+        # The business and its directors are screened before approval; a
+        # confident sanctions hit deactivates it and keeps KYB pending.
+        screening = await compliance.record_screening(db, merchant_id=merchant.id)
+        if screening["blocked"]:
+            return {**row(merchant), "screening": screening}
         merchant.kyb_status = "approved"
         merchant.verification_tier = "business"  # full KYB lifts the individual-seller caps
         merchant.kyb_rejection_reason = None
-        await compliance.record_screening(db, merchant_id=merchant.id)
     else:
         if not body.reason:
             raise ApiError("A rejection reason is required")

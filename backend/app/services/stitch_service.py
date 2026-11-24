@@ -243,8 +243,9 @@ async def withdraw(
     fee = await fees.compute(db, "withdrawal", parsed_amount, currency=card.currency,
                              country=user.residence_country, method="bank_payout")
     total_debit = parsed_amount + fee.fee
-    if card.balance < total_debit:
-        raise ApiError(f"Insufficient balance (amount {parsed_amount:.2f} + fee {fee.fee:.2f})")
+    from app.ledger import funds
+
+    await funds.require(db, card, total_debit, what=f"withdraw (amount {parsed_amount:.2f} + fee {fee.fee:.2f})")
 
     reference = f"WITHDRAW-{secrets.token_hex(5).upper()}"
     request = WithdrawalRequest(

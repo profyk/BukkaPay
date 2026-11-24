@@ -9,6 +9,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -195,6 +196,11 @@ async def set_frozen(db: AsyncSession, card: IssuedCard, frozen: bool, *, reason
             )
         if card.frozen_reason == "admin" and reason != "admin":
             raise ApiError("This card was paused by BukkaPay. Contact support.", status_code=403)
+        if card.frozen_reason == "no_funds":
+            wallet = await db.get(WalletCard, card.wallet_card_id)
+            if wallet is not None and Decimal(wallet.balance or 0) <= 0:
+                raise ApiError("Your wallet is empty. Top up and your card switches back on by itself.",
+                               status_code=402)
     target = "frozen" if frozen else "active"
     if card.status != target:
         await issuers.by_code(card.issuer).set_status(card.issuer_card_id, target)
@@ -202,6 +208,37 @@ async def set_frozen(db: AsyncSession, card: IssuedCard, frozen: bool, *, reason
     card.frozen_reason = reason if frozen else None
     await db.flush()
     return card
+
+
+async def sync_funds_lock(db: AsyncSession, wallet_card_id: str) -> int:
+    """An empty wallet's card is paused at the issuer, so card machines and
+    online shops are declined at the card network and never reach BukkaPay
+    as a failed charge. It resumes by itself when money arrives. Only
+    touches cards paused for this reason (never customer/admin/overdraft
+    freezes). Idempotent; reads the balance at the time it runs."""
+    wallet = await db.get(WalletCard, uuid.UUID(wallet_card_id))
+    if wallet is None:
+        return 0
+    cards = (
+        await db.execute(select(IssuedCard).where(IssuedCard.wallet_card_id == wallet.id,
+                                                  IssuedCard.status.in_(("active", "frozen")))
+                         .with_for_update())
+    ).scalars().all()
+    changed = 0
+    empty = Decimal(wallet.balance or 0) <= 0
+    for card in cards:
+        if not card.issuer_card_id:
+            continue
+        if empty and card.status == "active":
+            await issuers.by_code(card.issuer).set_status(card.issuer_card_id, "frozen")
+            card.status, card.frozen_reason = "frozen", "no_funds"
+            changed += 1
+        elif not empty and card.status == "frozen" and card.frozen_reason == "no_funds":
+            await issuers.by_code(card.issuer).set_status(card.issuer_card_id, "active")
+            card.status, card.frozen_reason = "active", None
+            changed += 1
+    await db.flush()
+    return changed
 
 
 async def cancel(db: AsyncSession, card: IssuedCard) -> IssuedCard:

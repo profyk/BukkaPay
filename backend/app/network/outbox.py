@@ -25,6 +25,11 @@ async def _handle(db: AsyncSession, event: OutboxEvent) -> None:
         from app.network import webhooks
 
         await webhooks.sandbox_settle(db, event.payload["transfer_reference"], event.payload["rail_reference"])
+    elif event.topic == "rail.book.settle":
+        from app.network import transfers
+
+        await transfers.settle(db, event.payload["transfer_reference"],
+                               rail_reference=event.payload["rail_reference"])
     elif event.topic == "website.revalidate":
         from app.website import service as website_service
 
@@ -46,6 +51,10 @@ async def _handle(db: AsyncSession, event: OutboxEvent) -> None:
 
         await push_service.deliver_broadcast(db, event.payload["title"], event.payload["message"],
                                              after_user_id=event.payload.get("after_user_id"))
+    elif event.topic == "card.funds_lock":
+        from app.cards import service as card_service
+
+        await card_service.sync_funds_lock(db, event.payload["wallet_card_id"])
     elif event.topic == "merchant.webhook":
         from app.merchants import webhooks_out
 

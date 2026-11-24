@@ -168,6 +168,16 @@ async def _user_unfreeze(db, p):
     return {"user_id": str(user.id), "frozen": False}
 
 
+async def _treasury_rebalance(db, p):
+    from app.network import treasury
+
+    return await treasury.record_rebalance(
+        db, from_currency=p["from_currency"], from_amount=posting.parse_amount(p["from_amount"]),
+        to_currency=p["to_currency"], to_amount=posting.parse_amount(p["to_amount"]),
+        reference=str(p.get("reference") or "")[:80] or "rebalance", actor="maker-checker",
+    )
+
+
 EXECUTORS = {
     "country.set_status": _country_set_status,
     "country_custodian.activate": _country_custodian_activate,
@@ -177,6 +187,7 @@ EXECUTORS = {
     "ledger.adjustment": _ledger_adjustment,
     "wallet.unblock": _wallet_unblock,
     "user.unfreeze": _user_unfreeze,
+    "treasury.rebalance": _treasury_rebalance,
 }
 
 # Permission needed to *request* each action (approving needs approvals.decide).
@@ -189,6 +200,7 @@ REQUEST_PERMISSION = {
     "ledger.adjustment": "ledger.adjust_request",
     "wallet.unblock": "wallets.restrict",
     "user.unfreeze": "users.freeze",
+    "treasury.rebalance": "ledger.adjust_request",
 }
 
 

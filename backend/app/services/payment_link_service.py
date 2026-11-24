@@ -234,12 +234,13 @@ async def settle_link_payment(
     currency. destination="bank" pays out through a Stitch disbursement to
     the bank details on the link; the money leaves BukkaPay's Stitch
     account, so the credit side is the Stitch clearing account."""
+    payout: dict | None = None
     if link.destination == "bank":
         if not stitch.is_stitch_payments_configured():
             raise ApiError("Bank payouts are not yet available. Please contact support.", status_code=503)
         bd = link.bank_details or {}
         payout_ref = f"LINK-{str(link.id)[:8].upper()}-{secrets.token_hex(4).upper()}"
-        await stitch.create_disbursement(
+        payout = dict(
             amount=float(pay_amount), currency=link.currency, reference=payout_ref,
             recipient_name=bd.get("accountHolder"), bank_id=bd.get("bankId"),
             account_number=bd.get("accountNumber"), account_type=bd.get("accountType") or "savings",
@@ -293,6 +294,10 @@ async def settle_link_payment(
         legs=[source, *(destination_leg if isinstance(destination_leg, list) else [destination_leg])],
         details={"payment_link_id": str(link.id), "method": method, "reference": reference, **details},
     )
+    if payout:
+        # Only now, with the payer's money booked: if the bank refuses, the
+        # error rolls the whole payment back and nothing has left.
+        await stitch.create_disbursement(**payout)
 
     db.add(InvoicePayment(
         payment_link_id=link.id, amount=pay_amount, currency=link.currency, method=method,
@@ -340,8 +345,10 @@ async def pay_with_wallet(db: AsyncSession, link: PaymentLink, user_id: uuid.UUI
         raise ApiError(f"You need a {link.currency} wallet to pay this link")
     if payer_card.frozen or payer_card.blocked or payer_card.flagged:
         raise ApiError("This card is restricted", status_code=403)
-    if payer_card.balance < pay_amount:
-        raise ApiError("Insufficient wallet balance")
+    from app.ledger import funds
+
+    # Locked before a bank payout can be sent for this link.
+    await funds.require(db, payer_card, pay_amount, what="pay this link")
 
     payer = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     outcome = await settle_link_payment(

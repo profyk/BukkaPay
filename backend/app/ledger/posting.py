@@ -27,6 +27,7 @@ CENT = Decimal("0.01")
 class InsufficientFunds(ApiError):
     def __init__(self, message: str = "Insufficient balance"):
         super().__init__(message, status_code=400)
+        self.code = "insufficient_funds"  # the app offers "Top up"
 
 
 class LedgerError(Exception):
@@ -200,6 +201,10 @@ async def post(
         ))
     # Open the balance guard (app.ledger.ddl) only around our own writes.
     await db.execute(text("SELECT set_config('bukkapay.ledger_posting', 'on', true)"))
+    # Wallets that just ran dry or just got money again: their Visa cards are
+    # paused / resumed at the issuer (app.cards.service.sync_funds_lock).
+    crossed = [locked[aid].wallet_card_id for aid, bal in new_balances.items()
+               if locked[aid].wallet_card_id is not None and (Decimal(locked[aid].balance or 0) > 0) != (bal > 0)]
     for aid, bal in new_balances.items():
         acct = locked[aid]
         acct.balance = bal
@@ -214,6 +219,11 @@ async def post(
         await db.flush()
     finally:
         await db.execute(text("SELECT set_config('bukkapay.ledger_posting', 'off', true)"))
+    if crossed:
+        from app.network import outbox
+
+        for wallet_card_id in crossed:
+            await outbox.enqueue(db, "card.funds_lock", {"wallet_card_id": str(wallet_card_id)})
     return entry
 
 

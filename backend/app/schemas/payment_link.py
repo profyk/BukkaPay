@@ -70,7 +70,7 @@ class InvoicePaymentResponse(CamelModel):
 
 class PaymentLinkResponse(CamelModel):
     id: UUID
-    sender_id: UUID
+    sender_id: UUID | None
     amount: MoneyStr
     currency: str
     description: str | None

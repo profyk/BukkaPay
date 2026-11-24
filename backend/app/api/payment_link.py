@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id
+from app.api.deps import get_current_user_id, get_optional_user_id
 from app.core.errors import ApiError
 from app.core.rate_limit import rate_limit
 from app.db.deps import get_db
@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.payment_link import (
     CreatePaymentLinkRequest,
     InvoicePaymentResponse,
+    InvoiceResponse,
     PaymentLinkResponse,
     PayWalletRequest,
     PayWalletResponse,
@@ -101,19 +102,30 @@ async def cancel_payment_link(
     return _to_response(link, direction="sent")
 
 
-@router.get("/payment-links/{link_id}")
-async def get_payment_link(link_id: str, db: AsyncSession = Depends(get_db)) -> PaymentLinkResponse:
+@router.get("/payment-links/{link_id}", dependencies=[Depends(rate_limit("public-link", 120, 60))])
+async def get_payment_link(link_id: str, user_id=Depends(get_optional_user_id),
+                           db: AsyncSession = Depends(get_db)) -> PaymentLinkResponse:
+    """Anyone with the link sees what they need to pay it. Only the owner
+    sees who paid, the payout bank details and the billed customer's
+    contact details: a forwarded link never leaks other people's data."""
     link = await payment_link_service.get_payment_link(db, link_id)
     if link is None:
         raise ApiError("Payment link not found", status_code=404)
     invoice = await payment_link_service.get_invoice_by_link(db, link.id)
-    payments = await payment_link_service.get_payments_by_link(db, link.id)
     sender_result = await db.execute(select(User).where(User.id == link.sender_id))
     sender = sender_result.scalar_one_or_none()
-    return _to_response(
-        link, invoice=invoice, payments=payments,
-        sender_name=sender.name if sender else "BukkaPay User",
-    )
+    if user_id is not None and user_id == link.sender_id:
+        payments = await payment_link_service.get_payments_by_link(db, link.id)
+        return _to_response(link, invoice=invoice, payments=payments,
+                            sender_name=sender.name if sender else "BukkaPay User")
+    public = _to_response(link, invoice=invoice, sender_name=sender.name if sender else "BukkaPay User")
+    public.sender_id = None
+    public.bank_details = None
+    public.payments = None
+    if public.invoice is not None:
+        public.invoice = InvoiceResponse.model_validate(invoice).model_copy(
+            update={"customer_email": None, "customer_phone": None})
+    return public
 
 
 @router.post("/payment-links/{link_id}/pay-wallet", dependencies=[Depends(rate_limit("payment", 30, 60))])

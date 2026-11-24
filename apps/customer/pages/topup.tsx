@@ -9,6 +9,8 @@ import { useToast } from "../hooks/use-toast";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 import { fetchCards } from "../lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { bankRailStatus } from "../lib/money";
 import { useTheme } from "../lib/ThemeContext";
 
 const BLUE  = "#1D4ED8";
@@ -21,7 +23,11 @@ interface StitchBank { id: string; name: string; }
 
 export default function TopUp() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ section?: string }>();
+  const params = useLocalSearchParams<{ section?: string; status?: string; amount?: string; message?: string }>();
+  const qc = useQueryClient();
+  // Is the bank partner (Stitch) switched on? Checked before any form is shown.
+  const rail = useQuery({ queryKey: ["bank-rail"], queryFn: bankRailStatus, staleTime: 60_000 });
+  const bankReady = rail.data?.configured === true;
   const { toast } = useToast();
   const { colors, darkMode } = useTheme();
 
@@ -64,6 +70,22 @@ export default function TopUp() {
   useEffect(() => {
     fetchBanks();
   }, []);
+
+  // Coming back from the bank (web): the API has already checked the payment
+  // with Stitch and tells us the outcome in the URL.
+  useEffect(() => {
+    if (!params.status) return;
+    if (params.status === "success") {
+      toast({ title: "Top-up successful", description: params.amount ? `R${Number(params.amount).toFixed(2)} added to your wallet.` : "Money added to your wallet." });
+      qc.invalidateQueries({ queryKey: ["cards"] }); qc.invalidateQueries({ queryKey: ["transactions"] });
+    } else if (params.status === "review") {
+      toast({ title: "Payment under review", description: "We received your payment and are confirming the amount. Your wallet updates shortly." });
+    } else if (params.status === "pending") {
+      toast({ title: "Still processing", description: "Your bank hasn't confirmed yet. Your wallet updates as soon as it does." });
+    } else {
+      toast({ title: "Top-up not completed", description: params.message || "Your bank didn't complete the payment. No money was taken.", variant: "destructive" });
+    }
+  }, [params.status]);
 
   const fetchBanks = async () => {
     try {
@@ -215,7 +237,17 @@ export default function TopUp() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
           <Text style={[s.sectionLabel, { color: MUTED }]}>Add Money</Text>
 
-          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => setSection("stitch")}>
+          {rail.isSuccess && !bankReady && (
+            <View style={[s.infoBox, { backgroundColor: darkMode ? "rgba(234,179,8,0.15)" : "#FEF3C7" }]}>
+              <Ionicons name="time-outline" size={18} color="#B45309" />
+              <Text style={[s.infoText, { color: darkMode ? "#FDE68A" : "#78350F" }]}>
+                Bank top-ups are switching on soon. Meanwhile, anyone can pay you with a payment link or your BukkaPay QR code.
+              </Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }, !bankReady && { opacity: 0.5 }]}
+            disabled={!bankReady} accessibilityState={{ disabled: !bankReady }} onPress={() => setSection("stitch")}>
             <View style={[s.optionIcon, { backgroundColor: BLUE }]}>
               <Ionicons name="swap-horizontal" size={22} color="#fff" />
             </View>
@@ -224,15 +256,37 @@ export default function TopUp() {
               <Text style={[s.optionSub, { color: MUTED }]}>Pay via your bank · Powered by Stitch</Text>
             </View>
             <View style={[s.badge, { backgroundColor: darkMode ? "rgba(22,163,74,0.2)" : "#DCFCE7" }]}>
-              <Text style={s.badgeText}>Instant</Text>
+              <Text style={s.badgeText}>{rail.isLoading ? "…" : bankReady ? "Instant" : "Soon"}</Text>
             </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => router.push("/(screens)/create-payment-link" as any)}>
+            <View style={[s.optionIcon, { backgroundColor: "#8B5CF6" }]}>
+              <Ionicons name="link" size={22} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.optionTitle, { color: NAVY }]}>Get paid by link</Text>
+              <Text style={[s.optionSub, { color: MUTED }]}>Anyone pays you by card, bank or wallet</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={MUTED} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => router.push("/(screens)/my-id" as any)}>
+            <View style={[s.optionIcon, { backgroundColor: "#F59E0B" }]}>
+              <Ionicons name="qr-code" size={22} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.optionTitle, { color: NAVY }]}>Receive from a BukkaPay user</Text>
+              <Text style={[s.optionSub, { color: MUTED }]}>Share your QR code or @username, instant and free</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={MUTED} />
           </TouchableOpacity>
 
           <View style={[s.divider, { backgroundColor: BORDER }]} />
 
           <Text style={[s.sectionLabel, { color: MUTED }]}>Withdraw Funds</Text>
 
-          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => setSection("withdraw")}>
+          <TouchableOpacity style={[s.optionCard, { backgroundColor: SURFACE, borderColor: BORDER }]} onPress={() => router.push({ pathname: "/(tabs)/transfer", params: { section: "withdraw" } } as any)}>
             <View style={[s.optionIcon, { backgroundColor: "#EA580C" }]}>
               <Ionicons name="arrow-up-circle" size={22} color="#fff" />
             </View>
@@ -240,7 +294,7 @@ export default function TopUp() {
               <Text style={[s.optionTitle, { color: "#EA580C" }]}>Withdraw to Bank</Text>
               <Text style={[s.optionSub, { color: MUTED }]}>Send to your bank account via Stitch</Text>
             </View>
-            <Text style={[s.optionSub, { color: MUTED }]}>1–2 days</Text>
+            <Ionicons name="chevron-forward" size={18} color={MUTED} />
           </TouchableOpacity>
         </ScrollView>
       </View>

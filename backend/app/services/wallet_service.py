@@ -199,6 +199,41 @@ def _check_card_usable(card: WalletCard) -> None:
         raise ApiError("This card is frozen", status_code=403)
 
 
+async def move_between_own(db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_card_id: str,
+                           amount: str) -> dict:
+    """Move money between two of the customer's own wallets in the same
+    currency: instant and free (it never leaves BukkaPay). Different
+    currencies go through a swap (app.services.swap_service)."""
+    from app.ledger import funds
+
+    if from_card_id == to_card_id:
+        raise ApiError("Choose two different wallets")
+    source = await get_wallet_card(db, from_card_id, user_id)
+    target = await get_wallet_card(db, to_card_id, user_id)
+    if source is None or target is None:
+        raise ApiError("Wallet not found", status_code=404)
+    _check_card_usable(source)
+    _check_card_usable(target)
+    if source.currency != target.currency:
+        raise ApiError(f"These wallets hold different currencies ({source.currency} → {target.currency}). "
+                       "Use Swap to convert.", status_code=409)
+    parsed = posting.parse_amount(amount)
+    await funds.require(db, source, parsed, what="move money")
+    entry = await posting.post(
+        db, kind="own_wallet_move", description=f"Move {source.currency} {parsed} between own wallets",
+        legs=[posting.debit(await ledger_accounts.wallet_account(db, source), parsed),
+              posting.credit(await ledger_accounts.wallet_account(db, target), parsed)],
+        details={"user_id": str(user_id), "from_card_id": str(source.id), "to_card_id": str(target.id)},
+    )
+    db.add(Transaction(user_id=user_id, card_id=source.id, title=f"Moved to {target.title}", category="move",
+                       amount=parsed, type=TransactionType.DEBIT, icon="swap-horizontal"))
+    db.add(Transaction(user_id=user_id, card_id=target.id, title=f"Moved from {source.title}", category="move",
+                       amount=parsed, type=TransactionType.CREDIT, icon="swap-horizontal"))
+    await db.flush()
+    return {"success": True, "amount": f"{parsed:.2f}", "currency": source.currency, "reference": entry.reference,
+            "fromBalance": f"{source.balance:.2f}", "toBalance": f"{target.balance:.2f}"}
+
+
 async def send_money(
     db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_user_id: str, amount: str,
     purpose_category: str | None = None, purpose_subcategory: str | None = None,
@@ -230,8 +265,9 @@ async def send_money(
     if fee.fee >= parsed_amount:
         raise ApiError("Amount is too small to cover the transfer fee")
     destination_amount = parsed_amount - fee.fee
-    if sender_card.balance < parsed_amount:
-        raise ApiError("Insufficient balance")
+    from app.ledger import funds
+
+    await funds.require(db, sender_card, parsed_amount, what="send money")
 
     recipient_card = await get_or_create_currency_card(db, recipient.id, currency)
     entry = await posting.post(
@@ -275,7 +311,7 @@ async def send_money(
         f"{currency} {destination_amount:.2f} received from {sender_display}", related_type="transfer",
     )
     await compliance.evaluate(db, user=sender, amount=parsed_amount, currency=currency, kind="p2p",
-                              reference=entry.reference)
+                              reference=entry.reference, recipient=recipient)
     await db.flush()
     return {
         "success": True,

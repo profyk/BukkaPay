@@ -127,8 +127,9 @@ async def book(
         raise ApiError("This card is frozen", status_code=403)
     if card.currency != dep.currency:
         raise ApiError(f"This departure is priced in {dep.currency} — use a {dep.currency} wallet to book")
-    if card.balance < total_amount:
-        raise ApiError("Insufficient balance")
+    from app.ledger import funds
+
+    await funds.require(db, card, total_amount, what="book this trip")
 
     dep.seats_booked += passenger_count
     await db.flush()

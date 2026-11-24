@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     vapid_private_key: str | None = Field(default=None, alias="VAPID_PRIVATE_KEY")
     vapid_subject: str = Field(default="mailto:support@bukkapay.com", alias="VAPID_SUBJECT")
     expo_access_token: str | None = Field(default=None, alias="EXPO_ACCESS_TOKEN")
+    # Sanctions / PEP screening (OpenSanctions hosted API or self-hosted yente).
+    screening_api_url: str | None = Field(default=None, alias="SCREENING_API_URL")
+    screening_api_key: str | None = Field(default=None, alias="SCREENING_API_KEY")
+    screening_dataset: str = Field(default="default", alias="SCREENING_DATASET")
+    # FATF "call for action" jurisdictions; transfers touching them are flagged.
+    high_risk_countries: str = Field(default="KP,IR,MM", alias="HIGH_RISK_COUNTRIES")
     resend_from_email: str | None = Field(default="noreply@bukkapay.com", alias="RESEND_FROM_EMAIL")
     bank_partner_api_url: str | None = Field(default=None, alias="BANK_PARTNER_API_URL")
     bank_partner_api_key: str | None = Field(default=None, alias="BANK_PARTNER_API_KEY")

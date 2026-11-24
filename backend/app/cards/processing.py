@@ -210,7 +210,9 @@ async def authorize(db: AsyncSession, req: AuthorizationRequest) -> CardAuthoriz
         await notification_service.create_notification(
             db, card.user_id, NotificationType.WARNING, "Card payment declined",
             f"{req.currency} {auth.amount} at {req.merchant_name or 'a merchant'} was declined: "
-            + ("not enough balance." if auth.decline_reason == "insufficient_funds" else "your card is frozen."),
+            + ("not enough balance." if auth.decline_reason == "insufficient_funds"
+               else "your wallet is empty. Top up to use your card." if card.frozen_reason == "no_funds"
+               else "your card is frozen."),
             related_id=str(card.id), related_type="issued_card",
         )
     elif auth.status == "approved":

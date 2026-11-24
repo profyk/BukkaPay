@@ -198,6 +198,8 @@ class PaymentCorridor(Base, TimestampMixin):
     fx_provider_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("payment_providers.id", ondelete="RESTRICT")
     )
+    # Backup rails, tried in order when the main rail is down or refuses.
+    fallback_provider_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     settlement_model: Mapped[str] = mapped_column(String(20), default="prefunded")
     status: Mapped[str] = mapped_column(String(12), default="draft")
     min_amount: Mapped[Decimal] = mapped_column(Amount, default=Decimal("10"))

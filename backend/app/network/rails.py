@@ -4,6 +4,10 @@ signed webhooks (app.network.webhooks).
 
 * sandbox — a clearly simulated rail. No real money moves. It "settles" by
   emitting its own signed settlement event through the outbox after a delay.
+* book    — BukkaPay's own books: both wallets are BukkaPay wallets, so the
+  transfer settles instantly against the money BukkaPay already holds in
+  the destination country (prefunded pool). No per-transfer rail fee; the
+  countries' pools are squared up later in bulk (see app.network.treasury).
 * papss   — interface only. PAPSS access requires a sponsoring participant
   bank and central-bank onboarding; until then it refuses instructions.
 """
@@ -48,6 +52,25 @@ class SandboxRail(RailAdapter):
         return reference
 
 
+class BookRail(RailAdapter):
+    """Settles on BukkaPay's ledger within seconds. Only for corridors whose
+    settlement model is `internal_book`; the destination pool's capacity is
+    enforced by routing.check_liquidity before the sender is debited."""
+
+    code = "book"
+
+    async def instruct(self, db, provider, transfer) -> str:
+        from app.models.platform import PaymentCorridor
+
+        corridor = await db.get(PaymentCorridor, transfer.corridor_id)
+        if corridor is None or corridor.settlement_model != "internal_book":
+            raise RailUnavailable("The book rail only settles internal_book corridors")
+        reference = "BOOK-" + secrets.token_hex(6).upper()
+        await outbox.enqueue(db, "rail.book.settle",
+                             {"transfer_reference": transfer.reference, "rail_reference": reference})
+        return reference
+
+
 class PapssRail(RailAdapter):
     code = "papss"
 
@@ -57,7 +80,7 @@ class PapssRail(RailAdapter):
         )
 
 
-ADAPTERS: dict[str, RailAdapter] = {a.code: a for a in (SandboxRail(), PapssRail())}
+ADAPTERS: dict[str, RailAdapter] = {a.code: a for a in (SandboxRail(), BookRail(), PapssRail())}
 
 
 def adapter_for(provider: PaymentProvider) -> RailAdapter:

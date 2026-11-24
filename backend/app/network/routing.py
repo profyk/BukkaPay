@@ -51,10 +51,8 @@ async def check_route(db: AsyncSession, corridor: PaymentCorridor, amount: Decim
     dest_currency = await db.get(Currency, corridor.to_currency)
     if dest_currency is None or not dest_currency.wallet_enabled or dest_currency.status != "active":
         raise ApiError(f"{corridor.to_currency} wallets are not available yet", status_code=403)
-    if corridor.rail_provider_id is None:
-        raise ApiError("This corridor has no settlement rail configured", status_code=503)
-    rail = await db.get(PaymentProvider, corridor.rail_provider_id)
-    if rail is None or rail.status != "active":
+    rail = (await rail_candidates(db, corridor) or [None])[0]
+    if rail is None:
         raise ApiError("The settlement rail for this corridor is unavailable", status_code=503)
     if amount < corridor.min_amount:
         raise ApiError(f"Minimum transfer is {corridor.from_currency} {corridor.min_amount}")
@@ -65,9 +63,35 @@ async def check_route(db: AsyncSession, corridor: PaymentCorridor, amount: Decim
     return rail
 
 
+async def rail_candidates(db: AsyncSession, corridor: PaymentCorridor) -> list[PaymentProvider]:
+    """Rails to try, best first: the main rail, then the backups, healthy
+    ones before degraded ones. Suspended or inactive rails are never used."""
+    import uuid
+
+    ids = [corridor.rail_provider_id] if corridor.rail_provider_id else []
+    for raw in corridor.fallback_provider_ids or []:
+        try:
+            pid = uuid.UUID(str(raw))
+        except ValueError:
+            continue
+        if pid not in ids:
+            ids.append(pid)
+    providers = [p for p in [await db.get(PaymentProvider, i) for i in ids] if p is not None]
+    usable = [p for p in providers if p.status in ("active", "degraded")]
+    return sorted(usable, key=lambda p: (p.status != "active", usable.index(p)))
+
+
 async def check_liquidity(db: AsyncSession, corridor: PaymentCorridor, destination_amount: Decimal) -> None:
     """Prefunded corridors can only pay out what the receiving side holds."""
     if corridor.liquidity_limit is None:
+        return
+    if corridor.settlement_model == "internal_book":
+        # How much the destination pool has already fronted (see app.network.treasury).
+        from app.ledger import accounts as ledger_accounts
+
+        pool = await ledger_accounts.provider_clearing(db, "book", corridor.to_currency)
+        if max(Decimal(pool.balance or 0), Decimal(0)) + destination_amount > corridor.liquidity_limit:
+            raise ApiError("This corridor is at capacity right now. Please try again later.", status_code=503)
         return
     outstanding = (
         await db.execute(

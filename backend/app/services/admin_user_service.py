@@ -187,15 +187,21 @@ async def list_kyc(db: AsyncSession, *, page: int, limit: int) -> tuple[list[dic
 
 
 async def approve_kyc(db: AsyncSession, user: User) -> User:
+    from app.network import compliance
+
+    # Screen before approving: a confident sanctions hit freezes the account
+    # and leaves the KYC pending for the compliance case, instead of
+    # activating cards and limits for a sanctioned person.
+    screening = await compliance.record_screening(db, user_id=user.id)
+    if screening["blocked"]:
+        await db.flush()
+        return user
     user.kyc_status = KycStatus.APPROVED
     user.kyc_reviewed_at = datetime.now(UTC)
     user.kyc_rejection_reason = None
     user.verified = True
     user.kyc_level = 2
     await db.flush()
-    from app.network import compliance
-
-    await compliance.record_screening(db, user_id=user.id)
     from app.cards import service as card_service
 
     await card_service.on_kyc_verified(db, user.id)
