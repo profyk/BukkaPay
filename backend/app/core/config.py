@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,6 +55,28 @@ class Settings(BaseSettings):
     # development; "none" until an issuer is contracted. See app/cards/issuers.py.
     card_issuer: str = Field(default="sandbox", alias="CARD_ISSUER")
     card_issuer_webhook_secret: str | None = Field(default=None, alias="CARD_ISSUER_WEBHOOK_SECRET")
+
+    # ── Paymentology (virtual cards). Off unless enabled; sandbox by default.
+    paymentology_enabled: bool = Field(default=False, alias="PAYMENTOLOGY_ENABLED")
+    paymentology_env: Literal["sandbox", "production"] = Field(default="sandbox", alias="PAYMENTOLOGY_ENV")
+    paymentology_base_url: str | None = Field(default=None, alias="PAYMENTOLOGY_BASE_URL")
+    paymentology_api_key: str | None = Field(default=None, alias="PAYMENTOLOGY_API_KEY")
+    paymentology_api_secret: str | None = Field(default=None, alias="PAYMENTOLOGY_API_SECRET")
+    paymentology_program_id: str | None = Field(default=None, alias="PAYMENTOLOGY_PROGRAM_ID")
+    paymentology_webhook_secret: str | None = Field(default=None, alias="PAYMENTOLOGY_WEBHOOK_SECRET")
+    # Our answer must reach the processor within its real-time auth timeout.
+    paymentology_auth_budget_ms: int = Field(default=1500, alias="PAYMENTOLOGY_AUTH_BUDGET_MS")
+
+    # ── Onafriq (cross-border payouts). Off unless enabled; sandbox by default.
+    onafriq_enabled: bool = Field(default=False, alias="ONAFRIQ_ENABLED")
+    onafriq_env: Literal["sandbox", "production"] = Field(default="sandbox", alias="ONAFRIQ_ENV")
+    onafriq_base_url: str | None = Field(default=None, alias="ONAFRIQ_BASE_URL")
+    onafriq_client_id: str | None = Field(default=None, alias="ONAFRIQ_CLIENT_ID")
+    onafriq_client_secret: str | None = Field(default=None, alias="ONAFRIQ_CLIENT_SECRET")
+    onafriq_webhook_secret: str | None = Field(default=None, alias="ONAFRIQ_WEBHOOK_SECRET")
+    payout_quote_ttl_seconds: int = Field(default=60, alias="PAYOUT_QUOTE_TTL_SECONDS")
+    # Payout rail used for bank / mobile-wallet payouts: mock | onafriq
+    payout_rail: str = Field(default="mock", alias="PAYOUT_RAIL")
 
     # Public website (apps/website): after an admin edits content, the API
     # calls this endpoint so the site refreshes immediately.
