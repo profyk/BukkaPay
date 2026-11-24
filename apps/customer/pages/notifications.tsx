@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -12,6 +12,7 @@ import {
   deleteNotification,
   clearAllNotifications,
 } from "../lib/api";
+import { enablePush, pushStatus, type PushStatus } from "../lib/push";
 
 interface Notification {
   id: string;
@@ -22,6 +23,7 @@ interface Notification {
   relatedId?: string;
   relatedType?: string;
   createdAt: string;
+  url?: string;
 }
 
 function timeAgo(iso: string): string {
@@ -41,6 +43,14 @@ export default function Notifications() {
   const { toast } = useToast();
   const { colors } = useTheme();
   const qc = useQueryClient();
+  const [push, setPush] = useState<PushStatus | null>(null);
+  useEffect(() => { pushStatus().then(setPush); }, []);
+  const turnOnPush = async () => {
+    const s = await enablePush(true).catch(() => "unsupported" as PushStatus);
+    setPush(s);
+    if (s === "on") toast({ title: "Notifications on", description: "You'll get instant alerts on this device." });
+    else router.push("/(screens)/notification-settings" as any);
+  };
 
   const { data: notifications = [], isLoading, refetch, isRefetching } = useQuery<Notification[]>({
     queryKey: ["notifications"],
@@ -119,8 +129,9 @@ export default function Notifications() {
     deleteMutation.mutate(id);
   }, []);
 
-  const handleMarkAsRead = useCallback((id: string, read: boolean) => {
-    if (!read) markReadMutation.mutate(id);
+  const handleOpen = useCallback((n: Notification) => {
+    if (!n.read) markReadMutation.mutate(n.id);
+    if (n.url && n.url !== "/notifications") router.push(n.url as any);
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -138,6 +149,9 @@ export default function Notifications() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
         {notifications.length > 0 ? (
           <View style={styles.headerRight}>
+            <TouchableOpacity onPress={() => router.push("/(screens)/notification-settings" as any)} accessibilityLabel="Notification settings">
+              <Ionicons name="settings-outline" size={20} color={colors.text} />
+            </TouchableOpacity>
             {unreadCount > 0 && (
               <TouchableOpacity onPress={() => markAllMutation.mutate()} style={styles.readAllBtn}>
                 <Ionicons name="checkmark-done" size={14} color={colors.primary} />
@@ -149,9 +163,28 @@ export default function Notifications() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={{ width: 80 }} />
+          <TouchableOpacity onPress={() => router.push("/(screens)/notification-settings" as any)} accessibilityLabel="Notification settings" style={{ width: 80, alignItems: "flex-end" }}>
+            <Ionicons name="settings-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
         )}
       </View>
+
+      {(push === "off" || push === "needs-install") && (
+        <View style={[styles.pushBanner, { backgroundColor: colors.card, borderColor: colors.primary }]}>
+          <Ionicons name="notifications" size={22} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.pushTitle, { color: colors.text }]}>Know the second money moves</Text>
+            <Text style={[styles.pushText, { color: colors.textMuted }]}>
+              {push === "needs-install" ? "On iPhone, add BukkaPay to your Home Screen (Share → Add to Home Screen) to get alerts." : "Get an alert for every payment in and out, and every card payment."}
+            </Text>
+          </View>
+          {push === "off" && (
+            <TouchableOpacity onPress={turnOnPush} style={[styles.pushBtn, { backgroundColor: colors.primary }]}>
+              <Text style={styles.pushBtnText}>Turn on</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {isLoading ? (
         <View style={styles.loadingState}>
@@ -180,7 +213,7 @@ export default function Notifications() {
           {notifications.map((notification) => (
             <TouchableOpacity
               key={notification.id}
-              onPress={() => handleMarkAsRead(notification.id, notification.read)}
+              onPress={() => handleOpen(notification)}
               style={[
                 styles.notificationCard,
                 {
@@ -251,6 +284,11 @@ const styles = StyleSheet.create({
   getSlipButton: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#2563EB" },
   getSlipText: { fontSize: 12, fontWeight: "600", color: "#FFFFFF" },
   deleteButton: { padding: 6, borderRadius: 8 },
+  pushBanner: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 16, padding: 14, marginBottom: 16 },
+  pushTitle: { fontSize: 14, fontWeight: "700" },
+  pushText: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  pushBtn: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
+  pushBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   emptyState: { paddingVertical: 64, alignItems: "center" },
   emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },

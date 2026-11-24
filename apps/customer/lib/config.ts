@@ -30,6 +30,10 @@ export const APP_URL =
 export const apiUrl = (endpoint: string) => `${API_BASE}${endpoint}`;
 
 /**
- * Helper function to construct shareable payment link URLs
+ * PAY_URL: the separate public app where anyone pays a link, claims money
+ * or views a trade invoice (pay.bukkapay.com). Every link we share uses it.
  */
-export const payUrl = (linkId: string) => `${APP_URL}/pay/${linkId}`;
+export const PAY_URL = process.env.EXPO_PUBLIC_PAY_URL || "https://pay.bukkapay.com";
+
+/** Shareable payment link URL (the API returns the same in paymentUrl). */
+export const payUrl = (linkId: string) => `${PAY_URL}/${linkId}`;

@@ -57,7 +57,7 @@ export default function TradePage() {
   }
 
   const share = (inv: Invoice) => {
-    const url = inv.payUrl ?? `https://app.bukkapay.com/trade/${inv.reference}`
+    const url = inv.payUrl ?? `https://pay.bukkapay.com/t/${inv.reference}`
     const text = `${merchant?.businessName} invoice ${inv.reference}: ${money(inv.total, inv.currency)}. Pay securely with BukkaPay${inv.paymentMode !== "instant" ? " (escrow available)" : ""}: ${url}`
     window.open(`https://wa.me/${buyerPhone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`, "_blank", "noopener")
   }

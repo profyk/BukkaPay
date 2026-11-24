@@ -9,7 +9,7 @@ const logoImage = require("../assets/logo.png");
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Head from "expo-router/head";
-import { API_BASE, APP_URL } from "../lib/config";
+import { API_BASE, APP_URL, payUrl as publicPayUrl } from "../lib/config";
 import { getAuthHeader, getCurrentUser } from "../lib/auth";
 import PinPrompt from "../components/PinPrompt";
 
@@ -63,7 +63,7 @@ function currencySymbol(code: string) {
 
 export default function PayLink() {
   const router = useRouter();
-  const { linkId } = useLocalSearchParams<{ linkId: string }>();
+  const { linkId, amount: chosenAmount } = useLocalSearchParams<{ linkId: string; amount?: string }>();
 
   const [linkData, setLinkData] = useState<PaymentLinkData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,7 +100,14 @@ export default function PayLink() {
       if (res.ok) {
         const data = await res.json();
         setLinkData(data);
-        setPayAmount(data.remainingBalance);
+        // Amount chosen on pay.bukkapay.com (part-payment), if any and valid.
+        const chosen = Number(chosenAmount);
+        if (data.allowPartialPayment && chosen > 0 && chosen < Number(data.remainingBalance)) {
+          setIsFullPay(false);
+          setPayAmount(chosen.toFixed(2));
+        } else {
+          setPayAmount(data.remainingBalance);
+        }
         if (data.invoice?.customerName) setStitchPayerName(data.invoice.customerName);
         if (data.invoice?.customerEmail) setStitchPayerEmail(data.invoice.customerEmail);
       } else {
@@ -308,7 +315,7 @@ export default function PayLink() {
   const isBusiness  = linkData.type === "business";
   const sym         = currencySymbol(linkData.currency);
   const payAmtVal   = isFullPay ? remaining : (parseFloat(payAmount) || 0);
-  const payUrl      = `${APP_URL}/pay/${linkData.id}`;
+  const payUrl      = publicPayUrl(linkData.id);
 
   // ─── Fully Paid ──────────────────────────────────────────────
   if (isPaid) {

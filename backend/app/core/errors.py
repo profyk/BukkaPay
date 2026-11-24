@@ -26,7 +26,11 @@ class ApiError(Exception):
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content={"error": exc.message})
+        content = {"error": exc.message}
+        if getattr(exc, "code", None):
+            content["code"] = exc.code
+        content.update(getattr(exc, "extra", None) or {})
+        return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:

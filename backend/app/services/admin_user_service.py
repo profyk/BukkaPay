@@ -140,6 +140,9 @@ async def delete_user(db: AsyncSession, user: User) -> None:
     user.biometric_enabled = False
     user.frozen = True
     user.deleted_at = datetime.now(UTC)
+    from app.push import service as push_service
+
+    await push_service.remove_all_devices(db, user.id)
     await db.flush()
 
 
@@ -151,7 +154,13 @@ async def broadcast(db: AsyncSession, *, type: str | None, title: str, message: 
     result = await db.execute(select(User.id))
     user_ids = [row[0] for row in result.all()]
     for user_id in user_ids:
-        await notification_service.create_notification(db, user_id, type or NotificationType.INFO, title, message)
+        await notification_service.create_notification(db, user_id, type or NotificationType.INFO, title, message,
+                                                        push=False)
+    # One paged push job for everyone who opted in to product news, instead
+    # of one push event per user.
+    from app.network import outbox
+
+    await outbox.enqueue(db, "push.broadcast", {"title": title, "message": message})
     return len(user_ids)
 
 
@@ -178,15 +187,21 @@ async def list_kyc(db: AsyncSession, *, page: int, limit: int) -> tuple[list[dic
 
 
 async def approve_kyc(db: AsyncSession, user: User) -> User:
+    from app.network import compliance
+
+    # Screen before approving: a confident sanctions hit freezes the account
+    # and leaves the KYC pending for the compliance case, instead of
+    # activating cards and limits for a sanctioned person.
+    screening = await compliance.record_screening(db, user_id=user.id)
+    if screening["blocked"]:
+        await db.flush()
+        return user
     user.kyc_status = KycStatus.APPROVED
     user.kyc_reviewed_at = datetime.now(UTC)
     user.kyc_rejection_reason = None
     user.verified = True
     user.kyc_level = 2
     await db.flush()
-    from app.network import compliance
-
-    await compliance.record_screening(db, user_id=user.id)
     from app.cards import service as card_service
 
     await card_service.on_kyc_verified(db, user.id)

@@ -4,7 +4,7 @@ retries and backoff. Handlers must be idempotent."""
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.platform import OutboxEvent
@@ -25,6 +25,11 @@ async def _handle(db: AsyncSession, event: OutboxEvent) -> None:
         from app.network import webhooks
 
         await webhooks.sandbox_settle(db, event.payload["transfer_reference"], event.payload["rail_reference"])
+    elif event.topic == "rail.book.settle":
+        from app.network import transfers
+
+        await transfers.settle(db, event.payload["transfer_reference"],
+                               rail_reference=event.payload["rail_reference"])
     elif event.topic == "website.revalidate":
         from app.website import service as website_service
 
@@ -33,6 +38,23 @@ async def _handle(db: AsyncSession, event: OutboxEvent) -> None:
         from app.cards import service as card_service
 
         await card_service.issue_for_wallet(db, event.payload["wallet_card_id"])
+    elif event.topic == "push.notification":
+        from app.push import service as push_service
+
+        await push_service.deliver_notification(db, event.payload["notification_id"], event.payload.get("attempt", 0))
+    elif event.topic == "push.receipts":
+        from app.push import service as push_service
+
+        await push_service.check_receipts(db, event.payload["tickets"])
+    elif event.topic == "push.broadcast":
+        from app.push import service as push_service
+
+        await push_service.deliver_broadcast(db, event.payload["title"], event.payload["message"],
+                                             after_user_id=event.payload.get("after_user_id"))
+    elif event.topic == "card.funds_lock":
+        from app.cards import service as card_service
+
+        await card_service.sync_funds_lock(db, event.payload["wallet_card_id"])
     elif event.topic == "merchant.webhook":
         from app.merchants import webhooks_out
 
@@ -68,7 +90,10 @@ async def _process_batch(session_factory, *, limit: int, now: datetime) -> tuple
                 await db.execute(
                     select(OutboxEvent.id)
                     .where(OutboxEvent.status == "pending", OutboxEvent.available_at <= now)
-                    .order_by(OutboxEvent.available_at)
+                    # Money first: settlements and card events never wait
+                    # behind a burst of notifications.
+                    .order_by(case((OutboxEvent.topic.like("rail.%"), 0), (OutboxEvent.topic.like("push.%"), 2), else_=1),
+                              OutboxEvent.available_at)
                     .limit(limit)
                 )
             ).scalars()

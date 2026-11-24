@@ -14,7 +14,14 @@ async def list_notifications(
     user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> list[NotificationResponse]:
     notifications = await svc.get_notifications(db, user_id)
-    return [NotificationResponse.model_validate(n) for n in notifications]
+    from app.push import catalog
+
+    return [
+        NotificationResponse.model_validate(n).model_copy(update={
+            "category": catalog.category_for(n.related_type), "url": catalog.link_for(n.related_type, n.related_id),
+        })
+        for n in notifications
+    ]
 
 
 @router.get("/unread-count")

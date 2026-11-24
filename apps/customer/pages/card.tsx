@@ -156,11 +156,23 @@ export default function CardScreen() {
         currency={getCurrency(currency).symbol}
       />
 
+      {frozen && card.frozenReason === "no_funds" && (
+        <View style={[styles.notice, { backgroundColor: "#FEF3C7" }]}>
+          <Ionicons name="wallet-outline" size={18} color="#B45309" />
+          <Text style={[styles.noticeText, { color: "#78350F" }]}>Paused because this wallet is empty, so no payment can fail or cost you. Top up and it switches back on by itself.</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={() => router.push("/(screens)/topup" as any)}>
+            <Text style={{ color: "#B45309", fontWeight: "700" }}>Top up</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {card.status === "pending_kyc" && (
         <View style={[styles.notice, { backgroundColor: colors.primaryLight }]}>
           <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
           <Text style={[styles.noticeText, { color: colors.text }]}>Verify your identity to activate this card. It's issued as soon as your ID is approved.</Text>
-          <TouchableOpacity onPress={() => router.push("/(screens)/my-id" as any)}><Text style={{ color: colors.primary, fontWeight: "700" }}>Verify</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Verify your identity"
+            onPress={() => router.push({ pathname: "/(auth)/kyc-verification", params: { returnTo: `/card?walletId=${walletId}` } } as any)}>
+            <Text style={{ color: colors.primary, fontWeight: "700" }}>Verify</Text>
+          </TouchableOpacity>
         </View>
       )}
       {Number(card.overdraftOutstanding) > 0 && (
@@ -193,8 +205,12 @@ export default function CardScreen() {
       {(card.status === "active" || frozen) && (
         <View style={styles.actions}>
           <Action icon="eye-outline" label="Details" onPress={() => setPinAction({ kind: "reveal" })} disabled={frozen} colors={colors} />
-          <Action icon={frozen ? "play-outline" : "snow-outline"} label={frozen ? "Unfreeze" : "Freeze"}
-            onPress={() => (frozen ? setPinAction({ kind: "unfreeze" }) : freeze.mutate())} colors={colors} />
+          {frozen && card.frozenReason === "no_funds" ? (
+            <Action icon="add-circle-outline" label="Top up" onPress={() => router.push("/(screens)/topup" as any)} colors={colors} />
+          ) : (
+            <Action icon={frozen ? "play-outline" : "snow-outline"} label={frozen ? "Unfreeze" : "Freeze"}
+              onPress={() => (frozen ? setPinAction({ kind: "unfreeze" }) : freeze.mutate())} colors={colors} />
+          )}
           <Action icon="refresh-outline" label="Replace" onPress={() => setPinAction({ kind: "replace" })} colors={colors} />
         </View>
       )}

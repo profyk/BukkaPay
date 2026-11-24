@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Switch, ActivityIndicator, StyleSheet, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Switch, ActivityIndicator, StyleSheet, Image, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -64,9 +64,7 @@ export default function Profile() {
   const [showBiometricPasswordModal, setShowBiometricPasswordModal] = useState(false);
   const [biometricPassword, setBiometricPassword] = useState("");
   const [confirmingBiometric, setConfirmingBiometric] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hideBalance, setHideBalance] = useState(false);
-  const [quickPayEnabled, setQuickPayEnabled] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -78,12 +76,8 @@ export default function Profile() {
       }
       const lang = await AsyncStorage.getItem("app_language");
       if (lang) setSelectedLanguage(lang);
-      const notif = await AsyncStorage.getItem("notifications_enabled");
-      if (notif === "false") setNotificationsEnabled(false);
       const hide = await AsyncStorage.getItem("hide_balance");
       if (hide === "true") setHideBalance(true);
-      const qp = await AsyncStorage.getItem("quick_pay");
-      if (qp === "true") setQuickPayEnabled(true);
 
       const bioAvailable = await isBiometricAvailable();
       setBiometricSupported(bioAvailable);
@@ -219,22 +213,12 @@ export default function Profile() {
     }
   };
 
-  const handleNotificationsToggle = async (enabled: boolean) => {
-    setNotificationsEnabled(enabled);
-    await AsyncStorage.setItem("notifications_enabled", String(enabled));
-    toast({ title: enabled ? "Enabled" : "Disabled", description: enabled ? "Notifications enabled" : "Notifications disabled" });
-  };
 
   const handleHideBalanceToggle = async (enabled: boolean) => {
     setHideBalance(enabled);
     await AsyncStorage.setItem("hide_balance", String(enabled));
   };
 
-  const handleQuickPayToggle = async (enabled: boolean) => {
-    setQuickPayEnabled(enabled);
-    await AsyncStorage.setItem("quick_pay", String(enabled));
-    toast({ title: enabled ? "Enabled" : "Disabled", description: enabled ? "Quick Pay enabled" : "Quick Pay disabled" });
-  };
 
   const handleDarkModeToggle = async (enabled: boolean) => {
     await setDarkMode(enabled);
@@ -258,169 +242,203 @@ export default function Profile() {
     );
   }
 
-  const renderSettingRow = (icon: string, label: string, subtitle: string, value: boolean, onToggle: (v: boolean) => void, disabled?: boolean) => (
-    <View style={styles.settingRow}>
-      <View style={styles.settingLeft}>
-        <Ionicons name={icon as any} size={20} color={colors.primary} />
-        <View>
-          <Text style={[styles.settingLabel, { color: colors.text }]}>{label}</Text>
-          <Text style={[styles.settingSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-        </View>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        disabled={disabled}
-        trackColor={{ false: colors.border, true: colors.primary }}
-        thumbColor="#FFFFFF"
-      />
-    </View>
-  );
-
   const kycLabels: Record<string, string> = {
-    not_submitted: "Not started", pending: "Pending review", approved: "Verified", rejected: "Resubmit required",
+    not_submitted: "Not verified", pending: "Under review", approved: "Verified", rejected: "Needs attention",
   };
   const kycStatusValue = kycStatus?.kycStatus || "not_submitted";
+  const verified = kycStatusValue === "approved";
 
   const handleVerificationPress = () => {
     if (kycStatusValue === "pending") {
-      toast({ title: "Under review", description: "We're reviewing your submitted documents." });
+      toast({ title: "Under review", description: "We're checking your documents. This usually takes less than a day." });
       return;
     }
-    if (kycStatusValue === "approved") {
-      toast({ title: "Verified", description: "Your identity has already been verified." });
+    if (verified) {
+      toast({ title: "You're verified", description: "Your identity is confirmed. All features and higher limits are on." });
       return;
     }
-    router.push("/(auth)/kyc-verification" as any);
+    router.push({ pathname: "/(auth)/kyc-verification", params: { returnTo: "/(tabs)/profile" } } as any);
   };
 
-  const renderNavRow = (icon: string, label: string, subtitle: string, onPress: () => void) => (
-    <TouchableOpacity style={styles.settingRow} onPress={onPress}>
-      <View style={styles.settingLeft}>
-        <Ionicons name={icon as any} size={20} color={colors.primary} />
-        <View>
-          <Text style={[styles.settingLabel, { color: colors.text }]}>{label}</Text>
-          <Text style={[styles.settingSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-        </View>
+  // Balances per currency (never added across currencies).
+  const byCurrency = Object.entries(
+    (cards || []).reduce((acc: Record<string, number>, c: any) => ({ ...acc, [c.currency]: (acc[c.currency] || 0) + parseFloat(c.balance || "0") }), {}),
+  ) as [string, number][];
+
+  const Row = ({ icon, tint, label, hint, onPress, right, danger }: {
+    icon: string; tint: string; label: string; hint?: string; onPress?: () => void; right?: React.ReactNode; danger?: boolean;
+  }) => (
+    <TouchableOpacity style={styles.row} onPress={onPress} disabled={!onPress} activeOpacity={0.7}
+      accessibilityRole={onPress ? "button" : undefined} accessibilityLabel={label}>
+      <View style={[styles.rowIcon, { backgroundColor: tint + (darkMode ? "33" : "1A") }]}>
+        <Ionicons name={icon as any} size={18} color={tint} />
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowLabel, { color: danger ? "#EF4444" : colors.text }]}>{label}</Text>
+        {!!hint && <Text style={[styles.rowHint, { color: colors.textMuted }]} numberOfLines={2}>{hint}</Text>}
+      </View>
+      {right ?? (onPress ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null)}
     </TouchableOpacity>
   );
+  const Toggle = ({ value, onChange, disabled, label }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) => (
+    <Switch value={value} onValueChange={onChange} disabled={disabled} trackColor={{ false: colors.border, true: colors.primary }}
+      thumbColor="#FFFFFF" accessibilityLabel={label} />
+  );
+  const Group = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <View style={styles.group}>
+      <Text style={[styles.groupTitle, { color: colors.textMuted }]}>{title}</Text>
+      <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {(Array.isArray(children) ? children : [children]).filter(Boolean).map((child, i) => (
+          <View key={i}>
+            {i > 0 && <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />}
+            {child}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  const statusChip = verified
+    ? { icon: "shield-checkmark", text: "Verified", bg: "rgba(34,197,94,0.18)", fg: "#4ADE80" }
+    : kycStatusValue === "pending"
+      ? { icon: "time", text: "Under review", bg: "rgba(250,204,21,0.18)", fg: "#FACC15" }
+      : { icon: "alert-circle", text: kycLabels[kycStatusValue] || "Not verified", bg: "rgba(248,113,113,0.18)", fg: "#FCA5A5" };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
-      <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Profile</Text>
-        <TouchableOpacity style={styles.editButton} onPress={openEditModal}>
-          <Ionicons name="create-outline" size={20} color={colors.text} />
+      {/* Identity */}
+      <View style={styles.hero}>
+        <View style={styles.heroTop}>
+          <Text style={styles.heroTitle}>Profile</Text>
+          <TouchableOpacity style={styles.heroIconBtn} onPress={openEditModal} accessibilityLabel="Edit profile">
+            <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.heroIdentity}>
+          <TouchableOpacity onPress={() => setShowAvatarModal(true)} accessibilityLabel="Change photo"
+            style={[styles.heroAvatar, { backgroundColor: isPhotoAvatar(user.avatar) ? "transparent" : (getAvatarColor(user.avatar) || "#0033CC") }]}>
+            {isPhotoAvatar(user.avatar)
+              ? <Image source={{ uri: user.avatar }} style={styles.heroAvatarPhoto} />
+              : <Text style={styles.heroInitials}>{getInitials(user.name || user.username || "?")}</Text>}
+            <View style={styles.heroAvatarBadge}><Ionicons name="camera" size={12} color="#010C38" /></View>
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroName} numberOfLines={1}>{user.name}</Text>
+            <Text style={styles.heroHandle} numberOfLines={1}>@{user.username}{user.accountType === "business" ? " · Business" : ""}</Text>
+            <TouchableOpacity onPress={handleVerificationPress} style={[styles.statusChip, { backgroundColor: statusChip.bg }]}
+              accessibilityLabel={`Identity: ${statusChip.text}`}>
+              <Ionicons name={statusChip.icon as any} size={13} color={statusChip.fg} />
+              <Text style={[styles.statusChipText, { color: statusChip.fg }]}>{statusChip.text}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.walletIdRow} onPress={copyWalletID} accessibilityLabel="Copy wallet ID">
+          <View>
+            <Text style={styles.walletIdLabel}>WALLET ID</Text>
+            <Text style={styles.walletIdText}>{user.walletId}</Text>
+          </View>
+          <View style={styles.copyPill}>
+            <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color="#FFFFFF" />
+            <Text style={styles.copyPillText}>{copied ? "Copied" : "Copy"}</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.profileCard}>
-        <View style={styles.profileTop}>
-          <View style={styles.profileInfo}>
-            <TouchableOpacity
-              style={[styles.avatarCircle, { backgroundColor: isPhotoAvatar(user.avatar) ? "transparent" : (getAvatarColor(user.avatar) || "rgba(255,255,255,0.2)") }]}
-              onPress={() => setShowAvatarModal(true)}
-            >
-              {isPhotoAvatar(user.avatar) ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatarPhoto} />
-              ) : (
-                <Ionicons name="person" size={28} color="#FFFFFF" />
-              )}
-              <View style={styles.avatarEditBadge}>
-                <Ionicons name="create" size={10} color="#6B7280" />
-              </View>
-            </TouchableOpacity>
-            <View>
-              <Text style={styles.profileName}>{user.name}</Text>
-              <Text style={styles.profileEmail}>{user.email}</Text>
-              <Text style={styles.profileUsername}>@{user.username}</Text>
-            </View>
-          </View>
-          {user.verified !== false && (
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.walletIdBox}>
-          <View>
-            <Text style={styles.walletIdLabel}>Wallet ID</Text>
-            <Text style={styles.walletIdText}>{user.walletId}</Text>
-          </View>
-          <TouchableOpacity style={styles.copyButton} onPress={copyWalletID}>
-            <Ionicons name={copied ? "checkmark" : "copy-outline"} size={18} color="#FFFFFF" />
+      {/* Balances per currency */}
+      <View style={[styles.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.balanceHead}>
+          <Text style={[styles.groupTitle, { color: colors.textMuted, marginBottom: 0 }]}>BALANCES</Text>
+          <TouchableOpacity onPress={() => handleHideBalanceToggle(!hideBalance)} accessibilityLabel={hideBalance ? "Show balances" : "Hide balances"}>
+            <Ionicons name={hideBalance ? "eye-off-outline" : "eye-outline"} size={18} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
-      </View>
-
-      <View style={styles.statsRow}>
-        <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{hideBalance ? "****" : `R${totalBalance.toFixed(2)}`}</Text>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Wallet Balance</Text>
+        <View style={styles.balanceRow}>
+          {(byCurrency.length ? byCurrency : [["ZAR", 0] as [string, number]]).map(([ccy, amt]) => (
+            <View key={ccy} style={styles.balanceItem}>
+              <Text style={[styles.balanceValue, { color: colors.text }]}>{hideBalance ? "••••" : `${amt.toFixed(2)}`}</Text>
+              <Text style={[styles.balanceCcy, { color: colors.textMuted }]}>{ccy}</Text>
+            </View>
+          ))}
         </View>
-        <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{transactionCount}</Text>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Transactions</Text>
-        </View>
-        <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.statValue, { color: "#F59E0B" }]}>{loyaltyPoints}</Text>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Loyalty Points</Text>
-        </View>
+        <Text style={[styles.rowHint, { color: colors.textMuted }]}>{transactionCount} transactions</Text>
       </View>
 
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>WALLET SETTINGS</Text>
-      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {renderSettingRow("finger-print", biometricLabel, biometricSupported ? "Use fingerprint or Face ID to sign in" : "Not available on this device", biometricEnabled, handleBiometricToggle, !biometricSupported)}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderNavRow("shield-checkmark-outline", "Identity Verification (KYC)", kycLabels[kycStatusValue] || kycStatusValue, handleVerificationPress)}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderSettingRow(hideBalance ? "eye-off" : "eye", "Hide Balance", "Hide your wallet balance", hideBalance, handleHideBalanceToggle)}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderSettingRow("phone-portrait", "Quick Pay", "Enable NFC tap to pay", quickPayEnabled, handleQuickPayToggle)}
+      {/* Finish verification */}
+      {!verified && (
+        <TouchableOpacity onPress={handleVerificationPress} activeOpacity={0.85}
+          style={[styles.verifyCard, { backgroundColor: colors.card, borderColor: kycStatusValue === "rejected" ? "#EF4444" : colors.primary }]}>
+          <View style={[styles.rowIcon, { backgroundColor: colors.primaryLight, width: 44, height: 44 }]}>
+            <Ionicons name={kycStatusValue === "pending" ? "hourglass-outline" : "id-card-outline"} size={22} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>
+              {kycStatusValue === "pending" ? "We're checking your ID" : kycStatusValue === "rejected" ? "Please resubmit your ID" : "Verify your identity"}
+            </Text>
+            <Text style={[styles.rowHint, { color: colors.textMuted }]}>
+              {kycStatusValue === "pending" ? "Usually under a day. We'll notify you." : "Unlock your Visa card, sending abroad and higher limits. Takes 2 minutes."}
+            </Text>
+            <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+              <View style={[styles.progressFill, { backgroundColor: colors.primary, width: kycStatusValue === "pending" ? "75%" : "33%" }]} />
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Shortcuts */}
+      <View style={styles.tiles}>
+        {([
+          ["qr-code-outline", "My QR", "/(screens)/my-id", "#F59E0B"],
+          ["card-outline", "Cards", "/(tabs)/wallet", "#0033CC"],
+          ["stats-chart-outline", "Insights", "/(screens)/analytics", "#10B981"],
+          ["chatbubbles-outline", "Help", "/(screens)/support-chat", "#8B5CF6"],
+        ] as [string, string, string, string][]).map(([icon, label, href, tint]) => (
+          <TouchableOpacity key={label} onPress={() => router.push(href as any)} accessibilityRole="button"
+            style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.rowIcon, { backgroundColor: tint + (darkMode ? "33" : "1A") }]}><Ionicons name={icon as any} size={20} color={tint} /></View>
+            <Text style={[styles.tileLabel, { color: colors.text }]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>APPEARANCE</Text>
-      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {renderSettingRow(darkMode ? "moon" : "sunny", "Dark Mode", "Switch between light and dark theme", darkMode, handleDarkModeToggle)}
-      </View>
+      <Group title="ACCOUNT">
+        <Row icon="person-outline" tint="#0033CC" label="Personal details" hint={[user.email, user.phone].filter(Boolean).join(" · ")} onPress={openEditModal} />
+        <Row icon="id-card-outline" tint="#0EA5E9" label="Identity verification" hint={kycLabels[kycStatusValue] || kycStatusValue} onPress={handleVerificationPress}
+          right={<View style={[styles.pill, { backgroundColor: verified ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)" }]}>
+            <Text style={[styles.pillText, { color: verified ? "#16A34A" : "#B45309" }]}>{kycLabels[kycStatusValue]}</Text></View>} />
+        {user.accountType === "business" && (
+          <Row icon="briefcase-outline" tint="#059669" label="Business" hint="Verification, team and payouts" onPress={() => router.push("/(screens)/business" as any)} />
+        )}
+        <Row icon="gift-outline" tint="#F59E0B" label="Rewards" hint={loyaltyPoints ? `${loyaltyPoints} points` : "Earn as you pay"} onPress={() => router.push("/(screens)/loyalty" as any)} />
+      </Group>
 
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>SECURITY & NOTIFICATIONS</Text>
-      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {renderSettingRow("notifications", "Push Notifications", "Transaction alerts & updates", notificationsEnabled, handleNotificationsToggle)}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderNavRow("shield-checkmark", "Security Settings", "PIN, 2FA & transaction limits", () => router.push("/(screens)/security-settings"))}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderNavRow("lock-closed", "Change PIN", "Update your wallet PIN", () => router.push("/(screens)/security-settings"))}
-      </View>
+      <Group title="SECURITY">
+        <Row icon="finger-print" tint="#10B981" label={biometricLabel}
+          hint={biometricSupported ? "Sign in with your face or fingerprint" : "Not available on this device"}
+          right={<Toggle value={biometricEnabled} onChange={handleBiometricToggle} disabled={!biometricSupported} label={biometricLabel} />} />
+        <Row icon="keypad-outline" tint="#6366F1" label="PIN, limits and two-step sign-in" hint="Change your PIN, set spending limits" onPress={() => router.push("/(screens)/security-settings")} />
+        <Row icon="notifications-outline" tint="#EF4444" label="Notifications" hint="Alerts, devices and lock-screen privacy" onPress={() => router.push("/(screens)/notification-settings" as any)} />
+      </Group>
 
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>ACCOUNT</Text>
-      <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {renderNavRow("qr-code", "My BKP Code", "View your unique payment QR code", () => router.push("/(screens)/my-id"))}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderNavRow("globe", "Language & Region", getCurrentLanguageName(), () => setShowLanguageModal(true))}
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        {renderNavRow("information-circle", "About BukkaPay", "Learn about our mission and services", () => router.push("/(screens)/about" as any))}
-      </View>
+      <Group title="PREFERENCES">
+        <Row icon={darkMode ? "moon-outline" : "sunny-outline"} tint="#F59E0B" label="Dark mode"
+          right={<Toggle value={darkMode} onChange={handleDarkModeToggle} label="Dark mode" />} />
+        <Row icon={hideBalance ? "eye-off-outline" : "eye-outline"} tint="#0EA5E9" label="Hide balances" hint="Keep amounts private on screen"
+          right={<Toggle value={hideBalance} onChange={handleHideBalanceToggle} label="Hide balances" />} />
+        <Row icon="language-outline" tint="#8B5CF6" label="Language" hint={getCurrentLanguageName()} onPress={() => setShowLanguageModal(true)} />
+        <Row icon="phone-portrait-outline" tint="#0033CC" label="Tap to pay" hint="Set up on each card in Cards" onPress={() => router.push("/(tabs)/wallet" as any)} />
+      </Group>
 
-      <View style={[styles.loyaltyBanner, { backgroundColor: darkMode ? "rgba(245,158,11,0.15)" : "rgba(245,158,11,0.1)", borderColor: darkMode ? "rgba(245,158,11,0.4)" : "rgba(245,158,11,0.3)" }]}>
-        <Ionicons name="flash" size={24} color="#F59E0B" />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.loyaltyTitle, { color: colors.text }]}>
-            {loyalty?.tier === "gold" ? "Gold Member" : loyalty?.tier === "silver" ? "Silver Member" : "Bronze Member"}
-          </Text>
-          <Text style={[styles.loyaltySubtitle, { color: colors.textMuted }]}>Exclusive rewards & higher limits</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </View>
+      <Group title="SUPPORT">
+        <Row icon="chatbubbles-outline" tint="#8B5CF6" label="Help and support" hint="Chat with our team" onPress={() => router.push("/(screens)/support-chat" as any)} />
+        <Row icon="information-circle-outline" tint="#64748B" label="About BukkaPay" onPress={() => router.push("/(screens)/about" as any)} />
+        <Row icon="document-text-outline" tint="#64748B" label="Terms and privacy" onPress={() => Linking.openURL("https://bukkapay.com/legal")} />
+      </Group>
 
-      <TouchableOpacity style={[styles.logoutButton, { backgroundColor: darkMode ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.1)" }]} onPress={handleLogout}>
+      <TouchableOpacity style={[styles.signOut, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={handleLogout} accessibilityRole="button">
         <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-        <Text style={styles.logoutText}>Log Out</Text>
+        <Text style={styles.signOutText}>Sign out</Text>
       </TouchableOpacity>
+      <Text style={[styles.footer, { color: colors.textMuted }]}>BukkaPay · Africa's money, without borders</Text>
 
       <Modal visible={showEditModal} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowEditModal(false)}>
@@ -607,6 +625,49 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
+  hero: { backgroundColor: "#010C38", paddingTop: 52, paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 18 },
+  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  heroTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "700" },
+  heroIconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
+  heroIdentity: { flexDirection: "row", alignItems: "center", gap: 16 },
+  heroAvatar: { width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "rgba(255,255,255,0.25)" },
+  heroAvatarPhoto: { width: 70, height: 70, borderRadius: 35 },
+  heroInitials: { color: "#FFFFFF", fontSize: 26, fontWeight: "800" },
+  heroAvatarBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
+  heroName: { color: "#FFFFFF", fontSize: 22, fontWeight: "800" },
+  heroHandle: { color: "rgba(255,255,255,0.7)", fontSize: 14, marginTop: 2 },
+  statusChip: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginTop: 8 },
+  statusChipText: { fontSize: 12, fontWeight: "700" },
+  walletIdRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 16, padding: 14 },
+  walletIdLabel: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: "700", letterSpacing: 1 },
+  walletIdText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", marginTop: 2, letterSpacing: 0.5 },
+  copyPill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#0033CC", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  copyPillText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  balanceCard: { marginHorizontal: 20, marginTop: 16, borderWidth: 1, borderRadius: 20, padding: 16, gap: 10 },
+  balanceHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  balanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 22 },
+  balanceItem: { minWidth: 80 },
+  balanceValue: { fontSize: 22, fontWeight: "800" },
+  balanceCcy: { fontSize: 12, fontWeight: "700", letterSpacing: 0.6, marginTop: 2 },
+  verifyCard: { flexDirection: "row", gap: 14, marginHorizontal: 20, marginTop: 14, borderWidth: 1.5, borderRadius: 20, padding: 16 },
+  progressTrack: { height: 6, borderRadius: 3, marginTop: 10, overflow: "hidden" },
+  progressFill: { height: 6, borderRadius: 3 },
+  tiles: { flexDirection: "row", gap: 10, marginHorizontal: 20, marginTop: 14 },
+  tile: { flex: 1, alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 18, paddingVertical: 14 },
+  tileLabel: { fontSize: 12, fontWeight: "700" },
+  group: { marginHorizontal: 20, marginTop: 22 },
+  groupTitle: { fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
+  groupCard: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 13, minHeight: 56 },
+  rowIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  rowLabel: { fontSize: 15, fontWeight: "600" },
+  rowHint: { fontSize: 13, lineHeight: 18, marginTop: 1 },
+  rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 48 },
+  pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  pillText: { fontSize: 12, fontWeight: "700" },
+  signOut: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderRadius: 16, paddingVertical: 15 },
+  signOutText: { color: "#EF4444", fontSize: 15, fontWeight: "700" },
+  footer: { textAlign: "center", fontSize: 12, marginTop: 14, marginBottom: 8 },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -719,17 +780,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
-  },
-  walletIdLabel: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.7)",
-    marginBottom: 2,
-  },
-  walletIdText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    fontFamily: "monospace",
   },
   copyButton: {
     padding: 8,

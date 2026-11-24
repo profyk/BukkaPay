@@ -6,8 +6,41 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/pay/:linkId", "destination": "/pay/[linkId].html" },
-    { "source": "/claim/:id", "destination": "/claim/[id].html" },
-    { "source": "/trade/:ref", "destination": "/trade/[ref].html" }
+    {
+      "source": "/pay/:linkId",
+      "destination": "/pay/[linkId].html"
+    },
+    {
+      "source": "/claim/:id",
+      "destination": "/claim/[id].html"
+    },
+    {
+      "source": "/trade/:ref",
+      "destination": "/trade/[ref].html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    }
   ]
 }

@@ -107,6 +107,9 @@ export async function login(email: string, password: string) {
 }
 
 export async function logout() {
+  // Stop this device's alerts before the session ends, so the next person
+  // to sign in here never sees them.
+  try { await (await import("./push")).disablePush(); } catch {}
   const token = await getAuthToken();
   if (token) {
     try {

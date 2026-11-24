@@ -102,7 +102,8 @@ function CardTile({ card, wallet, holder, colors, onOpen }: { card: IssuedCard; 
   const expiry = card.expMonth ? `${String(card.expMonth).padStart(2, "0")}/${String(card.expYear).slice(-2)}` : null;
   const ready = activeToken(card);
   const settingUp = pendingToken(card);
-  const status = card.status === "frozen" ? { icon: "snow-outline", text: "Frozen · tap to manage", color: "#2563EB" }
+  const status = card.status === "frozen" && card.frozenReason === "no_funds" ? { icon: "wallet-outline", text: "Paused · top up to use", color: "#B45309" }
+    : card.status === "frozen" ? { icon: "snow-outline", text: "Frozen · tap to manage", color: "#2563EB" }
     : card.status === "pending_kyc" ? { icon: "shield-outline", text: "Verify your ID to activate", color: "#D97706" }
     : card.status === "requested" ? { icon: "time-outline", text: "Being issued…", color: "#6B7280" }
     : !card.controls.online && !card.controls.contactless ? { icon: "pause-circle-outline", text: "Online and tap to pay off", color: "#B45309" }
@@ -121,7 +122,7 @@ function CardTile({ card, wallet, holder, colors, onOpen }: { card: IssuedCard; 
         cardNumber={card.last4 ? `•••• •••• •••• ${card.last4}` : ""}
         expiryDate={expiry}
         holderName={card.cardholderName || holder}
-        cardStatus={card.status}
+        cardStatus={card.status === "frozen" && card.frozenReason === "no_funds" ? "no_funds" : card.status}
       />
       <View style={st.tileMeta}>
         <View style={[st.badge, { backgroundColor: card.form === "physical" ? "#111827" : colors.primaryLight }]}>

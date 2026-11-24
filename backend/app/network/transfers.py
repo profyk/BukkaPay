@@ -44,6 +44,8 @@ async def initiate(
     if (recipient.residence_country or "").upper() != corridor.to_country:
         raise ApiError("The recipient isn't registered in the destination country of this quote")
     rail_provider = await routing.check_route(db, corridor, quote.source_amount)
+    # Re-check capacity now: other transfers may have used it since the quote.
+    await routing.check_liquidity(db, corridor, quote.destination_amount)
     await limits.check(db, sender, "cross_border", quote.source_amount, currency=quote.from_currency,
                        country=corridor.from_country)
 
@@ -71,12 +73,22 @@ async def initiate(
     db.add(transfer)
     await db.flush()
 
-    try:
-        transfer.rail_reference = await rails.adapter_for(rail_provider).instruct(db, rail_provider, transfer)
-        transfer.status = "instructed"
-    except (rails.RailRejected, rails.RailUnavailable) as e:
+    # Try the main rail, then each backup. A rail that refuses or is down
+    # sent nothing, so the next one can safely take the transfer.
+    errors: list[str] = []
+    for candidate in await routing.rail_candidates(db, corridor):
+        transfer.rail = candidate.code
+        try:
+            transfer.rail_reference = await rails.adapter_for(candidate).instruct(db, candidate, transfer)
+            transfer.status = "instructed"
+            break
+        except (rails.RailRejected, rails.RailUnavailable) as e:
+            errors.append(f"{candidate.code}: {e}")
+    if transfer.status != "instructed":
         # Nothing left BukkaPay — undo the debit now, in this transaction.
-        raise ApiError(f"This transfer couldn't be sent: {e}", status_code=503) from e
+        raise ApiError(f"This transfer couldn't be sent: {'; '.join(errors) or 'no rail available'}",
+                       status_code=503)
+    await db.flush()
 
     db.add(Transaction(
         user_id=sender.id, card_id=sender_card.id, title=f"Sent to {recipient.name or recipient.username} "
@@ -90,7 +102,8 @@ async def initiate(
         related_id=str(transfer.id), related_type="transfer",
     )
     await compliance.evaluate(db, user=sender, amount=quote.source_amount, currency=quote.from_currency,
-                              kind="cross_border", reference=reference)
+                              kind="cross_border", reference=reference, recipient=recipient,
+                              country=corridor.to_country)
     await db.flush()
     return transfer
 

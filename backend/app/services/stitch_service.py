@@ -243,8 +243,9 @@ async def withdraw(
     fee = await fees.compute(db, "withdrawal", parsed_amount, currency=card.currency,
                              country=user.residence_country, method="bank_payout")
     total_debit = parsed_amount + fee.fee
-    if card.balance < total_debit:
-        raise ApiError(f"Insufficient balance (amount {parsed_amount:.2f} + fee {fee.fee:.2f})")
+    from app.ledger import funds
+
+    await funds.require(db, card, total_debit, what=f"withdraw (amount {parsed_amount:.2f} + fee {fee.fee:.2f})")
 
     reference = f"WITHDRAW-{secrets.token_hex(5).upper()}"
     request = WithdrawalRequest(
@@ -379,11 +380,12 @@ async def _complete_link_by_provider_ref(db: AsyncSession, link_id: str, payment
 async def payment_link_callback_redirect(
     db: AsyncSession, *, link_id: str, ref: str, payment_request_id: str | None,
 ) -> str:
-    app_url = get_settings().app_url
+    # Back to the public pay page the payer came from.
+    pay_url = get_settings().pay_web_url.rstrip("/")
     if not payment_request_id:
-        return f"{app_url}/pay/{link_id}?status=error"
+        return f"{pay_url}/{link_id}?status=error"
     status = await _complete_link_by_provider_ref(db, link_id, payment_request_id)
-    return f"{app_url}/pay/{link_id}?status={status}&ref={ref}"
+    return f"{pay_url}/{link_id}?status={status}&ref={ref}"
 
 
 async def verify_payment_link_stitch(db: AsyncSession, link_id: str, payment_request_id: str) -> str:

@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
-import { API_BASE } from "../lib/config";
+import { API_BASE, payUrl as publicPayUrl } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
 import { canDelete, confirmAction, removeLink } from "../lib/paymentLinks";
 import { useTheme } from "../lib/ThemeContext";
@@ -100,7 +100,7 @@ export default function PaymentLinkDetail() {
   const qc = useQueryClient();
   const [deleting, setDeleting] = useState(false);
 
-  const payUrl = `https://app.bukkapay.com/pay/${id}`;
+  const payUrl = publicPayUrl(String(id));
 
   const fetchDetail = useCallback(async (): Promise<LinkDetail> => {
     const headers = await getAuthHeader();

@@ -21,6 +21,7 @@ export interface WalletCardProps {
 const STATUS_TEXT: Record<string, string> = {
   pending: "Card being issued…",
   pending_kyc: "Verify your ID to activate",
+  no_funds: "Paused · top up to use",
   frozen: "Card frozen",
   cancelled: "Card cancelled",
 };

@@ -10,8 +10,6 @@ from app.models.merchant import BillingLink, Merchant
 from app.models.payment_link import PaymentLink
 from app.services import merchant_service
 
-PAYMENT_URL_BASE = "https://app.bukkapay.com/pay"
-
 
 async def get_links_by_merchant_ids(db: AsyncSession, merchant_ids: list[uuid.UUID]) -> list[BillingLink]:
     if not merchant_ids:
@@ -86,7 +84,9 @@ async def create_billing_link(
 
 
 def pay_url(link: BillingLink) -> str | None:
-    return f"{PAYMENT_URL_BASE}/{link.payment_link_id}" if link.payment_link_id else None
+    from app.services.payment_link_service import payment_url
+
+    return payment_url(link.payment_link_id) if link.payment_link_id else None
 
 
 async def get_link_with_owner_check(db: AsyncSession, link_id: str, user_id: uuid.UUID) -> BillingLink:

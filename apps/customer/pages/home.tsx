@@ -6,6 +6,7 @@ import WalletCard from "../components/WalletCard";
 import TransactionList from "../components/TransactionList";
 import ActionButtons from "../components/ActionButtons";
 import AppBar from "../components/AppBar";
+import PushPrompt from "../components/PushPrompt";
 import { fetchCards, fetchTransactions } from "../lib/api";
 import { mapCardFromAPI, mapTransactionFromAPI } from "../lib/mappers";
 import { getCurrentUser } from "../lib/auth";
@@ -79,6 +80,7 @@ export default function Home() {
             </TouchableOpacity>
           </View>
         )}
+        {mainCard && <PushPrompt />}
       </View>
 
       <View style={styles.section}>

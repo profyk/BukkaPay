@@ -291,6 +291,20 @@ export async function getKycStatus() {
 }
 
 // Notifications
+/* ─── Push notifications ───────────────────────────────────────────────── */
+
+export type PushPreferences = { money: boolean; cards: boolean; trade: boolean; support: boolean; updates: boolean; showPreviews: boolean };
+export type PushDevice = { id: string; kind: "expo" | "webpush"; platform: "ios" | "android" | "web"; deviceName: string | null; active: boolean; createdAt: string; lastSeenAt: string; lastSentAt: string | null };
+
+export const getPushConfig = () => call<{ webPushPublicKey: string | null; expo: boolean }>("GET", "/api/push/config");
+export const registerPushDevice = (body: { kind: "expo" | "webpush"; token: string; platform: "ios" | "android" | "web"; keys?: Record<string, string>; deviceName?: string | null }) =>
+  call<PushDevice>("POST", "/api/push/devices", body);
+export const removePushDevice = (body: { token?: string; id?: string }) => call("POST", "/api/push/devices/remove", body);
+export const fetchPushDevices = () => call<PushDevice[]>("GET", "/api/push/devices");
+export const fetchPushPreferences = () => call<PushPreferences>("GET", "/api/push/preferences");
+export const updatePushPreferences = (changes: Partial<PushPreferences>) => call<PushPreferences>("PUT", "/api/push/preferences", changes);
+export const sendTestPush = () => call<{ delivered: number }>("POST", "/api/push/test");
+
 export async function fetchNotifications() {
   const res = await fetch(API_BASE + "/api/notifications", { headers: await getAuthHeader() });
   if (!res.ok) throw new Error("Failed to fetch notifications");

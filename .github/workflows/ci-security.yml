@@ -78,7 +78,7 @@ jobs:
         working-directory: backend
 
   app-build-checks:
-    name: Admin, customer, merchant and website app checks
+    name: Admin, customer, merchant, website and pay app checks
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -101,6 +101,10 @@ jobs:
             install: npm ci
             build: npm run typecheck && npm run build
             lock: apps/website/package-lock.json
+          - app: pay
+            install: npm ci
+            build: npm run typecheck && npm run build
+            lock: apps/pay/package-lock.json
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}

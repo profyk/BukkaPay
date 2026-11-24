@@ -145,14 +145,24 @@ async def charge_monthly_card_maintenance_fees(ctx: dict) -> int:
             if monthly_fee <= 0:
                 continue
             if card.balance < monthly_fee:
-                # Left un-timestamped on purpose: the fee is still owed, so the
-                # card stays "due" and gets retried on tomorrow's run rather
-                # than being let off for a full month for having low balance.
-                await notification_service.create_notification(
-                    db, card.user_id, NotificationType.WARNING, "Card Maintenance Fee Failed",
-                    f'Insufficient balance on "{card.title}" to cover the monthly maintenance fee',
-                    related_id=str(card.id), related_type="card",
-                )
+                # Not attempted: an empty wallet is never charged (no failed
+                # charge). The fee stays due and is taken on the first daily
+                # run after a top-up. The person is told once, not daily.
+                from app.models.notification import Notification
+
+                told = (await db.execute(
+                    select(Notification.id).where(
+                        Notification.user_id == card.user_id, Notification.related_id == str(card.id),
+                        Notification.title == "Card fee due", Notification.created_at >= now - timedelta(days=30),
+                    ).limit(1)
+                )).scalar_one_or_none()
+                if told is None:
+                    await notification_service.create_notification(
+                        db, card.user_id, NotificationType.INFO, "Card fee due",
+                        f'The {monthly_fee} {card.currency} monthly fee for "{card.title}" will be taken '
+                        "automatically after your next top-up.",
+                        related_id=str(card.id), related_type="card",
+                    )
                 continue
 
             try:
@@ -219,6 +229,18 @@ async def daily_reconciliation(ctx: dict) -> None:
     async with get_session_factory()() as db:
         await engine.run_ledger_integrity(db, started_by="system:daily")
         await db.commit()
+
+
+async def rescreen_customers(ctx: dict) -> int:
+    """Sanctions lists change daily: rescreen verified customers monthly."""
+    from app.network import compliance
+
+    async with get_session_factory()() as db:
+        n = await compliance.rescreen_due(db)
+        await db.commit()
+    if n:
+        log.info("rescreen_customers", screened=n)
+    return n
 
 
 async def issue_pending_cards(ctx: dict) -> int:

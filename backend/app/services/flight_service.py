@@ -162,8 +162,11 @@ async def book(db: AsyncSession, user_id: uuid.UUID, *, offer_id: str, from_card
     if card.currency != offer.currency:
         raise ApiError(f"This fare is in {offer.currency} — pay from a {offer.currency} wallet")
     total = offer.total_amount
-    if card.balance < total:
-        raise ApiError("Insufficient balance")
+    # Locked until this booking commits, so the airline is only ever asked
+    # to confirm a seat the wallet can definitely pay for.
+    from app.ledger import funds
+
+    await funds.require(db, card, total, what="book this flight")
 
     booked = await provider.book(db, offer, clean)  # the airline confirms first; nothing is charged if it refuses
 

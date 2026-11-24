@@ -14,6 +14,7 @@ from app.models.user import User
 from app.network import countries as country_service
 from app.network import fees, fx, routing
 from app.network import transfers as xb_transfers
+from app.schemas.base import CamelModel
 from app.schemas.wallet import (
     CardPricingResponse,
     CreateCardRequest,
@@ -130,6 +131,30 @@ async def transfer(
         )
         g.store(result)
     return TransferResponse.model_validate(result)
+
+
+class MoveRequest(CamelModel):
+    from_card_id: str
+    to_card_id: str
+    amount: str
+    pin: str | None = None
+
+
+@router.post("/wallets/move", dependencies=[Depends(rate_limit("payment", 30, 60))])
+async def move_between_own(
+    body: MoveRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    """Between two of your own wallets (same currency), instant and free."""
+    await pin_service.verify_pin(db, user_id, body.pin)
+    async with idempotency.guard(db, scope=f"move:{user_id}", key=idempotency_key,
+                                 payload=body.model_dump(exclude={"pin"})) as g:
+        if g.replay is not None:
+            return g.replay
+        result = await wallet_service.move_between_own(db, user_id, from_card_id=body.from_card_id,
+                                                       to_card_id=body.to_card_id, amount=body.amount)
+        g.store(result)
+    return result
 
 
 @router.post("/transfer/quote")

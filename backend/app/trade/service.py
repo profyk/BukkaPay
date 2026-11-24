@@ -158,14 +158,16 @@ async def _debit_legs(db: AsyncSession, source: WalletCard, currency: str, total
     """Legs that take `total` of `currency` from the buyer (converting from
     another currency if needed). Returns (legs, buyer_amount, rate)."""
     if source.currency == currency:
-        if source.balance < total:
-            raise ApiError("Insufficient balance")
+        from app.ledger import funds
+
+        await funds.require(db, source, total, what="pay this invoice")
         return [posting.debit(await ledger_accounts.wallet_account(db, source), total)], total, None
     from app.services import swap_service
 
     q = await swap_service.quote_for_target(db, source.currency, currency, total)
-    if source.balance < q.amount:
-        raise ApiError(f"Insufficient balance: you need {source.currency} {q.amount}")
+    from app.ledger import funds
+
+    await funds.require(db, source, q.amount, what="pay this invoice")
     return await swap_service.fx_legs(db, q, source=source), q.amount, q.rate
 
 

@@ -65,6 +65,23 @@ and secret detection.
 - [x] **AfCFTA trade schema:** trade invoices + items, escrow contracts, append-only escrow events, hash-chained trade receipts.
 - [x] **Design doc:** [ledger-architecture.md](ledger-architecture.md).
 
+### Push notifications *(2026-11-23)*
+- [x] Every in-app notification is pushed through the outbox (same transaction), within ~10 s, to the person's phones (Expo push) and browsers (Web Push via /sw.js).
+- [x] Per-category switches (money, cards, trade, support, news opt-in); security/account alerts always on; "show amounts on lock screen" privacy switch.
+- [x] Tapping a notification opens the right screen; devices list, test send, home prompt; sign-out removes the device; a phone token moves to whoever signs in.
+- [x] New alerts: every approved card payment, and payment links paid. Admin broadcasts go only to people who opted in to news, in pages.
+- [x] Dead devices are removed (Expo receipts, Web Push 404/410); temporary failures retry with backoff.
+
+### Rails, compliance and money safety *(2026-11-24)*: see [payment-stack.md](payment-stack.md)
+- [x] **Book rail:** BukkaPay-to-BukkaPay cross-border transfers settle instantly against prefunded country pools; pool positions + maker-checker `treasury.rebalance`. Corridors have backup rails with automatic failover.
+- [x] **Screening:** OpenSanctions/yente before KYC/KYB approval (a confident sanctions hit freezes); monthly rescreen. New rules: structuring, rapid pass-through, many incoming payments, high-risk jurisdiction; one alert per rule per person per day.
+- [x] **Funds gate:** every payment is checked (locked) before anything is attempted; empty wallet → `402 no_funds` with a Top up prompt. Empty wallets' cards pause at the issuer and resume on top-up. Payment-link bank payouts book before paying out. No daily failed card-fee alerts.
+- [x] **App:** Transfer tab rebuilt (it only faked success before): send, move between own wallets (`POST /api/wallets/move`), swap, withdraw. Top-up checks Stitch status and handles the bank return. The card Verify button opens ID verification. Profile and settings redesigned.
+
+### Public pay app *(2026-11-24)*: `apps/pay` → pay.bukkapay.com
+- [x] Payment links, claims and trade invoices on their own app with no session, a nonce CSP, no-referrer/noindex/no-store and allow-listed redirects. Old `app.bukkapay.com/pay/{id}` links keep working; new links use pay.bukkapay.com.
+- [x] API privacy: public link view and invoice PDF hide payers, payout bank details, billed-customer contact and owner ID; public claim data no longer includes the cash pickup code.
+
 ### Workflows
 - [x] CI and deploy workflows all repaired (Trivy version, pinned ruff rules, admin TypeScript, Railway service names, scan permissions); customer web deploy is manual-only (Vercel builds production).
 
@@ -103,6 +120,11 @@ and secret detection.
 - [x] Cards page shows only issued Visa cards (virtual and physical) in the wallet-card design; tap a card to open it.
 - [x] Tap to pay, our side end to end: PIN-confirmed provisioning API, phone-token payments run through the contactless control, inactive/foreign tokens are declined (`token_inactive`), "Pay with your phone" screen with per-phone tap steps.
 - [ ] **Tap to pay, native last mile:** ship the `BukkaPayWalletProvisioning` native module (Apple PKAddPaymentPassViewController / Google TapAndPay pushTokenize) in an EAS build. Blocked on: signed BIN sponsor/issuer-processor, Apple payment-pass provisioning entitlement, Google TapAndPay allow-list. Until then the app explains this instead of creating tokens it can't finish.
+- [ ] **Stitch production credentials** on Railway (API reports `configured: false`, so top-ups and withdrawals are off until set).
+- [ ] **pay.bukkapay.com:** `ALLOWED_ORIGINS` already includes it on Railway (queued, applies on the next deploy). Deploy the backend (`railway up` for API and worker).
+- [ ] **Screening:** `SCREENING_API_URL=https://api.opensanctions.org` + `SCREENING_API_KEY` on Railway API and worker.
+- [ ] **Partners** (in this order, see payment-stack.md §5): custodian trust accounts (SA, BW) → Paymentology + sponsor bank → Orange Money BW → Onafriq/Thunes quotes → Smile ID KYB.
+- [ ] **Push keys:** set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` on Railway API **and** worker (web push stays off until then); optional `EXPO_ACCESS_TOKEN`. Native pushes need an EAS build with FCM (Android) and APNs (iOS) credentials uploaded to Expo.
 - [ ] Physical card ordering (delivery address, fee, activation) once the issuer supports physical cards.
 - [ ] Add/withdraw via mobile money once a BW operator is signed.
 

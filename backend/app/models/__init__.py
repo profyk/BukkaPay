@@ -57,6 +57,7 @@ from app.models.platform import (
     TransactionLimit,
     Transfer,
 )
+from app.models.push import NotificationPreference, PushDevice
 from app.models.reference import Currency
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
 from app.models.trade import (
@@ -145,6 +146,8 @@ __all__ = [
     "MerchantSubscription",
     "MerchantTransaction",
     "Notification",
+    "NotificationPreference",
+    "PushDevice",
     "PaymentLink",
     "PaymentRequest",
     "Property",

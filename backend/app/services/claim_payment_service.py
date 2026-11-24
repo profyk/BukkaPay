@@ -60,8 +60,9 @@ async def create_claim(
         raise ApiError("This card is restricted", status_code=403)
 
     amount_num = posting.parse_amount(amount)
-    if card.balance < amount_num:
-        raise ApiError("Insufficient balance")
+    from app.ledger import funds
+
+    await funds.require(db, card, amount_num, what="send this")
 
     pin_hash = hash_secret(pin)
     expires_at = _now() + timedelta(days=CLAIM_TTL_DAYS)

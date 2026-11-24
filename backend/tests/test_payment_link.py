@@ -51,8 +51,8 @@ async def test_pay_insufficient_balance(client: AsyncClient, user: dict):
     link = r.json()
 
     r = await client.post(f"/api/payment-links/{link['id']}/pay-wallet", json={"pin": TEST_PIN, }, headers=user["headers"])
-    assert r.status_code == 400
-    assert "insufficient" in r.json()["error"].lower()
+    assert r.status_code == 402  # refused up front, before any payout is attempted
+    assert r.json()["code"] in ("no_funds", "insufficient_funds") and "Top up" in r.json()["error"]
 
 
 async def test_delete_only_by_owner(client: AsyncClient, user: dict, other_user: dict):
