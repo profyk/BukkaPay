@@ -206,6 +206,94 @@ async def unfreeze(card_id: str, body: PinBody, user_id=Depends(get_current_user
     return _card(await cards.set_frozen(db, await cards.get_for_user(db, card_id, user_id, lock=True), False))
 
 
+class ActiveWalletBody(CamelModel):
+    wallet_id: str
+    pin: str
+
+
+@router.post("/issued-cards/{card_id}/active-wallet")
+async def set_active_wallet(card_id: str, body: ActiveWalletBody, user_id=Depends(get_current_user_id),
+                            db: AsyncSession = Depends(get_db)) -> IssuedCardResponse:
+    """Choose which wallet the card spends from (ZAR, BWP, USD…)."""
+    await pin_service.verify_pin(db, user_id, body.pin)
+    card = await cards.get_for_user(db, card_id, user_id, lock=True)
+    return _card(await cards.set_active_wallet(db, card, body.wallet_id, user_id=user_id))
+
+
+@router.post("/issued-cards/{card_id}/terminate")
+async def terminate(card_id: str, body: PinBody, user_id=Depends(get_current_user_id),
+                    db: AsyncSession = Depends(get_db)) -> IssuedCardResponse:
+    """Close the card for good (a new one can be requested later)."""
+    await pin_service.verify_pin(db, user_id, body.pin)
+    card = await cards.get_for_user(db, card_id, user_id, lock=True)
+    if card.overdraft_outstanding > 0:
+        raise ApiError("Repay your card overdraft before closing the card", status_code=409)
+    return _card(await cards.cancel(db, card))
+
+
+class DisputeBody(CamelModel):
+    clearing_id: str
+    reason: str
+    details: str | None = None
+
+
+class DisputeResponse(CamelModel):
+    id: str
+    clearing_id: str
+    status: str
+    reason: str
+    amount: MoneyStr
+    currency: str
+    created_at: JsDateTime
+
+
+def _dispute(d) -> DisputeResponse:
+    return DisputeResponse.model_validate({"id": str(d.id), "clearingId": str(d.clearing_id), "status": d.status,
+                                           "reason": d.reason, "amount": d.amount, "currency": d.currency,
+                                           "createdAt": d.created_at})
+
+
+@router.get("/issued-cards/{card_id}/disputes")
+async def list_disputes(card_id: str, user_id=Depends(get_current_user_id),
+                        db: AsyncSession = Depends(get_db)) -> list[DisputeResponse]:
+    from app.models.cards import CardDispute
+
+    card = await cards.get_for_user(db, card_id, user_id)
+    rows = (await db.execute(select(CardDispute).where(CardDispute.issued_card_id == card.id)
+                             .order_by(CardDispute.created_at.desc()))).scalars()
+    return [_dispute(d) for d in rows]
+
+
+@router.post("/issued-cards/{card_id}/disputes", status_code=201)
+async def open_dispute(card_id: str, body: DisputeBody, user_id=Depends(get_current_user_id),
+                       db: AsyncSession = Depends(get_db)) -> DisputeResponse:
+    from app.cards import disputes
+
+    card = await cards.get_for_user(db, card_id, user_id)
+    return _dispute(await disputes.open_dispute(db, card, clearing_id=body.clearing_id, reason=body.reason,
+                                                details=body.details))
+
+
+@router.post("/issued-cards/{card_id}/disputes/{dispute_id}/withdraw")
+async def withdraw_dispute(card_id: str, dispute_id: str, user_id=Depends(get_current_user_id),
+                           db: AsyncSession = Depends(get_db)) -> DisputeResponse:
+    import uuid
+
+    from app.cards import disputes
+    from app.models.cards import CardDispute
+
+    card = await cards.get_for_user(db, card_id, user_id)
+    try:
+        did = uuid.UUID(dispute_id)
+    except ValueError as e:
+        raise ApiError("Dispute not found", status_code=404) from e
+    dispute = (await db.execute(select(CardDispute).where(CardDispute.id == did, CardDispute.issued_card_id == card.id)
+                                .with_for_update())).scalar_one_or_none()
+    if dispute is None:
+        raise ApiError("Dispute not found", status_code=404)
+    return _dispute(await disputes.withdraw(db, dispute))
+
+
 @router.post("/issued-cards/{card_id}/replace")
 async def replace(card_id: str, body: PinBody, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)) -> IssuedCardResponse:
     await pin_service.verify_pin(db, user_id, body.pin)
@@ -297,9 +385,12 @@ async def issuer_authorize(
 ) -> dict:
     issuer = _issuer_or_404(issuer_code)
     body = await request.body()
-    if not issuers.verify(issuer, body, signature):
+    if not issuer.verify_webhook(body, request.headers):
         raise ApiError("Invalid signature", status_code=401)
-    data = json.loads(body)
+    try:
+        data = issuer.parse_authorization(json.loads(body))
+    except (ValueError, issuers.IssuerUnavailable) as e:
+        return {"approved": False, "declineReason": "invalid_request", "detail": str(e)[:200]}
     try:
         req = processing.AuthorizationRequest(
             issuer=issuer.code, issuer_authorization_id=str(data["authorizationId"]),
@@ -312,12 +403,25 @@ async def issuer_authorize(
         )
     except (KeyError, ApiError) as e:
         return {"approved": False, "declineReason": "invalid_request", "detail": str(e)}
+    import time
+
+    from app.core.config import get_settings
+
+    budget = get_settings().paymentology_auth_budget_ms / 1000
+    started = time.monotonic()
     try:
         auth = await processing.authorize(db, req)
     except ApiError as e:
         # The network expects a decision, never an error: unknown card etc. = decline.
         return {"approved": False, "authorizationId": req.issuer_authorization_id,
                 "declineReason": "unknown_card" if e.status_code == 404 else "processing_error", "approvedAmount": "0.00"}
+    if time.monotonic() - started > budget:
+        # Past the processor's timeout it has already stood in (declined or
+        # used its own rules): undo our decision so no hold is left behind.
+        # A retry with the same authorization id is decided afresh.
+        await db.rollback()
+        return {"approved": False, "authorizationId": req.issuer_authorization_id,
+                "declineReason": "issuer_timeout", "approvedAmount": "0.00"}
     return {"approved": auth.status != "declined", "authorizationId": req.issuer_authorization_id,
             "declineReason": auth.decline_reason, "approvedAmount": str(auth.amount) if auth.status != "declined" else "0.00"}
 
@@ -342,6 +446,11 @@ async def _apply_event(db: AsyncSession, issuer: str, event_type: str, data: dic
         return True
     if event_type == "token.updated":
         return await processing.token_event(db, issuer, str(data["tokenId"]), str(data["status"]))
+    if event_type in ("dispute.won", "dispute.lost", "dispute.submitted"):
+        from app.cards import disputes
+
+        return await disputes.issuer_outcome(db, issuer, str(data["disputeId"]), event_type.split(".", 1)[1],
+                                             note=data.get("note"))
     return False
 
 
@@ -352,12 +461,13 @@ async def issuer_events(
 ) -> dict:
     issuer = _issuer_or_404(issuer_code)
     body = await request.body()
-    if not issuers.verify(issuer, body, signature):
+    if not issuer.verify_webhook(body, request.headers):
         raise ApiError("Invalid signature", status_code=401)
     try:
         payload = json.loads(body)
-        event_id, event_type = str(payload["id"]), str(payload["type"])
-    except (ValueError, KeyError, TypeError) as e:
+        event_type, payload = issuer.parse_event(payload)
+        event_id = str(payload["id"])
+    except (ValueError, KeyError, TypeError, issuers.IssuerUnavailable) as e:
         raise ApiError("Malformed event", status_code=400) from e
     provider = f"card:{issuer.code}"
     inserted = (

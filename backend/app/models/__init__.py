@@ -4,7 +4,13 @@ Alembic autogenerate/FK resolution, so everything is re-exported here.
 
 from app.ledger.ddl import register_create_all_hooks
 from app.models.admin import AdminInvite, AdminSession, AdminUser
-from app.models.cards import CardAuthorization, CardClearing, CardWalletToken, IssuedCard
+from app.models.cards import (
+    CardAuthorization,
+    CardClearing,
+    CardDispute,
+    CardWalletToken,
+    IssuedCard,
+)
 from app.models.chat import ChatMessage
 from app.models.claim_payment import ClaimPayment
 from app.models.contribution import Contribution, ContributionGroup
@@ -31,6 +37,7 @@ from app.models.merchant import (
 from app.models.misc import Contact, PaymentRequest, PurchaseTransaction
 from app.models.notification import Notification
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
+from app.models.payouts import Payout, PayoutRecipient
 from app.models.platform import (
     ApprovalRequest,
     AuditLog,
@@ -83,6 +90,7 @@ __all__ = [
     "LegalDocumentVersion",
     "CardAuthorization",
     "CardClearing",
+    "CardDispute",
     "CardWalletToken",
     "IssuedCard",
     "Enquiry",
@@ -148,6 +156,8 @@ __all__ = [
     "Notification",
     "NotificationPreference",
     "PushDevice",
+    "Payout",
+    "PayoutRecipient",
     "PaymentLink",
     "PaymentRequest",
     "Property",

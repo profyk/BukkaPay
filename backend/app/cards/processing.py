@@ -6,10 +6,18 @@ token). We approve only if the card, wallet, customer and limits allow it
 and the ledger can place a hold for the amount (plus any fee). Later
 events — reversal, clearing (capture), refund — arrive as signed webhooks.
 
-Ledger
+One card per customer spends from their ACTIVE wallet. Each authorization
+records the wallet that funded it; when that wallet's currency differs
+from the card's billing currency we convert at our FX quote (rate + spread)
+and lock it on the authorization, so clearing settles at the same rate even
+if the customer switches wallet in between.
+
+Ledger (W = funding wallet currency, B = billing currency)
 ------
-authorize   wallet          → card:holds          (amount + fee)
-reverse     card:holds      → wallet              (released part)
+authorize   wallet(W)       → card:holds(W)       (amount + fee, converted to W)
+capture     card:holds(W)   → FX pool(W) ⇢ FX pool(B) → card:payable(B), fees(B), FX revenue(B)
+            (when W == B there's no FX leg)
+reverse     card:holds(W)   → wallet(W)           (released part)
 capture     card:holds      → card:payable:<iss>  (cleared amount)
             card:holds      → revenue:fees        (fee)
             card:holds      → wallet              (any unused hold)
@@ -25,9 +33,10 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cards.states import AUTHORIZATION, CARD
 from app.core.errors import ApiError
 from app.ledger import accounts as ledger_accounts
-from app.ledger import posting
+from app.ledger import chart, posting
 from app.models.cards import CardAuthorization, CardClearing, CardWalletToken, IssuedCard
 from app.models.enums import NotificationType, TransactionType
 from app.models.user import User
@@ -43,6 +52,12 @@ LONG_HOLD_MCCS = {"3351", "3352", "3353", "3354", "3355", "3357", "3359", "3360"
                   "7011", "7512", "7513", "7519"}
 LONG_HOLD_DAYS = 31
 ATM_MCCS = {"6010", "6011"}
+# Basic fraud rules (on top of the customer's own controls and KYC limits).
+VELOCITY_WINDOW = timedelta(minutes=2)
+VELOCITY_MAX = 5
+# Gambling, quasi-cash/crypto, money transfer: only for fully verified customers.
+HIGH_RISK_MCCS = {"7995", "6051", "4829", "6540"}
+HIGH_RISK_MIN_KYC = 3
 
 
 @dataclass
@@ -130,6 +145,21 @@ async def _check(db, req: AuthorizationRequest, card: IssuedCard, wallet: Wallet
         raise Decline("limit_exceeded") from e
 
 
+async def _fraud(db, req: AuthorizationRequest, card: IssuedCard, user: User) -> None:
+    recent = (
+        await db.execute(
+            select(func.count()).select_from(CardAuthorization).where(
+                CardAuthorization.issued_card_id == card.id,
+                CardAuthorization.created_at >= datetime.now(UTC) - VELOCITY_WINDOW,
+            )
+        )
+    ).scalar_one()
+    if recent >= VELOCITY_MAX:
+        raise Decline("suspected_fraud")
+    if req.merchant_mcc in HIGH_RISK_MCCS and (user.kyc_level or 0) < HIGH_RISK_MIN_KYC:
+        raise Decline("merchant_category_blocked")
+
+
 async def _fee(db, req: AuthorizationRequest, user: User) -> fees.FeeResult:
     if req.merchant_mcc in ATM_MCCS or req.channel == "atm":
         return await fees.compute(db, "card_atm_withdrawal", req.amount, currency=req.currency,
@@ -181,16 +211,28 @@ async def authorize(db: AsyncSession, req: AuthorizationRequest) -> CardAuthoriz
         if not token_ok:
             raise Decline("token_inactive")
         await _check(db, req, card, wallet, user)
+        await _fraud(db, req, card, user)
         fee = await _fee(db, req, user)
         total = posting.money(req.amount) + fee.fee
+        hold, rate, spread = total, None, None
+        if wallet.currency != req.currency:
+            # Our FX: what the active wallet must give to cover the billing amount.
+            from app.services import swap_service
+
+            try:
+                q = await swap_service.quote_for_target(db, wallet.currency, req.currency, total)
+            except ApiError as e:
+                raise Decline("fx_unavailable") from e
+            hold, rate, spread = q.amount, q.rate, q.spread
         try:
             async with db.begin_nested():
                 entry = await posting.post(
                     db, kind="card_authorization",
                     description=f"Card hold: {req.merchant_name or 'card payment'}",
-                    legs=[posting.debit(await ledger_accounts.wallet_account(db, wallet), total),
-                          posting.credit(await ledger_accounts.card_holds(db, req.currency), total)],
-                    details={"issued_card_id": str(card.id), "authorization": req.issuer_authorization_id},
+                    legs=[posting.debit(await ledger_accounts.wallet_account(db, wallet), hold),
+                          posting.credit(await ledger_accounts.card_holds(db, wallet.currency), hold)],
+                    details={"issued_card_id": str(card.id), "authorization": req.issuer_authorization_id,
+                             "billing": f"{req.currency} {total}", "fx_rate": str(rate) if rate else None},
                 )
         except posting.InsufficientFunds as e:
             raise Decline("insufficient_funds") from e
@@ -198,12 +240,17 @@ async def authorize(db: AsyncSession, req: AuthorizationRequest) -> CardAuthoriz
         auth.status = "approved"
         auth.fee = fee.fee
         auth.fee_breakdown = fee.breakdown or None
-        auth.held_amount = total
+        auth.held_amount = hold
+        auth.wallet_amount = hold
+        auth.fx_rate = rate
+        auth.fx_spread = spread
         auth.hold_entry_id = entry.id
         auth.hold_expires_at = datetime.now(UTC) + timedelta(days=days)
     except Decline as d:
         auth.status = "declined"
         auth.decline_reason = d.reason
+    auth.wallet_card_id = wallet.id
+    auth.wallet_currency = wallet.currency
     db.add(auth)
     await db.flush()
     if auth.status == "declined" and auth.decline_reason in ("insufficient_funds", "card_frozen"):
@@ -237,12 +284,23 @@ async def _auth_by_issuer_id(db, issuer: str, issuer_authorization_id: str) -> C
     ).scalar_one_or_none()
 
 
+async def _funding_wallet(db, auth: CardAuthorization) -> WalletCard:
+    if auth.wallet_card_id is not None:
+        return await db.get(WalletCard, auth.wallet_card_id)
+    card = await db.get(IssuedCard, auth.issued_card_id)  # authorizations made before wallets were recorded
+    return await db.get(WalletCard, card.wallet_card_id)
+
+
+def _hold_currency(auth: CardAuthorization) -> str:
+    return auth.wallet_currency or auth.currency
+
+
 async def _release(db, auth: CardAuthorization, amount: Decimal, *, kind: str, description: str) -> None:
-    card = await db.get(IssuedCard, auth.issued_card_id)
-    wallet = await db.get(WalletCard, card.wallet_card_id)
+    """Give `amount` of the hold (in the funding wallet's currency) back."""
+    wallet = await _funding_wallet(db, auth)
     await posting.post(
         db, kind=kind, description=description,
-        legs=[posting.debit(await ledger_accounts.card_holds(db, auth.currency), amount),
+        legs=[posting.debit(await ledger_accounts.card_holds(db, _hold_currency(auth)), amount),
               posting.credit(await ledger_accounts.wallet_account(db, wallet), amount)],
         details={"authorization_id": str(auth.id)},
     )
@@ -254,13 +312,19 @@ async def reverse(db: AsyncSession, issuer: str, issuer_authorization_id: str, a
     auth = await _auth_by_issuer_id(db, issuer, issuer_authorization_id)
     if auth is None or auth.status != "approved" or auth.held_amount <= 0:
         return False
-    release = auth.held_amount if amount is None else min(posting.money(amount), auth.held_amount)
+    if amount is None:
+        release = auth.held_amount
+    else:
+        # `amount` is in the billing currency: release the same share of the hold.
+        billing_total = auth.amount + auth.fee
+        share = posting.money(amount) / billing_total if billing_total else Decimal(1)
+        release = min(auth.held_amount, posting.money((auth.wallet_amount or auth.held_amount) * share))
     if release <= 0:
         return False
     await _release(db, auth, release, kind="card_authorization_reversal",
                    description=f"Card hold released: {auth.merchant_name or 'card payment'}")
     if auth.held_amount <= 0:
-        auth.status = "reversed"
+        await AUTHORIZATION.move(db, auth, "reversed", reason="merchant_reversal")
     await db.flush()
     return True
 
@@ -287,12 +351,14 @@ async def clear(
     auth = await _auth_by_issuer_id(db, issuer, issuer_authorization_id) if issuer_authorization_id else None
     if auth is not None and auth.issued_card_id != card.id:
         raise ApiError("Authorization belongs to another card", status_code=422)
+    wallet_id = auth.wallet_card_id if auth is not None and auth.wallet_card_id else card.wallet_card_id
     wallet = (
-        await db.execute(select(WalletCard).where(WalletCard.id == card.wallet_card_id).with_for_update()
+        await db.execute(select(WalletCard).where(WalletCard.id == wallet_id).with_for_update()
                          .execution_options(populate_existing=True))
     ).scalar_one()
+    w_ccy = wallet.currency
     wallet_acct = await ledger_accounts.wallet_account(db, wallet)
-    holds = await ledger_accounts.card_holds(db, currency)
+    holds = await ledger_accounts.card_holds(db, w_ccy)
     payable = await ledger_accounts.card_issuer_payable(db, issuer, currency)
 
     held = auth.held_amount if auth is not None and auth.status == "approved" else ZERO
@@ -300,7 +366,20 @@ async def clear(
     fee = ZERO
     if auth is not None and auth.fee > 0:
         fee = min(auth.fee, posting.money(auth.fee * amount / auth.amount)) if auth.amount else ZERO
-    due = amount + fee
+    due_billing = amount + fee
+    # What the customer owes in their wallet's currency, and our FX spread.
+    fx_spread = ZERO
+    if w_ccy == currency:
+        due = due_billing
+    elif auth is not None and auth.wallet_amount and (auth.amount + auth.fee) > 0:
+        share = due_billing / (auth.amount + auth.fee)  # locked at authorization
+        due = posting.money(auth.wallet_amount * share)
+        fx_spread = posting.money((auth.fx_spread or ZERO) * share)
+    else:
+        from app.services import swap_service
+
+        q = await swap_service.quote_for_target(db, w_ccy, currency, due_billing)  # force post: today's rate
+        due, fx_spread = q.amount, q.spread
     from_hold = min(held, due)
     # A non-final (partial) capture keeps the rest of the hold open.
     release = (held - from_hold) if final else ZERO
@@ -317,7 +396,13 @@ async def clear(
     elif net_wallet < 0:
         legs.append(posting.credit(wallet_acct, -net_wallet))
     if shortfall > 0:
-        legs.append(posting.debit(await ledger_accounts.card_overdraft(db, currency), shortfall))
+        legs.append(posting.debit(await ledger_accounts.card_overdraft(db, w_ccy), shortfall))
+    if w_ccy != currency:
+        # Bridge W → B through the FX pools; our spread is FX revenue in B.
+        legs.append(posting.credit(await chart.sys_account(db, "SYS_FX_POOL", w_ccy), due))
+        legs.append(posting.debit(await chart.sys_account(db, "SYS_FX_POOL", currency), due_billing + fx_spread))
+        if fx_spread > 0:
+            legs.append(posting.credit(await chart.sys_account(db, "SYS_REVENUE_FX", currency), fx_spread))
     legs.append(posting.credit(payable, amount))
     if fee > 0:
         legs.append(posting.credit(await ledger_accounts.fee_revenue(db, currency), fee))
@@ -330,7 +415,7 @@ async def clear(
         auth.held_amount = held - from_hold - release
         auth.captured_amount += amount
         if auth.held_amount <= 0:
-            auth.status = "captured"
+            await AUTHORIZATION.move(db, auth, "captured", reason="cleared")
     clearing = CardClearing(
         issued_card_id=card.id, authorization_id=auth.id if auth else None, issuer=issuer,
         issuer_transaction_id=issuer_transaction_id, kind="capture", currency=currency, amount=amount, fee=fee,
@@ -341,7 +426,7 @@ async def clear(
     db.add(Transaction(
         user_id=card.user_id, card_id=wallet.id,
         title=f"Card: {clearing.merchant_name or 'payment'}", category="card_payment",
-        amount=amount + fee, type=TransactionType.DEBIT, icon="card", fee_amount=fee or None,
+        amount=due, type=TransactionType.DEBIT, icon="card", fee_amount=fee or None,
     ))
     if shortfall > 0:
         card.overdraft_outstanding += shortfall
@@ -349,11 +434,11 @@ async def clear(
         from app.cards import issuers
 
         await issuers.by_code(card.issuer).set_status(card.issuer_card_id, "frozen")
-        card.status = "frozen"
+        await CARD.move(db, card, "frozen", reason="overdraft")
         card.frozen_reason = "overdraft"
         await notification_service.create_notification(
             db, card.user_id, NotificationType.ALERT, "Card payment exceeded your balance",
-            f"A card payment cleared for more than your balance. {currency} {shortfall} is owed; "
+            f"A card payment cleared for more than your balance. {w_ccy} {shortfall} is owed; "
             "your card is paused until you top up.",
             related_id=str(card.id), related_type="issued_card",
         )
@@ -376,10 +461,11 @@ async def refund(
         raise ApiError("Refund currency does not match the card", status_code=422)
     amount = posting.money(amount)
     wallet = await db.get(WalletCard, card.wallet_card_id)
+    credit = await _credit_back(db, wallet, amount, currency)
     entry = await posting.post(
         db, kind="card_refund", description=f"Card refund: {merchant_name or 'merchant'}",
         legs=[posting.debit(await ledger_accounts.card_issuer_payable(db, issuer, currency), amount),
-              posting.credit(await ledger_accounts.wallet_account(db, wallet), amount)],
+              *credit.legs],
         details={"issued_card_id": str(card.id), "issuer_transaction_id": issuer_transaction_id},
     )
     clearing = CardClearing(
@@ -389,9 +475,32 @@ async def refund(
     )
     db.add(clearing)
     db.add(Transaction(user_id=card.user_id, card_id=wallet.id, title=f"Card refund: {merchant_name or 'merchant'}",
-                       category="card_refund", amount=amount, type=TransactionType.CREDIT, icon="card"))
+                       category="card_refund", amount=credit.amount, type=TransactionType.CREDIT, icon="card"))
     await db.flush()
     return clearing
+
+
+@dataclass
+class _Credit:
+    legs: list
+    amount: Decimal  # credited to the wallet, in its currency
+
+
+async def _credit_back(db, wallet: WalletCard, amount: Decimal, currency: str) -> _Credit:
+    """Legs that pay `amount` of `currency` (already debited by the caller)
+    into `wallet`, converting at the mid rate with no spread: money coming
+    back to a customer is never charged a conversion margin."""
+    acct = await ledger_accounts.wallet_account(db, wallet)
+    if wallet.currency == currency:
+        return _Credit([posting.credit(acct, amount)], amount)
+    from app.services import swap_service
+
+    q = await swap_service.quote(db, currency, wallet.currency, amount)
+    return _Credit([
+        posting.credit(await chart.sys_account(db, "SYS_FX_POOL", currency), amount),
+        posting.debit(await chart.sys_account(db, "SYS_FX_POOL", wallet.currency), q.gross),
+        posting.credit(acct, q.gross),
+    ], q.gross)
 
 
 async def expire_stale_holds(db: AsyncSession, *, now: datetime | None = None, limit: int = 500) -> int:
@@ -414,7 +523,7 @@ async def expire_stale_holds(db: AsyncSession, *, now: datetime | None = None, l
         if auth.held_amount > 0:
             await _release(db, auth, auth.held_amount, kind="card_hold_expiry",
                            description=f"Expired card hold: {auth.merchant_name or 'card payment'}")
-        auth.status = "expired"
+        await AUTHORIZATION.move(db, auth, "expired", reason="hold_expired")
         expired += 1
     await db.flush()
     return expired
@@ -444,7 +553,7 @@ async def collect_overdrafts(db: AsyncSession, *, limit: int = 500) -> int:
         await posting.post(
             db, kind="card_overdraft_repayment", description="Card overdraft repaid from balance",
             legs=[posting.debit(await ledger_accounts.wallet_account(db, wallet), take),
-                  posting.credit(await ledger_accounts.card_overdraft(db, card.billing_currency), take)],
+                  posting.credit(await ledger_accounts.card_overdraft(db, wallet.currency), take)],
             details={"issued_card_id": str(card.id)},
         )
         db.add(Transaction(user_id=card.user_id, card_id=wallet.id, title="Card overdraft repayment",
@@ -452,7 +561,7 @@ async def collect_overdrafts(db: AsyncSession, *, limit: int = 500) -> int:
         card.overdraft_outstanding -= take
         if card.overdraft_outstanding <= 0 and card.status == "frozen" and card.frozen_reason == "overdraft":
             await issuers.by_code(card.issuer).set_status(card.issuer_card_id, "active")
-            card.status = "active"
+            await CARD.move(db, card, "active", reason="overdraft_repaid")
             card.frozen_reason = None
         collected += 1
     await db.flush()

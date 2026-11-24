@@ -92,6 +92,44 @@ async def unfreeze(card_id: str, body: FreezeIn, _=Depends(require("wallets.rest
     return _row(card, await db.get(User, card.user_id))
 
 
+class DisputeDecision(CamelModel):
+    outcome: str  # submitted | won | lost
+    note: str | None = None
+    issuer_dispute_id: str | None = None
+
+
+@router.get("/cards/disputes")
+async def list_disputes(status: str | None = Query(default=None), _=Depends(require("wallets.restrict")),
+                        db: AsyncSession = Depends(get_db)):
+    from app.models.cards import CardDispute
+
+    q = select(CardDispute).order_by(CardDispute.created_at.desc()).limit(200)
+    if status:
+        q = q.where(CardDispute.status == status)
+    return [{"id": str(d.id), "cardId": str(d.issued_card_id), "userId": str(d.user_id), "status": d.status,
+             "reason": d.reason, "details": d.details, "amount": str(d.amount), "currency": d.currency,
+             "issuerDisputeId": d.issuer_dispute_id, "createdAt": d.created_at, "resolvedAt": d.resolved_at}
+            for d in (await db.execute(q)).scalars()]
+
+
+@router.post("/cards/disputes/{dispute_id}")
+async def decide_dispute(dispute_id: str, body: DisputeDecision, ctx=Depends(require("wallets.restrict")),
+                         db: AsyncSession = Depends(get_db)):
+    from app.cards import disputes
+    from app.models.cards import CardDispute
+
+    try:
+        did = uuid.UUID(dispute_id)
+    except ValueError as e:
+        raise ApiError("Dispute not found", status_code=404) from e
+    dispute = (await db.execute(select(CardDispute).where(CardDispute.id == did).with_for_update())).scalar_one_or_none()
+    if dispute is None:
+        raise ApiError("Dispute not found", status_code=404)
+    d = await disputes.resolve(db, dispute, body.outcome, note=body.note, issuer_dispute_id=body.issuer_dispute_id,
+                               actor=str(ctx.admin.id) if ctx.admin else "master_key")
+    return {"id": str(d.id), "status": d.status}
+
+
 @router.post("/cards/{card_id}/cancel")
 async def cancel(card_id: str, body: FreezeIn, _=Depends(require("wallets.restrict")), db: AsyncSession = Depends(get_db)):
     if not body.reason.strip():

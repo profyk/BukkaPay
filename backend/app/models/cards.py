@@ -64,14 +64,16 @@ class IssuedCard(Base, TimestampMixin):
         CheckConstraint("network IN ('visa')", name="ck_issued_cards_network"),
         CheckConstraint("form IN ('virtual','physical')", name="ck_issued_cards_form"),
         UniqueConstraint("issuer", "issuer_card_id", name="uq_issued_cards_issuer_card"),
-        # At most one live card per wallet; cancelled/failed cards stay as history.
+        # One live card per customer; cancelled/failed cards stay as history.
         Index(
-            "uq_issued_cards_one_live_per_wallet", "wallet_card_id", unique=True,
+            "uq_issued_cards_one_live_per_user", "user_id", unique=True,
             postgresql_where=text("status NOT IN ('cancelled','failed')"),
         ),
     )
 
     id: Mapped[UUIDPk]
+    # The ACTIVE wallet: the one new card payments spend from. The customer
+    # can switch it; each authorization remembers the wallet that funded it.
     wallet_card_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("wallet_cards.id", ondelete="RESTRICT"), index=True
     )
@@ -139,6 +141,16 @@ class CardAuthorization(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="RESTRICT")
     )
     hold_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The wallet that funded this payment and what was held from it, in the
+    # wallet's currency (held_amount is in this currency too). When it differs
+    # from the billing currency, the FX rate and spread are locked here.
+    wallet_card_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("wallet_cards.id", ondelete="RESTRICT")
+    )
+    wallet_currency: Mapped[str | None] = mapped_column(String(3))
+    wallet_amount: Mapped[Decimal | None] = mapped_column(Amount)
+    fx_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 8))
+    fx_spread: Mapped[Decimal | None] = mapped_column(Amount)  # in the billing currency
 
 
 class CardClearing(Base):
@@ -201,3 +213,36 @@ class CardWalletToken(Base, TimestampMixin):
     device_name: Mapped[str | None] = mapped_column(Text)
     token_last4: Mapped[str | None] = mapped_column(String(4))
     deleted_at: Mapped[OptionalTimestamp]
+
+
+class CardDispute(Base, TimestampMixin):
+    """A customer's dispute of a cleared card payment (chargeback flow).
+
+    opened → submitted (sent to the issuer) → won (money back) | lost
+    opened/submitted → withdrawn (customer cancelled)."""
+
+    __tablename__ = "card_disputes"
+    __table_args__ = (
+        CheckConstraint("status IN ('opened','submitted','won','lost','withdrawn')", name="ck_card_disputes_status"),
+        UniqueConstraint("clearing_id", name="uq_card_disputes_clearing"),
+    )
+
+    id: Mapped[UUIDPk]
+    issued_card_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("issued_cards.id", ondelete="RESTRICT"), index=True
+    )
+    clearing_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("card_clearings.id", ondelete="RESTRICT")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"))
+    status: Mapped[str] = mapped_column(String(12), default="opened")
+    reason: Mapped[str] = mapped_column(String(40))
+    details: Mapped[str | None] = mapped_column(Text)
+    amount: Mapped[Decimal] = mapped_column(Amount)
+    currency: Mapped[str] = mapped_column(String(3))
+    issuer_dispute_id: Mapped[str | None] = mapped_column(String(120))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
+    credit_entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="RESTRICT")
+    )
+    resolved_at: Mapped[OptionalTimestamp]
