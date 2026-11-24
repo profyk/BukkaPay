@@ -18,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -71,7 +72,7 @@ class Payout(Base, TimestampMixin):
         Index("ix_payouts_user", "user_id", "created_at"),
         Index("ix_payouts_status", "status", "updated_at"),
         Index("uq_payouts_provider_ref", "rail", "provider_reference", unique=True,
-              postgresql_where="provider_reference IS NOT NULL"),
+              postgresql_where=text("provider_reference IS NOT NULL")),
     )
 
     id: Mapped[UUIDPk]

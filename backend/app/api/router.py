@@ -31,6 +31,7 @@ from app.api import (
     wallet,
     webauthn,
 )
+from app.api import payouts as payouts_api
 from app.api import push as push_api
 from app.api import trade as trade_api
 
@@ -49,6 +50,7 @@ api_router.include_router(billing_link.router)
 api_router.include_router(loyalty.router)
 api_router.include_router(notification.router)
 api_router.include_router(push_api.router)
+api_router.include_router(payouts_api.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
 api_router.include_router(stitch.router)
