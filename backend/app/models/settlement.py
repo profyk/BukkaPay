@@ -49,6 +49,8 @@ class SettlementLine(Base, TimestampMixin):
     id: Mapped[UUIDPk]
     batch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("settlement_batches.id", ondelete="CASCADE"),
                                                 index=True)
+    # book = cross-border book-transfer pools; fx = currency-swap pool (an FX hedge: buy what customers bought)
+    pool: Mapped[str] = mapped_column(String(8), default="book", server_default="book")
     from_currency: Mapped[str] = mapped_column(String(3))
     to_currency: Mapped[str] = mapped_column(String(3))
     from_amount: Mapped[Decimal] = mapped_column(Amount)

@@ -42,6 +42,12 @@ class SwapQuote:
     spread: Decimal          # in to_currency
     receive: Decimal         # credited, in to_currency
     note: str | None = None  # e.g. why the rate is capped (fx_guard)
+    fee: Decimal = Decimal("0.00")  # in from_currency, charged on top of `amount` (fee rule "fx_swap")
+
+    @property
+    def total(self) -> Decimal:
+        """What leaves the customer's wallet: amount + fee."""
+        return self.amount + self.fee
 
 
 async def _pair(db: AsyncSession, src: str, dst: str) -> CurrencyCorridor:
@@ -86,7 +92,18 @@ async def quote(db: AsyncSession, src: str, dst: str, amount: Decimal, *, user_i
     receive = gross - spread
     if receive <= 0:
         raise ApiError("Amount is too small to swap")
-    return SwapQuote(src, dst, amount, rate, pct, gross, spread, receive, note)
+    fee = Decimal("0.00")
+    if user_id is not None:
+        # Customer swaps: a fee on top, in the currency they pay with (fee rule "fx_swap",
+        # per currency/country/account type; no rule = no fee, the spread still applies).
+        from app.models.user import User
+        from app.network import fees
+
+        user = await db.get(User, user_id)
+        fee = (await fees.compute(db, "fx_swap", amount, currency=src,
+                                  country=user.residence_country if user else None,
+                                  customer_type=str(user.account_type) if user else None)).fee
+    return SwapQuote(src, dst, amount, rate, pct, gross, spread, receive, note, fee)
 
 
 async def quote_for_target(db: AsyncSession, src: str, dst: str, target: Decimal) -> SwapQuote:
@@ -133,12 +150,16 @@ async def swap(db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_cu
                        status_code=409)
     target = await get_or_create_currency_card(db, user_id, q.to_currency)
     legs = await fx_legs(db, q, source=source)
+    if q.fee > 0:  # fee on top, in the source currency, straight to FX revenue
+        legs += [posting.debit(await ledger_accounts.wallet_account(db, source), q.fee),
+                 posting.credit(await chart.sys_account(db, "SYS_REVENUE_FX", q.from_currency), q.fee)]
     legs.append(posting.credit(await ledger_accounts.wallet_account(db, target), q.receive))
     entry = await posting.post(
         db, kind="currency_swap", description=f"Swap {q.from_currency} {q.amount} → {q.to_currency} {q.receive}",
         legs=legs, details={"user_id": str(user_id), "rate": str(q.rate), "spread_pct": str(q.spread_pct),
                             "from_currency": q.from_currency, "to_currency": q.to_currency,
                             "amount": str(q.amount), "receive": str(q.receive), "rate_capped": bool(q.note),
+                            "fee": str(q.fee),
                             "spread": str(q.spread), "from_card_id": str(source.id), "to_card_id": str(target.id)},
     )
     return q, entry, target

@@ -305,7 +305,7 @@ async def swap_quote(from_currency: str = Query(alias="from"), to_currency: str 
                                  user_id=user_id)
     return {"from": q.from_currency, "to": q.to_currency, "amount": f"{q.amount:.2f}", "rate": str(q.rate),
             "spreadPercent": str(q.spread_pct), "spread": f"{q.spread:.2f}", "receive": f"{q.receive:.2f}",
-            "note": q.note}
+            "fee": f"{q.fee:.2f}", "total": f"{q.total:.2f}", "note": q.note}
 
 
 class SwapIn(CamelModel):
@@ -331,7 +331,7 @@ async def do_swap(body: SwapIn, user_id=Depends(get_current_user_id),
             db, user_id, from_card_id=body.from_card_id, to_currency=body.to_currency,
             amount=posting.parse_amount(body.amount),
             expected_receive=Decimal(body.expected_receive) if body.expected_receive else None)
-        result = {"from": q.from_currency, "to": q.to_currency, "debited": f"{q.amount:.2f}",
+        result = {"from": q.from_currency, "to": q.to_currency, "debited": f"{q.total:.2f}", "fee": f"{q.fee:.2f}",
                   "received": f"{q.receive:.2f}", "rate": str(q.rate), "spread": f"{q.spread:.2f}",
                   "toCardId": str(target.id), "ledgerReference": entry.reference}
         g.store(result)

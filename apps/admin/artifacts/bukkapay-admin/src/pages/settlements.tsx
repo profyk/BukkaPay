@@ -5,9 +5,9 @@ import { DataTable, FormDialog, Page, Section, Stat, StatusBadge, errorMessage, 
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 
-type Position = { currency: string; position: string; action: string; amount: string }
+type Position = { currency: string; position: string; action: string; amount: string; pool?: string }
 type Line = {
-  id: string; fromCurrency: string; toCurrency: string; fromAmount: string; expectedToAmount?: string; rate?: string
+  id: string; pool?: string; fromCurrency: string; toCurrency: string; fromAmount: string; expectedToAmount?: string; rate?: string
   status: string; bankReference?: string; actualFromAmount?: string; actualToAmount?: string; journalReference?: string
   approvalStatus?: string
 }
@@ -45,12 +45,12 @@ export default function SettlementsPage() {
       <Section title="Pool positions">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {(data?.positions ?? []).map((p) => (
-            <Stat key={p.currency} label={`${p.currency} pool`} value={money(p.amount, p.currency)}
+            <Stat key={`${p.pool}-${p.currency}`} label={`${p.pool === "fx" ? "FX" : "Book"} · ${p.currency}`} value={money(p.amount, p.currency)}
                   tone={p.action === "top_up" ? "warn" : p.action === "surplus" ? "good" : undefined} />
           ))}
           {!data?.positions.length && <p className="text-sm text-muted-foreground">No book transfers yet.</p>}
         </div>
-        <p className="text-xs text-muted-foreground">Amber: the pool has fronted payouts and needs topping up. Green: the pool holds spare cash.</p>
+        <p className="text-xs text-muted-foreground">Book: cross-border transfers paid out of a country pool. FX: currency swaps (amber = customers bought this currency from us and it must be bought in; green = we hold spare from what they paid). Amber needs funding; green is spare cash.</p>
       </Section>
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
@@ -68,6 +68,7 @@ export default function SettlementsPage() {
           <DataTable
             rows={run.lines} rowKey={(l) => l.id} empty="No transfers needed."
             columns={[
+              { header: "Type", cell: (l) => l.pool === "fx" ? <span title="Customers bought this currency from us: buy it with what they paid">FX hedge</span> : "Book pools" },
               { header: "Send", cell: (l) => money(l.actualFromAmount ?? l.fromAmount, l.fromCurrency) },
               { header: "Receive", cell: (l) => l.actualToAmount ? money(l.actualToAmount, l.toCurrency) : l.expectedToAmount ? `≈ ${money(l.expectedToAmount, l.toCurrency)}` : "rate needed" },
               { header: "Mid rate", cell: (l) => l.rate ? Number(l.rate).toFixed(4) : "—" },

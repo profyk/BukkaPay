@@ -285,7 +285,7 @@ FEE_PRODUCTS = (
     "p2p", "cross_border", "merchant_payment", "payment_link", "funding", "withdrawal",
     "card_issuance", "card_maintenance", "contribution_payout", "trade_escrow",
     # revenue products added with pricing & agents
-    "account_monthly", "cash_out", "payout", "card_foreign_transaction", "card_atm_withdrawal",
+    "account_monthly", "cash_out", "payout", "card_foreign_transaction", "card_atm_withdrawal", "fx_swap",
 )
 
 

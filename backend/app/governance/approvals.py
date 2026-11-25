@@ -144,6 +144,7 @@ async def _treasury_rebalance(db, p):
         db, from_currency=p["from_currency"], from_amount=posting.parse_amount(p["from_amount"]),
         to_currency=p["to_currency"], to_amount=posting.parse_amount(p["to_amount"]),
         reference=str(p.get("reference") or "")[:80] or "rebalance", actor="maker-checker",
+        pool=p.get("pool", "book"),
     )
     if p.get("settlement_line_id"):
         from app.network import settlement

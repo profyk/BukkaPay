@@ -48,7 +48,8 @@ async def _batch_out(db: AsyncSession, b: SettlementBatch) -> dict:
 @router.get("/settlements")
 async def list_runs(_=Depends(require("ledger.view")), db: AsyncSession = Depends(get_db)):
     runs = (await db.execute(select(SettlementBatch).order_by(SettlementBatch.created_at.desc()).limit(30))).scalars()
-    return {"positions": await treasury.positions(db), "runs": [await _batch_out(db, b) for b in runs]}
+    return {"positions": await treasury.positions(db, "book") + await treasury.positions(db, "fx"),
+            "runs": [await _batch_out(db, b) for b in runs]}
 
 
 @router.post("/settlements/run", status_code=201)

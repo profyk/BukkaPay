@@ -42,7 +42,7 @@ export type Escrow = {
   createdAt: string; events?: { event: string; actor: string; note?: string | null; at: string }[];
   receipts?: { number: string; kind: string; issuedAt: string; sha256: string }[];
 };
-export type SwapQuote = { from: string; to: string; amount: string; rate: string; spreadPercent: string; spread: string; receive: string; note?: string | null };
+export type SwapQuote = { from: string; to: string; amount: string; rate: string; spreadPercent: string; spread: string; receive: string; fee?: string; total?: string; note?: string | null };
 
 // ─── trade ───────────────────────────────────────────────────────────────────
 

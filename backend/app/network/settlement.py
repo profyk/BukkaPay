@@ -74,24 +74,28 @@ async def generate(db: AsyncSession, *, actor: str, now: datetime | None = None)
         current.status = "cancelled"
         current.notes = (current.notes or "") + f" Replaced by a new run ({actor})."
 
-    positions = await treasury.positions(db)
-    needs, surplus, unfunded, unpriced = [], [], [], []
-    for p in positions:
-        amt = Decimal(p["amount"])
-        if amt <= 0:
-            continue
-        usd = await rate(db, p["currency"], "USD")
-        if usd is None:
-            unpriced.append({"currency": p["currency"], "action": p["action"], "amount": f"{amt:.2f}",
-                             "note": "No rate to USD: settle manually"})
-            continue
-        (needs if p["action"] == "top_up" else surplus).append([p["currency"], amt, amt * usd])
-    if not needs and not unpriced:
+    # Each pool nets on its own: book-transfer pools, and the FX (swap) pool — whose
+    # lines are FX hedges: sell the currency customers paid us, buy what they bought.
+    positions, plans, unfunded, unpriced = [], {}, [], []
+    for pool in ("book", "fx"):
+        needs, surplus = [], []
+        for p in await treasury.positions(db, pool):
+            positions.append(p)
+            amt = Decimal(p["amount"])
+            if amt <= 0:
+                continue
+            usd = await rate(db, p["currency"], "USD")
+            if usd is None:
+                unpriced.append({"pool": pool, "currency": p["currency"], "action": p["action"], "amount": f"{amt:.2f}",
+                                 "note": "No rate to USD: settle manually"})
+                continue
+            (needs if p["action"] == "top_up" else surplus).append([p["currency"], amt, amt * usd])
+        needs.sort(key=lambda x: x[2], reverse=True)
+        surplus.sort(key=lambda x: x[2], reverse=True)
+        plans[pool] = (needs, surplus)
+    if not any(n for n, _ in plans.values()) and not unpriced:
         await db.flush()
         return None
-
-    needs.sort(key=lambda x: x[2], reverse=True)
-    surplus.sort(key=lambda x: x[2], reverse=True)
     last = (await db.execute(select(SettlementBatch).where(SettlementBatch.status == "settled")
                              .order_by(SettlementBatch.period_end.desc()))).scalars().first()
     today = now.date()
@@ -103,30 +107,32 @@ async def generate(db: AsyncSession, *, actor: str, now: datetime | None = None)
     db.add(batch)
     await db.flush()
 
-    for need in needs:
-        ccy_to, _, need_usd = need
-        for s in surplus:
-            if need_usd < MIN_LINE_USD:
-                break
-            ccy_from, s_amt, s_usd = s
-            if s_usd < MIN_LINE_USD:
-                continue
-            take_usd = min(need_usd, s_usd)
-            from_amount = (s_amt * take_usd / s_usd).quantize(CENT, rounding=ROUND_DOWN)
-            r = await rate(db, ccy_from, ccy_to)
-            to_amount = (from_amount * r).quantize(CENT, rounding=ROUND_DOWN) if r else None
-            if from_amount <= 0:
-                continue
-            db.add(SettlementLine(batch_id=batch.id, from_currency=ccy_from, to_currency=ccy_to,
-                                  from_amount=from_amount, expected_to_amount=to_amount,
-                                  rate=r.quantize(Decimal("0.00000001")) if r else None))
-            s[1] -= from_amount
-            s[2] -= take_usd
-            need_usd -= take_usd
-        if need_usd >= MIN_LINE_USD:
-            r = await rate(db, ccy_to, "USD")
-            unfunded.append({"currency": ccy_to, "amount": f"{(need_usd / r).quantize(CENT):.2f}" if r else None,
-                             "note": "No pool surplus covers this: fund from treasury or the FX partner"})
+    for pool, (needs, surplus) in plans.items():
+        for need in needs:
+            ccy_to, _, need_usd = need
+            for s in surplus:
+                if need_usd < MIN_LINE_USD:
+                    break
+                ccy_from, s_amt, s_usd = s
+                if s_usd < MIN_LINE_USD:
+                    continue
+                take_usd = min(need_usd, s_usd)
+                from_amount = (s_amt * take_usd / s_usd).quantize(CENT, rounding=ROUND_DOWN)
+                r = await rate(db, ccy_from, ccy_to)
+                to_amount = (from_amount * r).quantize(CENT, rounding=ROUND_DOWN) if r else None
+                if from_amount <= 0:
+                    continue
+                db.add(SettlementLine(batch_id=batch.id, pool=pool, from_currency=ccy_from, to_currency=ccy_to,
+                                      from_amount=from_amount, expected_to_amount=to_amount,
+                                      rate=r.quantize(Decimal("0.00000001")) if r else None))
+                s[1] -= from_amount
+                s[2] -= take_usd
+                need_usd -= take_usd
+            if need_usd >= MIN_LINE_USD:
+                r = await rate(db, ccy_to, "USD")
+                unfunded.append({"pool": pool, "currency": ccy_to,
+                                 "amount": f"{(need_usd / r).quantize(CENT):.2f}" if r else None,
+                                 "note": "No pool surplus covers this: fund from treasury or the FX partner"})
     batch.unfunded = unfunded + unpriced
     await db.flush()
     return batch
@@ -154,7 +160,7 @@ async def record_transfer(db: AsyncSession, ctx, line: SettlementLine, *, bank_r
     if sent <= 0 or received <= 0:
         raise ApiError("Enter the amounts actually sent and received")
     req = await approvals.request(db, ctx, action="treasury.rebalance", payload={
-        "from_currency": line.from_currency, "from_amount": f"{sent:.2f}",
+        "pool": line.pool, "from_currency": line.from_currency, "from_amount": f"{sent:.2f}",
         "to_currency": line.to_currency, "to_amount": f"{received:.2f}",
         "reference": bank_reference.strip()[:80], "settlement_line_id": str(line.id),
         "settlement_reference": batch.reference,

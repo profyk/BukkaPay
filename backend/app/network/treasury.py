@@ -24,11 +24,24 @@ from app.ledger import chart, posting
 from app.models.ledger import LedgerAccount
 
 PREFIX = "clearing:book:"
+# Two pools are squared up the same way:
+#   book  clearing:book:<CCY>  cross-border book transfers (paid out from the destination pool)
+#   fx    fx:position:<CCY>    currency swaps (customers bought this currency from us / sold us that one)
+POOL_PREFIX = {"book": PREFIX, "fx": "fx:position:"}
 
 
-async def positions(db: AsyncSession) -> list[dict]:
+async def pool_account(db: AsyncSession, pool: str, currency: str):
+    if pool == "fx":
+        return await chart.sys_account(db, "SYS_FX_POOL", currency)
+    if pool == "book":
+        return await ledger_accounts.provider_clearing(db, "book", currency)
+    raise ApiError(f"Unknown pool {pool}")
+
+
+async def positions(db: AsyncSession, pool: str = "book") -> list[dict]:
     rows = (
-        await db.execute(select(LedgerAccount).where(LedgerAccount.code.like(PREFIX + "%")).order_by(LedgerAccount.code))
+        await db.execute(select(LedgerAccount).where(LedgerAccount.code.like(POOL_PREFIX[pool] + "%"))
+                         .order_by(LedgerAccount.code))
     ).scalars().all()
     out = []
     for acct in rows:
@@ -38,12 +51,13 @@ async def positions(db: AsyncSession) -> list[dict]:
             "position": f"{bal:.2f}",
             "action": "top_up" if bal > 0 else ("surplus" if bal < 0 else "balanced"),
             "amount": f"{abs(bal):.2f}",
+            "pool": pool,
         })
     return out
 
 
 async def record_rebalance(db: AsyncSession, *, from_currency: str, from_amount: Decimal, to_currency: str,
-                           to_amount: Decimal, reference: str, actor: str) -> dict:
+                           to_amount: Decimal, reference: str, actor: str, pool: str = "book") -> dict:
     """Book a bulk move treasury has actually made between two country pools
     (e.g. ZAR from the SA custodian bought BWP into the BW custodian). Each
     currency's safeguarded cash and book position move together; the bank
@@ -55,15 +69,17 @@ async def record_rebalance(db: AsyncSession, *, from_currency: str, from_amount:
         raise ApiError("Choose two different currencies")
     legs = [
         # Money left the source pool: its surplus is used up.
-        posting.debit(await ledger_accounts.provider_clearing(db, "book", from_currency), from_amount),
+        posting.debit(await pool_account(db, pool, from_currency), from_amount),
         posting.credit(await chart.sys_account(db, "SYS_SAFEGUARD", from_currency), from_amount),
         # Money arrived in the destination pool: its top-up need shrinks.
         posting.debit(await chart.sys_account(db, "SYS_SAFEGUARD", to_currency), to_amount),
-        posting.credit(await ledger_accounts.provider_clearing(db, "book", to_currency), to_amount),
+        posting.credit(await pool_account(db, pool, to_currency), to_amount),
     ]
+    label = "Book pool rebalance" if pool == "book" else "FX hedge"
     entry = await posting.post(
-        db, kind="treasury_rebalance", description=f"Book pool rebalance {reference}"[:500], legs=legs,
-        details={"reference": reference, "from": f"{from_currency} {from_amount}", "to": f"{to_currency} {to_amount}",
+        db, kind="treasury_rebalance" if pool == "book" else "fx_hedge",
+        description=f"{label} {reference}"[:500], legs=legs,
+        details={"pool": pool, "reference": reference, "from": f"{from_currency} {from_amount}", "to": f"{to_currency} {to_amount}",
                  "by": actor},
     )
     return {"journal_reference": entry.reference, "from": f"{from_currency} {from_amount:.2f}",
