@@ -95,6 +95,17 @@ class CardIssuer:
     def webhook_secret(self) -> str | None:
         return None
 
+    # Inbound calls (real-time authorization and events). The default is the
+    # BukkaPay signed format (sandbox / mock); real processors override.
+    def verify_webhook(self, body: bytes, headers) -> bool:
+        return verify(self, body, headers.get("X-Card-Issuer-Signature"))
+
+    def parse_authorization(self, data: dict) -> dict:
+        return data
+
+    def parse_event(self, data: dict) -> tuple[str, dict]:
+        return str(data.get("type") or ""), data
+
 
 class SandboxIssuer(CardIssuer):
     code = "sandbox"
@@ -156,7 +167,13 @@ class SandboxIssuer(CardIssuer):
         return get_settings().card_issuer_webhook_secret or get_settings().sandbox_webhook_secret
 
 
-ISSUERS: dict[str, CardIssuer] = {i.code: i for i in (SandboxIssuer(),)}
+def _registry() -> dict[str, CardIssuer]:
+    from app.cards.paymentology import PaymentologyIssuer
+
+    return {i.code: i for i in (SandboxIssuer(), PaymentologyIssuer())}
+
+
+ISSUERS: dict[str, CardIssuer] = {}
 
 
 def configured() -> CardIssuer:
@@ -165,14 +182,22 @@ def configured() -> CardIssuer:
         raise IssuerUnavailable(
             "Card issuing is not connected yet: it needs a Visa BIN sponsor and an issuer-processor contract"
         )
-    issuer = ISSUERS.get(code)
+    if code == "paymentology" and not get_settings().paymentology_enabled:
+        raise IssuerUnavailable("Paymentology is switched off (PAYMENTOLOGY_ENABLED=false)")
+    issuer = by_code_or_none(code)
     if issuer is None:
         raise IssuerUnavailable(f"No adapter is implemented for card issuer '{code}'")
     return issuer
 
 
+def by_code_or_none(code: str) -> CardIssuer | None:
+    if not ISSUERS:
+        ISSUERS.update(_registry())
+    return ISSUERS.get(code)
+
+
 def by_code(code: str) -> CardIssuer:
-    issuer = ISSUERS.get(code)
+    issuer = by_code_or_none(code)
     if issuer is None:
         raise IssuerUnavailable(f"Unknown card issuer '{code}'")
     return issuer

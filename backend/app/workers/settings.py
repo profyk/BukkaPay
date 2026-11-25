@@ -18,8 +18,10 @@ from app.workers.tasks import (
     daily_reconciliation,
     expire_card_holds,
     expire_fx_quotes,
+    expire_payout_quotes,
     issue_pending_cards,
     process_outbox,
+    reconcile_payouts,
     release_due_escrows,
     rescreen_customers,
     sweep_expired_claim_payments,
@@ -57,6 +59,8 @@ class WorkerSettings:
         cron(expire_fx_quotes, minute=set(range(0, 60, 5))),
         cron(daily_reconciliation, hour=2, minute=30),
         cron(rescreen_customers, hour=3, minute=15),
+        cron(expire_payout_quotes, minute=set(range(0, 60, 5))),
+        cron(reconcile_payouts, hour=4, minute=0),
         cron(release_due_escrows, minute=set(range(0, 60, 10))),
     ]
     on_startup = on_startup

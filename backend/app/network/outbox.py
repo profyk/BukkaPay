@@ -55,6 +55,10 @@ async def _handle(db: AsyncSession, event: OutboxEvent) -> None:
         from app.cards import service as card_service
 
         await card_service.sync_funds_lock(db, event.payload["wallet_card_id"])
+    elif event.topic == "payout.execute":
+        from app.payouts import service as payout_service
+
+        await payout_service.execute(db, event.payload["payout_id"])
     elif event.topic == "merchant.webhook":
         from app.merchants import webhooks_out
 

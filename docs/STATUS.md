@@ -82,6 +82,12 @@ and secret detection.
 - [x] Payment links, claims and trade invoices on their own app with no session, a nonce CSP, no-referrer/noindex/no-store and allow-listed redirects. Old `app.bukkapay.com/pay/{id}` links keep working; new links use pay.bukkapay.com.
 - [x] API privacy: public link view and invoice PDF hide payers, payout bank details, billed-customer contact and owner ID; public claim data no longer includes the cash pickup code.
 
+### Paymentology cards + Onafriq payouts *(2026-11-25)*: [paymentology.md](integrations/paymentology.md), [onafriq.md](integrations/onafriq.md)
+- [x] One Visa card per customer spending from a switchable active wallet; locked FX per authorization; fraud rules; processor timeout budget; disputes; audited state machines.
+- [x] Payouts to banks and mobile wallets in 12 countries: recipients, 60 s locked quotes, compliance + recipient screening, in-transit ledger, idempotent execution, signed webhooks, automatic refunds, daily reconciliation, free in-network shortcut. App: Send abroad.
+- [x] Mock provider server (`backend/mock_providers`) + end-to-end tests.
+- [ ] **Vendor docs:** both adapters are typed stubs (`TODO(vendor-docs)`); add the docs under `docs/vendors/` and fill in `app/cards/paymentology.py` and `app/payouts/onafriq.py`.
+
 ### Workflows
 - [x] CI and deploy workflows all repaired (Trivy version, pinned ruff rules, admin TypeScript, Railway service names, scan permissions); customer web deploy is manual-only (Vercel builds production).
 

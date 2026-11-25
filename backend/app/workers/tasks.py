@@ -231,6 +231,29 @@ async def daily_reconciliation(ctx: dict) -> None:
         await db.commit()
 
 
+async def expire_payout_quotes(ctx: dict) -> int:
+    from app.payouts import service as payout_service
+
+    async with get_session_factory()() as db:
+        n = await payout_service.expire_quotes(db)
+        await db.commit()
+    return n
+
+
+async def reconcile_payouts(ctx: dict) -> dict:
+    """Daily: yesterday's payout statement from the rail vs our ledger."""
+    from app.core.config import get_settings
+    from app.payouts import service as payout_service
+
+    rail = get_settings().payout_rail
+    async with get_session_factory()() as db:
+        # Statement days are UTC days, like completed_at.
+        summary = await payout_service.reconcile(db, rail, datetime.now(UTC).date() - timedelta(days=1))
+        await db.commit()
+    log.info("reconcile_payouts", rail=rail, **{k: v for k, v in summary.items() if k != "error"})
+    return summary
+
+
 async def rescreen_customers(ctx: dict) -> int:
     """Sanctions lists change daily: rescreen verified customers monthly."""
     from app.network import compliance

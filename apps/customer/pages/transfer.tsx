@@ -72,7 +72,7 @@ export default function Transfer() {
 function SendHub({ colors, router }: { colors: any; router: any }) {
   const rows: [any, string, string, string][] = [
     ["person-outline", "To a BukkaPay user", "Instant and free, by @username, phone or wallet ID", "/(screens)/send-money"],
-    ["globe-outline", "Send abroad", "To family or a business in another African country", "/(screens)/send-money"],
+    ["globe-outline", "Send abroad", "To a bank account or mobile wallet in 12 African countries", "/(screens)/send-abroad"],
     ["briefcase-outline", "Pay a supplier", "Trade invoices, with escrow if you want it", "/(screens)/pay-supplier"],
     ["scan-outline", "Scan to pay", "Pay a shop's BukkaPay QR code", "/(tabs)/scan"],
     ["link-outline", "Request with a link", "Anyone can pay you by card, bank or wallet", "/(screens)/create-payment-link"],

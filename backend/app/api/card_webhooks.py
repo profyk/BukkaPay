@@ -20,7 +20,6 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import cards as card_api
-from app.cards import issuers
 from app.core.errors import ApiError
 from app.db.deps import get_db
 from app.models.platform import ProviderWebhook
@@ -38,7 +37,7 @@ async def card_auth(request: Request, db: AsyncSession = Depends(get_db),
 async def _once(request: Request, db: AsyncSession, issuer_code: str, signature: str | None, event_type: str) -> dict:
     issuer = card_api._issuer_or_404(issuer_code)
     body = await request.body()
-    if not issuers.verify(issuer, body, signature):
+    if not issuer.verify_webhook(body, request.headers):
         raise ApiError("Invalid signature", status_code=401)
     try:
         data = json.loads(body)

@@ -24,6 +24,13 @@ class ApiError(Exception):
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    from app.core.state_machine import InvalidTransition
+
+    @app.exception_handler(InvalidTransition)
+    async def invalid_transition_handler(_request: Request, exc: InvalidTransition) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"error": f"This can't be done now: it is already {exc.current}.",
+                                                      "code": "invalid_state"})
+
     @app.exception_handler(ApiError)
     async def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
         content = {"error": exc.message}

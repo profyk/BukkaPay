@@ -1,7 +1,8 @@
-"""Card lifecycle: every wallet gets a Visa card.
+"""Card lifecycle: ONE Visa card per customer, spending from an "active
+wallet" the customer chooses (default by country: ZA→ZAR, BW→BWP, ZW→USD).
 
-* A wallet is created → an outbox event asks for its card (and a periodic
-  sweep catches any that were missed), so signup never waits on the issuer.
+* The first wallet is created → an outbox event asks for the card (and a
+  periodic sweep catches any that were missed), so signup never waits.
 * Issuers require identity verification, so a customer below KYC level 1
   gets a ``pending_kyc`` card that is issued as soon as they verify.
 * Card details are never stored: reveal goes through the issuer.
@@ -15,6 +16,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cards import issuers
+from app.cards.states import CARD
 from app.core.errors import ApiError
 from app.ledger import posting
 from app.models.cards import CardWalletToken, IssuedCard, default_controls
@@ -27,11 +29,37 @@ from app.services import notification_service
 # Visa issuers need a verified identity: level 2 = ID document approved.
 MIN_KYC_LEVEL = 2
 LIVE_STATUSES = ("pending_kyc", "requested", "active", "frozen")
+# Which wallet a new card spends from, by country of residence.
+DEFAULT_CARD_CURRENCY = {"ZA": "ZAR", "BW": "BWP", "ZW": "USD"}
 
 
 async def request_card(db: AsyncSession, wallet: WalletCard) -> None:
-    """Queue card issuance for a new wallet (same transaction as the wallet)."""
-    await outbox.enqueue(db, "card.issue", {"wallet_card_id": str(wallet.id)})
+    """Queue card issuance when a customer gets a wallet (same transaction).
+    Customers have one card, so later wallets don't ask for another."""
+    if await user_card(db, wallet.user_id) is None:
+        await outbox.enqueue(db, "card.issue", {"wallet_card_id": str(wallet.id)})
+
+
+async def user_card(db: AsyncSession, user_id) -> IssuedCard | None:
+    return (
+        await db.execute(
+            select(IssuedCard).where(IssuedCard.user_id == user_id, IssuedCard.status.in_(LIVE_STATUSES))
+        )
+    ).scalar_one_or_none()
+
+
+async def default_wallet(db: AsyncSession, user: User, fallback: WalletCard | None = None) -> WalletCard | None:
+    """The wallet a new card should spend from."""
+    wallets = list((await db.execute(select(WalletCard).where(WalletCard.user_id == user.id)
+                                     .order_by(WalletCard.created_at))).scalars())
+    wanted = DEFAULT_CARD_CURRENCY.get((user.residence_country or "").upper())
+    for w in wallets:
+        if wanted and w.currency == wanted:
+            return w
+    for w in wallets:
+        if w.is_default:
+            return w
+    return fallback or (wallets[0] if wallets else None)
 
 
 async def live_card(db: AsyncSession, wallet_card_id) -> IssuedCard | None:
@@ -56,17 +84,20 @@ async def live_cards_by_wallet(db: AsyncSession, wallet_ids) -> dict:
 
 
 async def issue_for_wallet(db: AsyncSession, wallet_card_id) -> IssuedCard | None:
-    """Idempotent: returns the wallet's live card, creating or completing it.
-    Returns None when no issuer is available (nothing is created)."""
+    """Idempotent: returns the customer's one live card, creating or
+    completing it (the triggering wallet only matters if there's no card
+    yet and no better default). Returns None when no issuer is available."""
     wallet = (
         await db.execute(select(WalletCard).where(WalletCard.id == wallet_card_id).with_for_update())
     ).scalar_one_or_none()
     if wallet is None:
         return None
-    user = await db.get(User, wallet.user_id)
-    card = await live_card(db, wallet.id)
+    user = (await db.execute(select(User).where(User.id == wallet.user_id).with_for_update())).scalar_one()
+    card = await user_card(db, user.id)
     if card is not None and card.status != "pending_kyc":
         return card
+    if card is None:
+        wallet = await default_wallet(db, user, fallback=wallet) or wallet
     try:
         issuer = issuers.configured()
     except issuers.IssuerUnavailable:
@@ -94,7 +125,7 @@ async def issue_for_wallet(db: AsyncSession, wallet_card_id) -> IssuedCard | Non
     except issuers.IssuerUnavailable:
         return card
     except issuers.IssuerRejected as e:
-        card.status = "failed"
+        await CARD.move(db, card, "failed", reason="issuer_rejected")
         card.failure_reason = str(e)[:500]
         await db.flush()
         return card
@@ -103,7 +134,7 @@ async def issue_for_wallet(db: AsyncSession, wallet_card_id) -> IssuedCard | Non
     card.last4 = created.last4
     card.exp_month = created.exp_month
     card.exp_year = created.exp_year
-    card.status = created.status
+    await CARD.move(db, card, created.status, reason="issued")
     await db.flush()
 
     await notification_service.create_notification(
@@ -118,7 +149,7 @@ async def issue_for_wallet(db: AsyncSession, wallet_card_id) -> IssuedCard | Non
 async def sweep_unissued(db: AsyncSession, *, limit: int = 200) -> int:
     """Issue cards for wallets that have none (or are waiting on KYC and the
     customer has since verified). Bounded per run so it scales."""
-    no_card = ~exists().where(IssuedCard.wallet_card_id == WalletCard.id,
+    no_card = ~exists().where(IssuedCard.user_id == WalletCard.user_id,
                               IssuedCard.status.in_(LIVE_STATUSES))
     waiting = exists().where(IssuedCard.wallet_card_id == WalletCard.id, IssuedCard.status == "pending_kyc")
     rows = (
@@ -131,9 +162,14 @@ async def sweep_unissued(db: AsyncSession, *, limit: int = 200) -> int:
         )
     ).scalars().all()
     issued = 0
+    seen_users: set = set()
     for wallet_id in rows:
         async with db.begin_nested():
             card = await issue_for_wallet(db, wallet_id)
+        if card is not None and card.user_id in seen_users:
+            continue
+        if card is not None:
+            seen_users.add(card.user_id)
         if card is not None and card.status == "active":
             issued += 1
     return issued
@@ -204,7 +240,7 @@ async def set_frozen(db: AsyncSession, card: IssuedCard, frozen: bool, *, reason
     target = "frozen" if frozen else "active"
     if card.status != target:
         await issuers.by_code(card.issuer).set_status(card.issuer_card_id, target)
-        card.status = target
+        await CARD.move(db, card, target, reason=reason)
     card.frozen_reason = reason if frozen else None
     await db.flush()
     return card
@@ -231,11 +267,13 @@ async def sync_funds_lock(db: AsyncSession, wallet_card_id: str) -> int:
             continue
         if empty and card.status == "active":
             await issuers.by_code(card.issuer).set_status(card.issuer_card_id, "frozen")
-            card.status, card.frozen_reason = "frozen", "no_funds"
+            await CARD.move(db, card, "frozen", reason="no_funds")
+            card.frozen_reason = "no_funds"
             changed += 1
         elif not empty and card.status == "frozen" and card.frozen_reason == "no_funds":
             await issuers.by_code(card.issuer).set_status(card.issuer_card_id, "active")
-            card.status, card.frozen_reason = "active", None
+            await CARD.move(db, card, "active", reason="funds_back")
+            card.frozen_reason = None
             changed += 1
     await db.flush()
     return changed
@@ -253,7 +291,7 @@ async def cancel(db: AsyncSession, card: IssuedCard) -> IssuedCard:
     for token in tokens:
         token.status = "deleted"
         token.deleted_at = datetime.now(UTC)
-    card.status = "cancelled"
+    await CARD.move(db, card, "cancelled", reason="terminated")
     card.cancelled_at = datetime.now(UTC)
     await db.flush()
     return card
@@ -263,6 +301,43 @@ async def replace(db: AsyncSession, card: IssuedCard) -> IssuedCard | None:
     """Cancel (lost/compromised) and issue a new card on the same wallet."""
     await cancel(db, card)
     return await issue_for_wallet(db, card.wallet_card_id)
+
+
+async def set_active_wallet(db: AsyncSession, card: IssuedCard, wallet_id: str, *, user_id) -> IssuedCard:
+    """Point the card at another of the customer's wallets. Payments already
+    authorized keep settling from the wallet that funded them."""
+    from app.services import swap_service
+
+    try:
+        wid = uuid.UUID(str(wallet_id))
+    except ValueError as e:
+        raise ApiError("Wallet not found", status_code=404) from e
+    wallet = (await db.execute(select(WalletCard).where(WalletCard.id == wid, WalletCard.user_id == user_id))
+              ).scalar_one_or_none()
+    if wallet is None:
+        raise ApiError("Wallet not found", status_code=404)
+    if card.status not in LIVE_STATUSES:
+        raise ApiError("This card is not active", status_code=409)
+    if wallet.id == card.wallet_card_id:
+        return card
+    if wallet.frozen or wallet.blocked or wallet.flagged:
+        raise ApiError("That wallet is restricted", status_code=403)
+    if card.overdraft_outstanding > 0:
+        raise ApiError("Repay your card overdraft before switching wallets", status_code=409)
+    if wallet.currency != card.billing_currency:
+        # Payments are billed in the card's currency: we must be able to convert.
+        await swap_service.quote_for_target(db, wallet.currency, card.billing_currency, Decimal("1.00"))
+    previous = card.wallet_card_id
+    card.wallet_card_id = wallet.id
+    from app.governance import audit
+
+    await audit.record(db, actor_type="user", actor_id=str(user_id), actor_email=None,
+                       action="card.active_wallet_changed", target_type="card", target_id=str(card.id),
+                       details={"from_wallet": str(previous), "to_wallet": str(wallet.id), "currency": wallet.currency})
+    await db.flush()
+    # Pause / resume to match the new wallet's balance.
+    await outbox.enqueue(db, "card.funds_lock", {"wallet_card_id": str(wallet.id)})
+    return card
 
 
 CONTROL_KEYS = {"online", "contactless", "chip", "atm", "international"}
