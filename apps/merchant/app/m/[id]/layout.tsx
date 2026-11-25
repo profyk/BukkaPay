@@ -8,6 +8,7 @@ import { can, useData, type Membership } from "@/lib/hooks"
 import { Badge, Notice } from "@/components/ui"
 import { MerchantContext } from "@/components/merchant-context"
 import { PaymentAlert } from "@/components/payment-alert"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 
 const NAV: { href: string; label: string; cap?: "collect" | "finance" | "settings" | "developer" | "owner" }[] = [
@@ -62,7 +63,8 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
               )
             })}
           </nav>
-          <div className="hidden lg:block p-4 mt-auto">
+          <div className="hidden lg:block p-4 mt-auto space-y-3">
+            <ThemeToggle />
             <button className="text-xs text-ink-muted hover:text-red-600" onClick={() => { setToken(null); router.replace("/login") }}>Sign out</button>
           </div>
         </aside>

@@ -224,7 +224,7 @@ function DocumentEditor({ slug, list, labels, canEdit, canPublish, onBack }: {
                       onChange={(e) => set({ body: e.target.value })} spellCheck />
           )}
           {view !== "edit" && (
-            <div className="legal-preview min-h-[65vh] overflow-y-auto rounded-md border bg-white p-6 text-slate-900 lg:max-h-[75vh]">
+            <div className="legal-preview min-h-[65vh] overflow-y-auto rounded-md border bg-card p-6 text-card-foreground lg:max-h-[75vh]">
               <LegalMarkdown source={preview} />
             </div>
           )}
@@ -352,7 +352,7 @@ function VersionDialog({ slug, version, onClose, details, labels }: {
           <DialogTitle>{data ? `${data.title} — version ${data.version}` : "Loading…"}</DialogTitle>
           {data && <DialogDescription>Effective {data.effectiveDate} · published by {data.publishedBy ?? "—"} {when(data.publishedAt)}</DialogDescription>}
         </DialogHeader>
-        <div className="legal-preview max-h-[65vh] overflow-y-auto rounded-md border bg-white p-6 text-slate-900">
+        <div className="legal-preview max-h-[65vh] overflow-y-auto rounded-md border bg-card p-6 text-card-foreground">
           {data?.body && <LegalMarkdown source={fill(data.body, details, labels)} />}
         </div>
       </DialogContent>

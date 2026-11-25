@@ -1,6 +1,10 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { initTheme } from "./lib/theme";
+
+// Before the first render, so a dark-mode admin never sees a white flash.
+initTheme();
 
 if ("serviceWorker" in navigator) {
   // When a new deploy's service worker takes over an open tab, reload once so

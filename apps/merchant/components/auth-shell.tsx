@@ -10,7 +10,7 @@ const POINTS = [
 /** Deep-blue brand panel + form, shared by merchant sign-in and sign-up. */
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <main className="min-h-screen grid lg:grid-cols-[1.05fr_1fr] bg-white">
+    <main className="min-h-screen grid lg:grid-cols-[1.05fr_1fr] bg-white dark:bg-[#0D0D1A]">
       <section className="relative overflow-hidden bg-[#010C38] px-6 py-10 text-white sm:px-10 lg:flex lg:flex-col lg:justify-between lg:p-14">
         <div aria-hidden className="pointer-events-none absolute -right-24 -top-32 h-96 w-96 rounded-full bg-[#0052FF]/40 blur-3xl" />
         <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full bg-cyan-400/15 blur-3xl" />

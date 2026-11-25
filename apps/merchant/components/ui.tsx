@@ -73,16 +73,16 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 }
 
 const TONES: Record<string, string> = {
-  completed: "bg-emerald-50 text-emerald-700", paid: "bg-emerald-50 text-emerald-700", approved: "bg-emerald-50 text-emerald-700",
-  active: "bg-emerald-50 text-emerald-700", settled: "bg-emerald-50 text-emerald-700",
-  pending: "bg-amber-50 text-amber-700", partial: "bg-amber-50 text-amber-700", processing: "bg-amber-50 text-amber-700",
-  failed: "bg-red-50 text-red-700", rejected: "bg-red-50 text-red-700", cancelled: "bg-gray-100 text-gray-600",
-  expired: "bg-gray-100 text-gray-600", refund: "bg-sky-50 text-sky-700", not_submitted: "bg-gray-100 text-gray-600",
+  completed: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", paid: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", approved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  active: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", settled: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  pending: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300", partial: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300", processing: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  failed: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300", rejected: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300", cancelled: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-white/70",
+  expired: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-white/70", refund: "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300", not_submitted: "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-white/70",
 }
 
 export function Badge({ value }: { value?: string | null }) {
   if (!value) return null
-  return <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${TONES[value] ?? "bg-gray-100 text-gray-700"}`}>{value.replace(/_/g, " ")}</span>
+  return <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${TONES[value] ?? "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/80"}`}>{value.replace(/_/g, " ")}</span>
 }
 
 export function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
@@ -97,8 +97,8 @@ export function Stat({ label, value, sub }: { label: string; value: ReactNode; s
 
 export function Notice({ tone = "info", children }: { tone?: "info" | "error" | "success" | "warn"; children: ReactNode }) {
   const cls = {
-    info: "bg-brand-50 text-brand-900 border-brand-100", error: "bg-red-50 text-red-800 border-red-100",
-    success: "bg-emerald-50 text-emerald-800 border-emerald-100", warn: "bg-amber-50 text-amber-900 border-amber-100",
+    info: "bg-brand-50 text-brand-900 border-brand-100 dark:bg-brand-500/10 dark:text-brand-100 dark:border-brand-500/20", error: "bg-red-50 text-red-800 border-red-100 dark:bg-red-500/10 dark:text-red-200 dark:border-red-500/20",
+    success: "bg-emerald-50 text-emerald-800 border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-200 dark:border-emerald-500/20", warn: "bg-amber-50 text-amber-900 border-amber-100 dark:bg-amber-500/10 dark:text-amber-100 dark:border-amber-500/20",
   }[tone]
   return <div role={tone === "error" ? "alert" : "status"} className={`rounded-xl border px-4 py-3 text-sm ${cls}`}>{children}</div>
 }

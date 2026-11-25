@@ -49,7 +49,7 @@ export default function Profile() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { darkMode, setDarkMode, colors } = useTheme();
+  const { darkMode, setDarkMode, followSystem, followsSystem, colors } = useTheme();
   const [user, setUser] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -424,6 +424,8 @@ export default function Profile() {
 
       <Group title="PREFERENCES">
         <Row icon={darkMode ? "moon-outline" : "sunny-outline"} tint="#F59E0B" label="Dark mode"
+          hint={followsSystem ? "Matching your phone" : "Tap \"Match phone\" to follow your phone again"}
+          onPress={followsSystem ? undefined : async () => { await followSystem(); toast({ title: "Matching your phone's setting" }); }}
           right={<Toggle value={darkMode} onChange={handleDarkModeToggle} label="Dark mode" />} />
         <Row icon={hideBalance ? "eye-off-outline" : "eye-outline"} tint="#0EA5E9" label="Hide balances" hint="Keep amounts private on screen"
           right={<Toggle value={hideBalance} onChange={handleHideBalanceToggle} label="Hide balances" />} />

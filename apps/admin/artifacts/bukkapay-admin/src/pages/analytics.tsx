@@ -8,7 +8,8 @@ import { DataTable, Page, Section, money } from "@/components/network/kit"
 import { useApi } from "@/components/network/kit"
 
 /* Validated reference palette (dataviz skill): slot 1 blue, slot 2 orange; chrome inks. */
-const C = { s1: "#2a78d6", s2: "#eb6834", grid: "#e1e0d9", axis: "#898781", ink: "#0b0b0b", good: "#006300", bad: "#d03b3b" }
+// Chrome follows the theme tokens so gridlines and labels work in light and dark.
+const C = { s1: "#2a78d6", s2: "#eb6834", grid: "hsl(var(--border))", axis: "hsl(var(--muted-foreground))", ink: "hsl(var(--foreground))", good: "#0ca30c", bad: "#d03b3b" }
 
 type Daily = { date: string; amount: string }
 type Analytics = {

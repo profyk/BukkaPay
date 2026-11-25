@@ -4,7 +4,7 @@ import type { Config } from "tailwindcss"
 // (violet brand, ink text, Outfit for display, DM Sans for body).
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
-  darkMode: "media",
+  darkMode: "class",
   theme: {
     extend: {
       colors: {

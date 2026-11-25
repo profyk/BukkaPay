@@ -2,27 +2,31 @@ import { useState, useEffect, useCallback } from "react";
 import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+/** Dark mode: follows the phone's setting (live) until the customer picks
+ *  light or dark; "match phone" clears the choice again. */
 export function useDarkMode() {
   const systemScheme = useColorScheme();
-  const [darkMode, setDarkModeState] = useState(systemScheme === "dark");
+  const [choice, setChoice] = useState<boolean | null>(null); // null = follow the phone
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
       const stored = await AsyncStorage.getItem("dark_mode");
-      if (stored !== null) {
-        setDarkModeState(stored === "true");
-      } else {
-        setDarkModeState(systemScheme === "dark");
-      }
+      setChoice(stored === null ? null : stored === "true");
       setLoaded(true);
     })();
   }, []);
 
   const setDarkMode = useCallback(async (enabled: boolean) => {
-    setDarkModeState(enabled);
+    setChoice(enabled);
     await AsyncStorage.setItem("dark_mode", String(enabled));
   }, []);
 
-  return { darkMode, setDarkMode, loaded };
+  const followSystem = useCallback(async () => {
+    setChoice(null);
+    await AsyncStorage.removeItem("dark_mode");
+  }, []);
+
+  const darkMode = choice === null ? systemScheme === "dark" : choice;
+  return { darkMode, setDarkMode, followSystem, followsSystem: choice === null, loaded };
 }

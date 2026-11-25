@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useAdminMe, usePermissions } from "@/lib/permissions"
 import { ROLE_LABEL } from "@/hooks/use-admins"
+import { ThemeSwitch } from "@/components/layout/ThemeSwitch"
 
 type NavItem = { href: string; label: string; icon: any; perm?: string }
 
@@ -170,9 +171,10 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
+        <ThemeSwitch />
         <div className="px-3 py-2.5 rounded-xl bg-white/5 ring-1 ring-white/5 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-bold flex items-center justify-center shrink-0">
-            {(me?.name || me?.email || "A").trim().split(/s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+            {(me?.name || me?.email || "A").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-sidebar-foreground truncate">{me ? (me.name || me.email) : "BukkaPay Admin"}</p>

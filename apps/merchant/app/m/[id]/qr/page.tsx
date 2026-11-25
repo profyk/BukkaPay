@@ -84,7 +84,7 @@ export default function QrPage() {
                 </div>
                 <Badge value={q.status} />
               </div>
-              <div className="my-4 flex justify-center opacity-100">{q.status === "active" ? <QrImage value={q.payload} size={160} /> : <div className="h-40 w-40 rounded-xl bg-surface" />}</div>
+              <div className="my-4 flex justify-center opacity-100">{q.status === "active" ? <QrImage value={q.payload} size={160} /> : <div className="h-40 w-40 rounded-xl bg-surface dark:bg-white/5" />}</div>
               <p className="text-xs text-ink-muted">Created {when(q.createdAt)}{q.expiresAt ? ` · expires ${when(q.expiresAt)}` : ""}</p>
               {q.reference && <p className="text-xs font-mono text-ink-muted">{q.reference}</p>}
               {q.status === "active" && (

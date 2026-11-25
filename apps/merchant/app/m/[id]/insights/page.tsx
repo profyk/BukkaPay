@@ -32,7 +32,7 @@ export default function InsightsPage() {
       <PageHeader title="Insights" subtitle="How your business is doing: sales, busiest times and your best customers. Times are local to your country." actions={
         <div className="flex gap-1">{[7, 30, 90, 365].map((d) => (
           <button key={d} onClick={() => setDays(d)}
-                  className={`rounded-xl px-3 py-1.5 text-sm font-medium ${days === d ? "bg-brand-600 text-white" : "bg-surface text-ink-soft hover:bg-brand-50"}`}>
+                  className={`rounded-xl px-3 py-1.5 text-sm font-medium ${days === d ? "bg-brand-600 text-white" : "bg-surface text-ink-soft hover:bg-brand-50 dark:bg-white/5 dark:text-white/70 dark:hover:bg-white/10"}`}>
             {d === 365 ? "1 year" : `${d} days`}
           </button>
         ))}</div>

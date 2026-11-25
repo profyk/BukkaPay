@@ -3,11 +3,10 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light dark; }
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
 html, body { background: #F9FAFB; color: #1A1A2E; }
-@media (prefers-color-scheme: dark) {
-  html, body { background: #0D0D1A; color: #F3F4F6; }
-}
+html.dark, html.dark body { background: #0D0D1A; color: #F3F4F6; }
 body { font-family: "DM Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 
 @media print {
