@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import { api } from "@/lib/api"
 import { can, useData } from "@/lib/hooks"
 import { money, when } from "@/lib/format"
-import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Stat, Table } from "@/components/ui"
+import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Stat, Table, PasswordInput } from "@/components/ui"
 import { useMerchant } from "@/components/merchant-context"
 
 type Agent = {
@@ -152,7 +152,7 @@ function CashIn({ id, currency, onDone }: { id: string; currency: string; onDone
       <div className="space-y-3">
         <Field label="Customer's wallet ID or username"><Input value={customer} onChange={(e) => { setCustomer(e.target.value); setConfirming(false) }} /></Field>
         <Field label={`Amount (${currency})`}><Input inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value); setConfirming(false) }} /></Field>
-        {confirming && <Field label="Your PIN"><Input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} /></Field>}
+        {confirming && <Field label="Your PIN"><PasswordInput inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} /></Field>}
       </div>
       {!confirming
         ? <Button className="mt-4" disabled={!customer || !amount} onClick={() => setConfirming(true)}>Continue</Button>

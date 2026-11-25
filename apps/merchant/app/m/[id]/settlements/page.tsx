@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import { api } from "@/lib/api"
 import { useData } from "@/lib/hooks"
 import { money, when } from "@/lib/format"
-import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Table } from "@/components/ui"
+import { Badge, Button, Card, Empty, Field, Input, Notice, PageHeader, Select, Table, PasswordInput } from "@/components/ui"
 import { useMerchant } from "@/components/merchant-context"
 
 type Payout = { id: string; amount: string; fee: string; status: string; settlementStatus: string; providerReference?: string; currency: string; createdAt: string }
@@ -53,7 +53,7 @@ export default function SettlementsPage() {
           <p className="font-display text-3xl font-semibold tabular-nums mt-1">{money(balance?.available, merchant?.currency)}</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Amount"><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
-            <Field label="Transaction PIN"><Input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} /></Field>
+            <Field label="Transaction PIN"><PasswordInput inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} /></Field>
           </div>
           <Button className="mt-4" disabled={!amount || !pin} onClick={withdraw}>Pay out to bank</Button>
           <p className="mt-2 text-xs text-ink-muted">To {detail.data?.bankName ?? "—"} ····{(detail.data?.accountNumber ?? "").slice(-4)}</p>

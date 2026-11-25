@@ -70,6 +70,7 @@ import AgentsPage from "@/pages/agents"
 import MoneyControlsPage from "@/pages/money-controls"
 import SettlementsPage from "@/pages/settlements"
 import AnalyticsPage from "@/pages/analytics"
+import HelpDeskPage from "@/pages/help-desk"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -127,6 +128,7 @@ function Router() {
       <Route path="/money-controls"   component={MoneyControlsPage} />
       <Route path="/settlements"      component={SettlementsPage} />
       <Route path="/analytics"        component={AnalyticsPage} />
+      <Route path="/help-desk"        component={HelpDeskPage} />
       <Route component={NotFound} />
     </Switch>
   )

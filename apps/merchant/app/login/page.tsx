@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { api, setToken } from "@/lib/api"
-import { Button, Field, Input, Notice } from "@/components/ui"
+import { Button, Field, Input, Notice, PasswordInput } from "@/components/ui"
 import { SocialSignIn } from "@/components/social-sign-in"
 import { EmailCodeDialog } from "@/components/account-forms"
 import { AuthShell } from "@/components/auth-shell"
@@ -49,7 +49,7 @@ export default function LoginPage() {
           {error && <Notice tone="error">{error}</Notice>}
           <SocialSignIn onSignedIn={() => router.replace("/businesses")} onError={setError} />
           <Field label="Email"><Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-          <Field label="Password"><Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+          <Field label="Password"><PasswordInput autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
           <p className="text-sm text-ink-muted">New to BukkaPay for Business? <Link href="/signup" className="font-medium text-brand-700 underline">Create a business account</Link></p>
           <p className="text-xs text-ink-muted">Personal BukkaPay accounts sign in at app.bukkapay.com.</p>

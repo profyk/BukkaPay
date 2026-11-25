@@ -23,6 +23,7 @@ const NAV: { href: string; label: string; cap?: "collect" | "finance" | "setting
   { href: "/staff", label: "Staff", cap: "settings" },
   { href: "/developers", label: "Developers", cap: "developer" },
   { href: "/verification", label: "Verification" },
+  { href: "/support", label: "Help & support" },
 ]
 
 export default function MerchantLayout({ children }: { children: ReactNode }) {

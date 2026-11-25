@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { api, setToken } from "@/lib/api"
 import { useData } from "@/lib/hooks"
-import { Button, Card, Field, Input, Notice, PageHeader } from "@/components/ui"
+import { Button, Card, Field, Input, Notice, PageHeader, PasswordInput } from "@/components/ui"
 
 type Check = { canClose: boolean; blockers: string[]; retentionYears: number; confirmWith: "pin" | "password" | "set_pin" }
 
@@ -66,7 +66,7 @@ export default function DeleteAccountPage() {
             {data.confirmWith === "set_pin"
               ? <Notice tone="warn">Set a transaction PIN in the BukkaPay app first, then come back.</Notice>
               : <Field label={data.confirmWith === "pin" ? "Your PIN" : "Your password"}>
-                  <Input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} />
+                  <PasswordInput value={secret} onChange={(e) => setSecret(e.target.value)} />
                 </Field>}
           </div>
           <Button className="mt-4 !bg-red-600 hover:!bg-red-700" disabled={busy || confirm.trim().toUpperCase() !== "DELETE" || !secret || data.confirmWith === "set_pin"}

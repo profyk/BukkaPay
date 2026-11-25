@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import { api, API_URL, getToken } from "@/lib/api"
 import { can, useData } from "@/lib/hooks"
 import { money, when } from "@/lib/format"
-import { Badge, Button, Empty, Field, Input, Modal, Notice, PageHeader, Select, Table } from "@/components/ui"
+import { Badge, Button, Empty, Field, Input, Modal, Notice, PageHeader, Select, Table, PasswordInput } from "@/components/ui"
 import { useMerchant } from "@/components/merchant-context"
 
 type Tx = { id: string; type: string; status: string; amount: string; payerName?: string; reference?: string; createdAt: string }
@@ -82,7 +82,7 @@ export default function TransactionsPage() {
           <p className="text-sm text-ink-muted">Original amount {money(refunding?.amount, merchant?.currency)}. Leave the amount empty for a full refund.</p>
           <Field label="Amount (optional)"><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
           <Field label="Reason"><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-          <Field label="Your transaction PIN"><Input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} /></Field>
+          <Field label="Your transaction PIN"><PasswordInput inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} /></Field>
           <Button className="w-full" disabled={!reason || !pin} onClick={refund}>Send refund</Button>
         </div>
       </Modal>

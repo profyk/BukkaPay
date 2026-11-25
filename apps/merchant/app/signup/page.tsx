@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { api, setToken } from "@/lib/api"
-import { Button, Field, Input, Notice } from "@/components/ui"
+import { Button, Field, Input, Notice, PasswordInput } from "@/components/ui"
 import { SocialSignIn } from "@/components/social-sign-in"
 import {
   EmailCodeDialog, ProfileFields, profileComplete, useOperatingCountries, type Profile,
@@ -69,7 +69,7 @@ export default function SignupPage() {
         <Field label="Business email"><Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <ProfileFields value={profile} onChange={setProfile} countries={countries} />
         <Field label="Password" hint={password && !strong ? "At least 8 characters, with letters and numbers" : undefined}>
-          <Input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />

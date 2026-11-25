@@ -432,7 +432,7 @@ export default function Profile() {
       </Group>
 
       <Group title="SUPPORT">
-        <Row icon="chatbubbles-outline" tint="#8B5CF6" label="Help and support" hint="Chat with our team" onPress={() => router.push("/(screens)/support-chat" as any)} />
+        <Row icon="chatbubbles-outline" tint="#8B5CF6" label="Help and support" hint="Chat, email or send a request" onPress={() => router.push("/(screens)/help-center" as any)} />
         <Row icon="information-circle-outline" tint="#64748B" label="About BukkaPay" onPress={() => router.push("/(screens)/about" as any)} />
         <Row icon="document-text-outline" tint="#64748B" label="Terms and privacy" onPress={() => Linking.openURL("https://bukkapay.com/legal")} />
       </Group>
