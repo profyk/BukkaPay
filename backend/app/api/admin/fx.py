@@ -51,7 +51,28 @@ async def desk(_=Depends(require("fees.view")), db: AsyncSession = Depends(get_d
         # and cross-currency payments. A large negative position needs rebalancing at a partner.
         "positions": await _balances(db, "fx:position:"),
         "revenue": await _balances(db, "revenue:fx:"),
+        "feed": await _feed_status(db),
     }
+
+
+async def _feed_status(db: AsyncSession) -> dict:
+    from app.services import fx_feed, fx_guard
+
+    pol = await fx_guard.policy(db)
+    return {"enabled": bool(pol.get("feed_enabled")), "bufferBps": pol.get("feed_buffer_bps"),
+            "maxMovePct": pol.get("feed_max_move_pct"), "staleMinutes": pol.get("feed_stale_minutes"),
+            "source": fx_feed.feed_url(), "last": await fx_feed.last_status()}
+
+
+@router.post("/fx/feed/refresh")
+async def refresh_feed(_=Depends(require("fx.manage")), db: AsyncSession = Depends(get_db)):
+    """Pull market rates now (the worker also does this every 30 seconds)."""
+    from app.services import fx_feed
+
+    status = await fx_feed.refresh(db)
+    if status.get("enabled") is False:
+        raise ApiError("The live rate feed is off. Turn it on in Revenue & Pricing → FX.")
+    return status
 
 
 class PairIn(CamelModel):

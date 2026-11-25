@@ -30,6 +30,10 @@ const LABELS: Record<string, string> = {
   max_rate_age_hours: "Pause swaps when a rate is older than (hours)",
   reverse_window_hours: "Cap converting back at the rate paid within (hours)",
   max_swaps_per_day: "Currency swaps per customer per day",
+  feed_enabled: "Live market rates (re-price every 30 seconds)",
+  feed_buffer_bps: "Buffer below market mid (basis points)",
+  feed_max_move_pct: "Hold a rate that jumps more than (%) in one refresh",
+  feed_stale_minutes: "With live rates, pause swaps after (minutes) without a refresh",
 }
 
 export default function RevenuePage() {

@@ -25,6 +25,7 @@ from app.workers.tasks import (
     process_outbox,
     purge_closed_accounts,
     reconcile_payouts,
+    refresh_fx_rates,
     release_due_escrows,
     rescreen_customers,
     sweep_expired_claim_payments,
@@ -72,6 +73,8 @@ class WorkerSettings:
         # Mondays 06:00 UTC: cross-border bulk settlement run for treasury
         cron(weekly_settlement_run, weekday=0, hour=6, minute=0),
         cron(purge_closed_accounts, hour=2, minute=45),
+        # every 30 s: swap pairs re-priced from live market rates (+ buffer; spread on top)
+        cron(refresh_fx_rates, second={0, 30}),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

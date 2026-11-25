@@ -16,6 +16,7 @@ adds the policy around them and the monthly account fee:
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -47,6 +48,11 @@ DEFAULTS: dict[str, dict] = {
         "max_rate_age_hours": 24,       # swaps pause on a pair whose rate is older than this
         "reverse_window_hours": 24,     # converting back within this window is capped at the rate paid
         "max_swaps_per_day": 10,        # per customer
+        # re-price pairs from live market rates every 30 s (FX_FEED_ENABLED=false to start with it off)
+        "feed_enabled": os.environ.get("FX_FEED_ENABLED", "true").lower() == "true",
+        "feed_buffer_bps": 30,          # shaded off the market mid to cover moves between refreshes
+        "feed_max_move_pct": 3,         # bigger jump in one refresh: held for treasury, not applied
+        "feed_stale_minutes": 10,       # with the feed on, swaps pause if rates are older than this
     },
     "agents": {
         "cash_in_commission_bps": 50,   # BukkaPay pays the agent 0.5% of cash-in (customer pays nothing)

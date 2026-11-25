@@ -5,7 +5,9 @@ import { usePermissions } from "@/lib/permissions"
 
 type Pair = { id: string; from: string; to: string; rate: string; spreadPct: string; minAmount: string; maxAmount: string; active: boolean }
 type Bal = { currency: string; balance: string }
-type Desk = { pairs: Pair[]; positions: Bal[]; revenue: Bal[] }
+type Feed = { enabled: boolean; bufferBps: number; maxMovePct: number; staleMinutes: number; source: string
+  last: { at: string; ok: boolean; updated?: number; held?: { pair: string; from: string; to: string }[]; missing?: string[]; error?: string } | null }
+type Desk = { pairs: Pair[]; positions: Bal[]; revenue: Bal[]; feed?: Feed }
 
 const CCY = ["ZAR", "BWP", "USD"].map((c) => ({ value: c, label: c }))
 
@@ -24,6 +26,26 @@ export default function FxDeskPage() {
     <Page title="FX desk"
       subtitle="Rates and spreads for converting between ZAR, BWP and USD wallets. Customers always see the rate and spread before they confirm; changes apply to new quotes immediately and are recorded in the audit log."
       actions={can ? <Button onClick={() => setCreating(true)}>Add currency pair</Button> : undefined}>
+      {d?.feed && (
+        <Section title="Live market rates" actions={can && d.feed.enabled
+          ? <Button size="sm" variant="outline" onClick={() => action.mutate({ url: "/admin/fx/feed/refresh", success: "Rates refreshed" })}>Refresh now</Button>
+          : undefined}>
+          <div className="bg-card border border-border rounded-2xl p-4 text-sm space-y-1">
+            {!d.feed.enabled ? <p>The live feed is <b>off</b>: rates are set by hand below. Turn it on in Revenue &amp; Pricing → FX.</p> : <>
+              <p>
+                <StatusBadge value={d.feed.last?.ok ? "live" : d.feed.last ? "failed" : "pending"} />{" "}
+                Every 30 seconds each pair is set to the market mid minus a {d.feed.bufferBps / 100}% buffer; your spread is charged on top.
+                If the feed stops, swaps pause after {d.feed.staleMinutes} minutes instead of trading on old prices.
+              </p>
+              {d.feed.last && <p className="text-muted-foreground">Last refresh {new Date(d.feed.last.at).toLocaleString()}
+                {d.feed.last.ok ? ` · ${d.feed.last.updated} pairs updated` : ` · ${d.feed.last.error}`}</p>}
+              {!!d.feed.last?.held?.length && <p className="text-amber-700">Held by the circuit breaker (moved more than {d.feed.maxMovePct}% at once, review and set by hand): {d.feed.last.held.map((h) => `${h.pair} ${h.from} → ${h.to}`).join(", ")}</p>}
+              {!!d.feed.last?.missing?.length && <p className="text-muted-foreground">Not in the feed: {d.feed.last.missing.join(", ")}</p>}
+              <p className="text-xs text-muted-foreground">Source: {d.feed.source}</p>
+            </>}
+          </div>
+        </Section>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <Section title="FX pool position">
           <p className="mb-3 text-sm text-muted-foreground">What BukkaPay has taken in (+) or paid out (−) in each currency through conversions. A growing negative position needs rebalancing with a treasury partner.</p>

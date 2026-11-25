@@ -105,3 +105,20 @@ actually sent and received. That files a `treasury.rebalance` approval; when
 a second admin approves it, the move is booked (balanced in both
 currencies) and the line is settled. A run is locked while it has transfers
 in progress. Needs that no pool surplus covers are listed as unfunded.
+
+## Currency swaps: always a margin, never a loss
+
+- **Live rates:** every 30 seconds the worker re-prices each swap pair from the
+  market mid (`FX_FEED_URL`, default open.er-api.com; replace with the partner
+  bank's or Onafriq's feed when contracted) minus a buffer (default 0.30%) that
+  covers market movement between refreshes. The spread (minimum 0.5%) is
+  charged on top and booked to FX revenue.
+- **Circuit breaker:** a pair that would jump more than 3% in one refresh is
+  held for treasury (Admin → FX desk) instead of being applied.
+- **Fail safe:** if the feed stops, swaps pause after 10 minutes rather than
+  trade on old prices.
+- **No farming:** a round trip at current prices always loses (checked at swap
+  time and refused at the FX desk); converting back within 24 hours is capped
+  at the rate the customer paid; at most 10 swaps per customer per day.
+- All limits: Admin → Revenue & Pricing → FX. Set `FX_FEED_ENABLED=false` on
+  the worker to run on hand-set rates.

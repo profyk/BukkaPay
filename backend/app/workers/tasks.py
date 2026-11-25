@@ -368,3 +368,12 @@ async def purge_closed_accounts(ctx: dict) -> int:
     if n:
         log.info("purge_closed_accounts", purged=n)
     return n
+
+async def refresh_fx_rates(ctx: dict) -> dict:
+    """Every 30 s: re-price swap pairs from live market rates (app.services.fx_feed)."""
+    from app.services import fx_feed
+
+    async with get_session_factory()() as db:
+        status = await fx_feed.refresh(db)
+        await db.commit()
+    return status

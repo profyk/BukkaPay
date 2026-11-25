@@ -41,7 +41,10 @@ def effective_pct(pair_pct, pol: dict) -> Decimal:
 def check_fresh(pair: CurrencyCorridor, pol: dict, *, now: datetime | None = None) -> None:
     now = now or datetime.now(UTC)
     stamp = pair.updated_at or pair.created_at
-    if stamp and now - stamp > timedelta(hours=pol["max_rate_age_hours"]):
+    # Live feed on: rates refresh every 30 s, so a few minutes without one means the feed is down.
+    limit = (timedelta(minutes=pol["feed_stale_minutes"]) if pol.get("feed_enabled")
+             else timedelta(hours=pol["max_rate_age_hours"]))
+    if stamp and now - stamp > limit:
         raise ApiError(f"{pair.from_currency} → {pair.to_currency} rates are being updated. Please try again shortly.",
                        status_code=409)
 

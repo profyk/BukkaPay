@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 
 os.environ.setdefault("DATABASE_URL", "postgresql://bukkapay:bukkapay@localhost:5432/bukkapay_test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+os.environ.setdefault("FX_FEED_ENABLED", "false")  # tests set rates by hand; test_fx_feed turns it on
 os.environ["ADMIN_API_KEY"] = "test-master-key"  # fixtures send this exact key
 
 import app.core.redis as redis_module
