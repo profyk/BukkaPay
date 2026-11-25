@@ -13,6 +13,7 @@ interface Feature {
 
 const features: Feature[] = [
   { iconName: "swap-horizontal",  label: "Send Money",      route: "/(screens)/send-money",      color: "#2563EB" },
+  { iconName: "cash",             label: "Cash Agents",     route: "/(screens)/cash-agents",     color: "#059669" },
   { iconName: "link",             label: "Payment Links",   route: "/(screens)/payment-links",   color: "#7C3AED" },
   { iconName: "bag-handle",       label: "Purchases Hub",   route: "/(screens)/purchases-hub",   color: "#0891B2" },
   { iconName: "heart",            label: "Contributions",   route: "/(screens)/contributions",   color: "#10B981" },

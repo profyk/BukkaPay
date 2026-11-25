@@ -86,6 +86,12 @@ async def run_ledger_integrity(db: AsyncSession, *, started_by: str) -> Reconcil
                 COALESCE((SELECT sum(c.overdraft_outstanding) FROM issued_cards c
                           WHERE c.billing_currency = a.currency), 0) AS projected
             FROM ledger_accounts a WHERE a.code LIKE 'receivable:card_overdraft:%'"""),
+        # Agent cash-out: the hold account must equal the open (unused) codes.
+        ("agent_cashout_holds", """SELECT a.code, a.currency, a.balance,
+                COALESCE((SELECT sum(t.amount + t.fee) FROM agent_transactions t
+                          WHERE t.kind = 'cash_out' AND t.status = 'pending' AND t.currency = a.currency), 0)
+                    AS projected
+            FROM ledger_accounts a WHERE a.code LIKE 'agent:cashout_hold:%'"""),
     ):
         for row in (await db.execute(text(sql))).all():
             if row.balance != row.projected:

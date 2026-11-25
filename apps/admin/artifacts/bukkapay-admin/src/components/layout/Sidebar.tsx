@@ -6,7 +6,7 @@ import {
   Link2, Store, Megaphone, ChevronRight,
   ShieldCheck, Settings2, Globe2, PlaneTakeoff, Route as RouteIcon,
   MessageCircle, Stamp, BookOpen, Scale, BadgeCheck, Map as MapIcon, Coins, Landmark, PlugZap, Waypoints,
-  ShieldAlert, Gavel,
+  ShieldAlert, Gavel, TrendingUp, HandCoins,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -27,6 +27,7 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
     label: "Overview",
     links: [
       { href: "/",              label: "Dashboard",        icon: LayoutDashboard, perm: "dashboard.view" },
+      { href: "/analytics",     label: "Growth & Analytics", icon: TrendingUp,    perm: "dashboard.view" },
       { href: "/approvals",     label: "Approvals",        icon: Stamp,           perm: "approvals.view" },
     ],
   },
@@ -50,6 +51,8 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
       { href: "/safeguarding",  label: "Safeguarding",     icon: ShieldCheck,     perm: "ledger.view" },
       { href: "/treasury",      label: "Treasury",         icon: Landmark,        perm: "ledger.view" },
       { href: "/fx-desk",       label: "FX Desk",          icon: Repeat,          perm: "fees.view" },
+      { href: "/revenue",       label: "Revenue & Pricing", icon: TrendingUp,     perm: "fees.view" },
+      { href: "/settlements",   label: "Cross-Border Settlement", icon: Waypoints, perm: "ledger.view" },
       { href: "/trade-escrows", label: "Trade Escrow Desk", icon: Handshake,      perm: "compliance.view" },
       { href: "/ledger",        label: "Ledger",           icon: BookOpen,        perm: "ledger.view" },
       { href: "/stokvels",      label: "Stokvels",         icon: PiggyBank,       perm: "transactions.view" },
@@ -61,6 +64,7 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
     links: [
       { href: "/merchants",     label: "Merchants",        icon: Store,           perm: "merchants.view" },
       { href: "/merchant-kyb",  label: "Business Verification", icon: BadgeCheck, perm: "merchants.view" },
+      { href: "/agents",        label: "Cash Agents",      icon: HandCoins,       perm: "merchants.view" },
     ],
   },
   {
@@ -78,6 +82,7 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
     label: "Risk & Governance",
     links: [
       { href: "/compliance",       label: "Compliance",     icon: ShieldAlert, perm: "compliance.view" },
+      { href: "/money-controls",   label: "Money Controls", icon: Scale,       perm: "ledger.view" },
       { href: "/audit-logs",       label: "Audit Log",      icon: ScrollText,  perm: "audit.view" },
       { href: "/admin-management", label: "Admins & Roles", icon: ShieldCheck, perm: "admins.manage" },
     ],

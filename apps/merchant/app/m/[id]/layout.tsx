@@ -12,10 +12,12 @@ import { PaymentAlert } from "@/components/payment-alert"
 
 const NAV: { href: string; label: string; cap?: "collect" | "finance" | "settings" | "developer" | "owner" }[] = [
   { href: "", label: "Overview" },
+  { href: "/insights", label: "Insights" },
   { href: "/transactions", label: "Transactions" },
   { href: "/qr", label: "QR codes", cap: "collect" },
   { href: "/links", label: "Checkout links", cap: "collect" },
   { href: "/trade", label: "Trade invoices", cap: "collect" },
+  { href: "/agent", label: "Cash agent" },
   { href: "/billing", label: "Bills", cap: "owner" },
   { href: "/settlements", label: "Settlements", cap: "finance" },
   { href: "/staff", label: "Staff", cap: "settings" },

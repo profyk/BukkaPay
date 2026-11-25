@@ -66,6 +66,20 @@ class Country(Base, TimestampMixin):
     kyc_requirements: Mapped[dict] = mapped_column(JSONB, default=dict)
     regulatory_notes: Mapped[str | None] = mapped_column(Text)
     launched_at: Mapped[OptionalTimestamp]
+    # Reference data (app.reference.africa).
+    iso3: Mapped[str | None] = mapped_column(String(3))
+    numeric_code: Mapped[str | None] = mapped_column(String(3))
+    capital: Mapped[str | None] = mapped_column(Text)
+    languages: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    regional_blocs: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    phone_nsn_lengths: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    secondary_currencies: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    mobile_money_operators: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    # Compliance sign-off: who recorded it and on what basis.
+    regulator: Mapped[str | None] = mapped_column(Text)
+    licence_model: Mapped[str | None] = mapped_column(String(40))  # own_licence / partner_bank / psp_partner ...
+    compliance_signed_by: Mapped[str | None] = mapped_column(Text)
+    compliance_signed_at: Mapped[OptionalTimestamp]
 
 
 class CountryCurrency(Base):
@@ -144,7 +158,7 @@ class PaymentProvider(Base, TimestampMixin):
     __tablename__ = "payment_providers"
     __table_args__ = (
         CheckConstraint(
-            "provider_type IN ('bank','psp','card','mobile_money','network','settlement','fx')",
+            "provider_type IN ('bank','psp','card','mobile_money','network','settlement','fx','kyc')",
             name="ck_payment_providers_type",
         ),
         CheckConstraint("mode IN ('sandbox','production')", name="ck_payment_providers_mode"),
@@ -164,6 +178,32 @@ class PaymentProvider(Base, TimestampMixin):
     limits: Mapped[dict] = mapped_column(JSONB, default=dict)
     credentials_ref: Mapped[str | None] = mapped_column(Text)  # env var / secret name only
     last_health_at: Mapped[OptionalTimestamp]
+
+
+PROVIDER_COVERAGE_STATUSES = ("planned", "contracting", "sandbox", "live", "suspended")
+
+
+class ProviderCountry(Base, TimestampMixin):
+    """What a provider does in a country (collect, pay out, KYC, cards...).
+    Only `live` rows of an active production provider count toward a
+    country's readiness; seeded rows start `planned`."""
+
+    __tablename__ = "provider_countries"
+    __table_args__ = (
+        UniqueConstraint("provider_id", "country_code", name="uq_provider_countries"),
+        CheckConstraint("status IN ('planned','contracting','sandbox','live','suspended')",
+                        name="ck_provider_countries_status"),
+    )
+
+    id: Mapped[UUIDPk]
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payment_providers.id", ondelete="CASCADE"), index=True
+    )
+    country_code: Mapped[str] = mapped_column(String(2), _country(), index=True)
+    capabilities: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    currencies: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    status: Mapped[str] = mapped_column(String(12), default="planned", server_default="planned")
+    notes: Mapped[str | None] = mapped_column(Text)
 
 
 # ─── Corridors, FX, fees, limits ───────────────────────────────────────────
@@ -244,6 +284,8 @@ class FxQuote(Base):
 FEE_PRODUCTS = (
     "p2p", "cross_border", "merchant_payment", "payment_link", "funding", "withdrawal",
     "card_issuance", "card_maintenance", "contribution_payout", "trade_escrow",
+    # revenue products added with pricing & agents
+    "account_monthly", "cash_out", "payout", "card_foreign_transaction", "card_atm_withdrawal",
 )
 
 

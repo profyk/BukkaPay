@@ -7,6 +7,8 @@ together.
 
 from fastapi import APIRouter
 
+from app.api import agents as agents_api
+from app.api import analytics as analytics_api
 from app.api import (
     auth,
     bank_partner,
@@ -51,6 +53,8 @@ api_router.include_router(loyalty.router)
 api_router.include_router(notification.router)
 api_router.include_router(push_api.router)
 api_router.include_router(payouts_api.router)
+api_router.include_router(agents_api.router)
+api_router.include_router(analytics_api.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
 api_router.include_router(stitch.router)
@@ -70,6 +74,8 @@ from app.api.admin import fx as admin_fx
 from app.api.admin import legal as admin_legal
 from app.api.admin import network as admin_network
 from app.api.admin import platform as admin_platform
+from app.api.admin import revenue as admin_revenue
+from app.api.admin import settlements as admin_settlements
 from app.api.admin import trade as admin_trade
 from app.api.admin import travel as admin_travel
 from app.api.admin import users as admin_users
@@ -88,3 +94,5 @@ admin_router.include_router(admin_website.router)
 admin_router.include_router(admin_legal.router)
 admin_router.include_router(admin_trade.router)
 admin_router.include_router(admin_fx.router)
+admin_router.include_router(admin_revenue.router)
+admin_router.include_router(admin_settlements.router)

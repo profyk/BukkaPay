@@ -18,7 +18,7 @@ from app.models.ledger import CustodianBalanceSnapshot, LedgerAccount
 
 # Liabilities that are money held for customers/merchants (not BukkaPay's own).
 CUSTOMER_FUND_PREFIXES = ("wallet:", "merchant:", "campaign:", "escrow:", "card:holds:", "payouts:pending:",
-                          "transit:outbound:")
+                          "transit:outbound:", "agent:cashout_hold:")
 
 
 async def liabilities_by_currency(db: AsyncSession) -> dict[str, Decimal]:

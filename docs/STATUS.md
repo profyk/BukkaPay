@@ -88,6 +88,25 @@ and secret detection.
 - [x] Mock provider server (`backend/mock_providers`) + end-to-end tests.
 - [ ] **Vendor docs:** both adapters are typed stubs (`TODO(vendor-docs)`); add the docs under `docs/vendors/` and fill in `app/cards/paymentology.py` and `app/payouts/onafriq.py`.
 
+### Revenue, pricing & cash agents *(2026-11-25, branch `revenue-agents-pricing`)*
+- [x] Monthly account fee from the customer's main wallet: one decision per customer per month (charged / due / waived), retried daily, waived after day 25. Never creates debt. Waived for the sign-up month, unverified, frozen, inactive months. Revenue → `SYS_REVENUE_ACCOUNT_FEES`. App: `GET /api/pricing/my-plan`.
+- [x] Cash agents: KYB-approved merchants, approved by an admin. Cash-in from the agent's float (customer pays nothing, agent earns 0.5%). Cash-out with a one-time 8-digit code (30 min): money held in `SYS_AGENT_CASHOUT_HOLD`, agent keeps 60% of the fee, rest → `SYS_REVENUE_CASHOUT`. Unused codes refunded automatically. An agent is locked out for 15 min after 5 wrong codes. The hold counts in proof of reserve and is reconciled against open codes.
+- [x] Admin: `/api/admin/pricing/settings` (waivers, commission, code TTL), `/pricing/simulate`, `/revenue` (net revenue by stream, commissions as cost), `/account-fees`, `/agents`.
+- [x] New fee products: `account_monthly`, `cash_out`, `payout`, `card_foreign_transaction`, `card_atm_withdrawal`. Migration `0036_revenue_agents` (additive).
+- [ ] **Set prices:** no fee rules are seeded, so the monthly fee and cash-out fee are 0 (no charge) until an admin adds `account_monthly` / `cash_out` rules per country/currency.
+- [x] Screens: customer app *Cash agents* (withdraw code, deposit, agent finder, history) and *My plan*; merchant dashboard *Cash agent* (apply, float, cash-in, cash-out by code); admin *Revenue & Pricing*, *Cash Agents*.
+
+### Africa rollout, money controls, weekly settlement *(2026-11-25)*: [africa-rollout.md](africa-rollout.md)
+- [x] All 55 AU members with full reference data; countries locked (no sign-up or sign-in) until the readiness checklist passes and a second admin approves the unlock. Migration `0037_africa_rollout`.
+- [x] Provider coverage per country; recommended stack (Onafriq, pawaPay, PAPSS, TCIB, Smile ID, Paymentology, Ecobank) seeded as planned. Admin Countries checklist and Providers coverage screens.
+- [x] Admin money adjustments: wallet ID only, named source of funds, one-time bank refs and reversals, conflict-of-interest checks, owner sign-off above limits, customer notified, Money controls report.
+- [x] Weekly cross-border settlement runs (Mondays 06:00 UTC + button), bank instructions CSV, maker-checker booking. Migration `0038_settlement_runs`.
+- [ ] Contracts: mark provider coverage live per country as contracts are signed; record custodians.
+
+### Analytics & brand *(2026-11-25)*
+- [x] Server-side analytics per currency with previous-period comparison and plain-language insights: customer *Money insights* (cash flow, categories, payees, weekdays, monthly spending goal), merchant *Insights* (sales trend, busiest hours/days, repeat and top customers), admin *Growth & analytics* (signups, active customers, volume, net revenue, countries, KYC funnel, agents).
+- [x] New BukkaPay logo and app icon everywhere: Expo app icon, Android adaptive/monochrome/notification icons, splash, PWA/favicons, admin console, merchant, pay and website, sign-in/sign-up screens, social preview images. Source in `assets/brand/`.
+
 ### Workflows
 - [x] CI and deploy workflows all repaired (Trivy version, pinned ruff rules, admin TypeScript, Railway service names, scan permissions); customer web deploy is manual-only (Vercel builds production).
 

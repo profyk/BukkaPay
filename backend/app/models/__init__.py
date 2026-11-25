@@ -56,6 +56,7 @@ from app.models.platform import (
     OutboxEvent,
     PaymentCorridor,
     PaymentProvider,
+    ProviderCountry,
     ProviderWebhook,
     ReconciliationItem,
     ReconciliationRun,
@@ -67,6 +68,8 @@ from app.models.platform import (
 from app.models.push import NotificationPreference, PushDevice
 from app.models.reference import Currency
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
+from app.models.revenue import AccountFeeCharge, Agent, AgentTransaction, PricingSetting
+from app.models.settlement import SettlementBatch, SettlementLine
 from app.models.trade import (
     EscrowContract,
     EscrowEvent,
@@ -84,6 +87,12 @@ from app.models.website import SiteContent, WaitlistSignup
 register_create_all_hooks(JournalLine.__table__)
 
 __all__ = [
+    "AccountFeeCharge",
+    "Agent",
+    "AgentTransaction",
+    "PricingSetting",
+    "SettlementBatch",
+    "SettlementLine",
     "SiteContent",
     "WaitlistSignup",
     "LegalDocument",
@@ -110,6 +119,7 @@ __all__ = [
     "OutboxEvent",
     "PaymentCorridor",
     "PaymentProvider",
+    "ProviderCountry",
     "ProviderWebhook",
     "ReconciliationItem",
     "ReconciliationRun",

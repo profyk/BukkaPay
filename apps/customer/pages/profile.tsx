@@ -409,6 +409,8 @@ export default function Profile() {
           <Row icon="briefcase-outline" tint="#059669" label="Business" hint="Verification, team and payouts" onPress={() => router.push("/(screens)/business" as any)} />
         )}
         <Row icon="gift-outline" tint="#F59E0B" label="Rewards" hint={loyaltyPoints ? `${loyaltyPoints} points` : "Earn as you pay"} onPress={() => router.push("/(screens)/loyalty" as any)} />
+        <Row icon="receipt-outline" tint="#7C3AED" label="My plan" hint="Monthly fee and what's included" onPress={() => router.push("/(screens)/my-plan" as any)} />
+        <Row icon="cash-outline" tint="#059669" label="Cash agents" hint="Deposit or withdraw cash at local shops" onPress={() => router.push("/(screens)/cash-agents" as any)} />
       </Group>
 
       <Group title="SECURITY">

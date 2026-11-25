@@ -65,6 +65,11 @@ import StokvelsPage from "@/pages/stokvels"
 import TradeEscrowsPage from "@/pages/trade-escrows"
 import SafeguardingPage from "@/pages/safeguarding"
 import FxDeskPage from "@/pages/fx-desk"
+import RevenuePage from "@/pages/revenue"
+import AgentsPage from "@/pages/agents"
+import MoneyControlsPage from "@/pages/money-controls"
+import SettlementsPage from "@/pages/settlements"
+import AnalyticsPage from "@/pages/analytics"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -117,6 +122,11 @@ function Router() {
       <Route path="/trade-escrows"    component={TradeEscrowsPage} />
       <Route path="/safeguarding"     component={SafeguardingPage} />
       <Route path="/fx-desk"          component={FxDeskPage} />
+      <Route path="/revenue"          component={RevenuePage} />
+      <Route path="/agents"           component={AgentsPage} />
+      <Route path="/money-controls"   component={MoneyControlsPage} />
+      <Route path="/settlements"      component={SettlementsPage} />
+      <Route path="/analytics"        component={AnalyticsPage} />
       <Route component={NotFound} />
     </Switch>
   )

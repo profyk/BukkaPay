@@ -1,356 +1,362 @@
-import { useState, useMemo } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from "react-native";
+/** Money insights: cash flow, where the money goes, who you pay, when you
+ *  spend, plain-language insights and a monthly spending goal. Aggregated on
+ *  the server per currency (GET /api/analytics). */
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { useTheme } from "../lib/ThemeContext";
+import Svg, { G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE } from "../lib/config";
 import { getAuthHeader } from "../lib/auth";
+import { useTheme } from "../lib/ThemeContext";
 
-type Timeframe = "week" | "month" | "year";
-
-const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  food: "cart-outline",
-  groceries: "storefront-outline",
-  transport: "car-outline",
-  entertainment: "film-outline",
-  bills: "document-text-outline",
-  utilities: "flash-outline",
-  transfer: "swap-horizontal-outline",
-  shopping: "bag-outline",
-  other: "grid-outline",
+const PRIMARY = "#7C3AED";
+// Validated reference palette (light / dark steps): slot 1 = money in, slot 2 = money out.
+const SERIES = { light: { inn: "#2a78d6", out: "#eb6834", grid: "#e1e0d9", axis: "#898781" },
+                 dark: { inn: "#3987e5", out: "#d95926", grid: "#2c2c2a", axis: "#898781" } };
+const STATUS = { good: "#0ca30c", warn: "#d97706", info: "#2a78d6" };
+const RANGES: [number, string][] = [[7, "Week"], [30, "Month"], [90, "3 months"], [365, "Year"]];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  food: "fast-food-outline", groceries: "cart-outline", transport: "car-outline", entertainment: "film-outline",
+  bills: "document-text-outline", utilities: "flash-outline", transfer: "swap-horizontal-outline", shopping: "bag-outline",
+  withdrawal: "cash-outline", topup: "add-circle-outline", payment: "card-outline", travel: "airplane-outline",
+  account_fee: "receipt-outline", fee: "receipt-outline", other: "grid-outline",
 };
 
-function getProgressColor(ratio: number) {
-  if (ratio > 90) return "#EF4444";
-  if (ratio > 70) return "#F59E0B";
-  return "#10B981";
+type Analytics = {
+  currencies: string[]; currency: string | null; days: number
+  totals: { in: string; out: string; net: string; fees: string; transactions: number; averageDailySpend: string
+            biggestExpense: string; inChange: number | null; outChange: number | null }
+  daily: { date: string; in: string; out: string }[]
+  categories: { category: string; amount: string; share: number; previous: string }[]
+  payees: { name: string; amount: string; count: number }[]
+  weekday: { day: number; amount: string }[]
+  insights: { tone: "good" | "warn" | "info"; text: string }[]
+};
+
+async function fetchAnalytics(days: number, currency?: string): Promise<Analytics> {
+  const q = new URLSearchParams({ days: String(days), ...(currency ? { currency } : {}) });
+  const res = await fetch(`${API_BASE}/api/analytics?${q}`, { headers: await getAuthHeader() });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Couldn't load your insights");
+  return body;
 }
 
-function AlertIcon({ type }: { type: string }) {
-  if (type === "warning") return <Ionicons name="warning-outline" size={18} color="#F59E0B" />;
-  if (type === "success") return <Ionicons name="checkmark-circle-outline" size={18} color="#10B981" />;
-  return <Ionicons name="information-circle-outline" size={18} color="#3B82F6" />;
+const fmt = (ccy: string | null, v: string | number) =>
+  `${ccy ?? ""} ${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
+const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`);
+
+/** Group days into weeks (90 days) or months (a year) so bars stay readable. */
+function bucket(daily: Analytics["daily"], days: number) {
+  if (days <= 31) return daily.map((d) => ({ label: new Date(d.date).getDate().toString(), in: +d.in, out: +d.out, title: new Date(d.date).toLocaleDateString() }));
+  const map = new Map<string, { label: string; in: number; out: number; title: string }>();
+  for (const d of daily) {
+    const dt = new Date(d.date);
+    const key = days > 120 ? `${dt.getFullYear()}-${dt.getMonth()}` : `${dt.getFullYear()}-${Math.floor((dt.getTime() / 864e5 + 3) / 7)}`;
+    const label = days > 120 ? dt.toLocaleDateString(undefined, { month: "short" }) : dt.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    const b = map.get(key) ?? { label, in: 0, out: 0, title: days > 120 ? dt.toLocaleDateString(undefined, { month: "long", year: "numeric" }) : `Week of ${dt.toLocaleDateString()}` };
+    b.in += +d.in; b.out += +d.out; map.set(key, b);
+  }
+  return [...map.values()];
 }
 
 export default function Analytics() {
   const router = useRouter();
-  const { colors } = useTheme();
-  const [timeframe, setTimeframe] = useState<Timeframe>("month");
-
-  const { data: rawTxData = [], isLoading } = useQuery<any[]>({
-    queryKey: ["analytics-transactions"],
-    queryFn: async () => {
-      const headers = await getAuthHeader();
-      const res = await fetch(`${API_BASE}/api/transactions?limit=200`, { headers });
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
-
-  // The timeframe tabs used to be decorative — `days` was computed but
-  // never actually applied to the fetch, so Week/Month/Year all showed the
-  // same 200 most-recent transactions. The backend has no date-range filter
-  // on this endpoint, so filter what we already fetched instead.
-  const txData = useMemo(() => {
-    const days = timeframe === "week" ? 7 : timeframe === "month" ? 30 : 365;
-    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    return rawTxData.filter((t: any) => new Date(t.createdAt).getTime() >= cutoff);
-  }, [rawTxData, timeframe]);
-
-  // Derive analytics from real transactions
-  const totalSpent = txData.reduce((sum: number, t: any) => {
-    if (t.type === "debit" || t.type === "payment" || t.type === "send") {
-      return sum + Math.abs(parseFloat(t.amount || "0"));
-    }
-    return sum;
-  }, 0);
-
-  const totalReceived = txData.reduce((sum: number, t: any) => {
-    if (t.type === "credit" || t.type === "receive" || t.type === "topup") {
-      return sum + Math.abs(parseFloat(t.amount || "0"));
-    }
-    return sum;
-  }, 0);
-
-  const byCategory: Record<string, number> = {};
-  txData.forEach((t: any) => {
-    const cat = (t.category || "other").toLowerCase();
-    byCategory[cat] = (byCategory[cat] || 0) + Math.abs(parseFloat(t.amount || "0"));
-  });
-
-  const categoryEntries = Object.entries(byCategory)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
-
-  const alerts: Array<{ type: string; message: string }> = [];
-  if (totalSpent > totalReceived * 0.8) {
-    alerts.push({ type: "warning", message: "You've spent more than 80% of what you received this period." });
-  }
-  if (categoryEntries[0]?.[1] > totalSpent * 0.4) {
-    alerts.push({ type: "warning", message: `${categoryEntries[0][0]} is your biggest spend category at ${((categoryEntries[0][1] / totalSpent) * 100).toFixed(0)}%.` });
-  }
-  if (totalReceived > 0) {
-    alerts.push({ type: "success", message: `You received R${totalReceived.toFixed(2)} this period.` });
-  }
-  if (alerts.length === 0) {
-    alerts.push({ type: "info", message: "Make a few transactions to see spending insights here." });
-  }
-
-  const fmt = (amount: number) =>
-    `R${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const { colors, darkMode } = useTheme();
+  const pal = darkMode ? SERIES.dark : SERIES.light;
+  const [days, setDays] = useState(30);
+  const [currency, setCurrency] = useState<string | undefined>();
+  const { data: a, isLoading, error } = useQuery({ queryKey: ["analytics", days, currency], queryFn: () => fetchAnalytics(days, currency) });
+  const ccy = a?.currency ?? null;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-    >
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Analytics</Text>
+    <View style={[st.container, { backgroundColor: colors.background }]}>
+      <View style={[st.header, { backgroundColor: PRIMARY }]}>
+        <TouchableOpacity onPress={() => router.back()} style={st.back} accessibilityLabel="Back"><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity>
+        <Text style={st.headerTitle}>Money insights</Text>
         <View style={{ width: 40 }} />
       </View>
-
-      {/* Timeframe selector */}
-      <View style={[styles.timeframeRow, { backgroundColor: colors.surface }]}>
-        {(["week", "month", "year"] as Timeframe[]).map((tf) => (
-          <TouchableOpacity
-            key={tf}
-            onPress={() => setTimeframe(tf)}
-            style={[styles.timeframeBtn, timeframe === tf && { backgroundColor: colors.primary }]}
-          >
-            <Text style={[
-              styles.timeframeTxt,
-              { color: timeframe === tf ? "#FFFFFF" : colors.textSecondary },
-            ]}>
-              {tf.charAt(0).toUpperCase() + tf.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Summary cards */}
-      <View style={styles.summaryRow}>
-        <View style={[styles.summaryCard, { backgroundColor: "#EF4444" }]}>
-          <Ionicons name="trending-down-outline" size={20} color="rgba(255,255,255,0.8)" />
-          <Text style={styles.summaryLabel}>Spent</Text>
-          <Text style={styles.summaryAmount}>{fmt(totalSpent)}</Text>
+      <ScrollView contentContainerStyle={st.body}>
+        <View style={st.chips}>
+          {RANGES.map(([d, l]) => (
+            <TouchableOpacity key={d} onPress={() => setDays(d)} style={[st.chip, { borderColor: days === d ? PRIMARY : colors.border, backgroundColor: days === d ? PRIMARY : "transparent" }]}>
+              <Text style={{ color: days === d ? "#fff" : colors.text, fontWeight: "700" }}>{l}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-        <View style={[styles.summaryCard, { backgroundColor: "#10B981" }]}>
-          <Ionicons name="trending-up-outline" size={20} color="rgba(255,255,255,0.8)" />
-          <Text style={styles.summaryLabel}>Received</Text>
-          <Text style={styles.summaryAmount}>{fmt(totalReceived)}</Text>
-        </View>
-      </View>
-
-      {/* Net balance card */}
-      <View style={[styles.netCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.netRow}>
-          <View>
-            <Text style={[styles.netLabel, { color: colors.textSecondary }]}>Net Flow</Text>
-            <Text style={[
-              styles.netAmount,
-              { color: totalReceived - totalSpent >= 0 ? "#10B981" : "#EF4444" },
-            ]}>
-              {totalReceived - totalSpent >= 0 ? "+" : ""}{fmt(totalReceived - totalSpent)}
-            </Text>
-          </View>
-          <View style={[styles.txCountBadge, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.txCountText, { color: colors.text }]}>{txData.length}</Text>
-            <Text style={[styles.txCountLabel, { color: colors.textSecondary }]}>transactions</Text>
-          </View>
-        </View>
-        {totalSpent > 0 && (
-          <View style={{ marginTop: 16 }}>
-            <View style={styles.progressHeader}>
-              <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>Spent vs Received</Text>
-              <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>
-                {totalReceived > 0 ? ((totalSpent / totalReceived) * 100).toFixed(0) : 100}%
-              </Text>
-            </View>
-            <View style={[styles.progressBg, { backgroundColor: colors.surface }]}>
-              <View style={[
-                styles.progressFill,
-                {
-                  width: `${Math.min((totalSpent / (totalReceived || totalSpent || 1)) * 100, 100)}%`,
-                  backgroundColor: getProgressColor((totalSpent / (totalReceived || totalSpent || 1)) * 100),
-                },
-              ]} />
-            </View>
+        {(a?.currencies.length ?? 0) > 1 && (
+          <View style={st.chips}>
+            {a!.currencies.map((c) => (
+              <TouchableOpacity key={c} onPress={() => setCurrency(c)} style={[st.chipSm, { borderColor: ccy === c ? PRIMARY : colors.border }]}>
+                <Text style={{ color: ccy === c ? PRIMARY : colors.textSecondary, fontWeight: "700" }}>{c}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
-      </View>
-
-      {/* Spending by category */}
-      {categoryEntries.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
-          {categoryEntries.map(([cat, amount]) => {
-            const pct = totalSpent > 0 ? (amount / totalSpent) * 100 : 0;
-            const iconName = CATEGORY_ICONS[cat] || CATEGORY_ICONS.other;
-            return (
-              <View key={cat} style={[styles.catCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                <View style={styles.catHeader}>
-                  <View style={[styles.catIcon, { backgroundColor: colors.primaryLight }]}>
-                    <Ionicons name={iconName} size={20} color={colors.primary} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[styles.catName, { color: colors.text }]}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </Text>
-                    <Text style={[styles.catPct, { color: colors.textSecondary }]}>{pct.toFixed(1)}% of total</Text>
-                  </View>
-                  <Text style={[styles.catAmount, { color: colors.text }]}>{fmt(amount)}</Text>
-                </View>
-                <View style={[styles.catProgressBg, { backgroundColor: colors.surface }]}>
-                  <View style={[
-                    styles.catProgressFill,
-                    { width: `${Math.min(pct, 100)}%`, backgroundColor: getProgressColor(pct) },
-                  ]} />
-                </View>
+        {isLoading && <ActivityIndicator color={PRIMARY} style={{ marginTop: 24 }} />}
+        {error && <Text style={{ color: "#DC2626" }}>{(error as Error).message}</Text>}
+        {a && a.currency && (
+          <>
+            <View style={[st.hero, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={[st.label, { color: colors.textSecondary }]}>Net this period</Text>
+              <Text style={[st.heroNum, { color: colors.text }]}>{Number(a.totals.net) >= 0 ? "+" : "−"}{fmt(ccy, Math.abs(Number(a.totals.net)))}</Text>
+              <View style={st.row2}>
+                <Tile color={pal.inn} icon="arrow-down" label="Money in" value={fmt(ccy, a.totals.in)} change={a.totals.inChange} goodWhenUp colors={colors} />
+                <Tile color={pal.out} icon="arrow-up" label="Money out" value={fmt(ccy, a.totals.out)} change={a.totals.outChange} colors={colors} />
               </View>
-            );
-          })}
-        </>
-      )}
-
-      {isLoading && (
-        <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Loading your data...</Text>
-        </View>
-      )}
-
-      {!isLoading && txData.length === 0 && (
-        <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-          <Ionicons name="bar-chart-outline" size={40} color={colors.textMuted} />
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No transactions yet</Text>
-          <Text style={[styles.emptySubText, { color: colors.textMuted }]}>
-            Your spending analytics will appear here once you start transacting.
-          </Text>
-        </View>
-      )}
-
-      {/* Insights */}
-      {alerts.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Insights</Text>
-          {alerts.map((alert, idx) => (
-            <View key={idx} style={[
-              styles.alertCard,
-              {
-                backgroundColor: alert.type === "warning" ? "rgba(245,158,11,0.08)"
-                  : alert.type === "success" ? "rgba(16,185,129,0.08)"
-                  : "rgba(59,130,246,0.08)",
-                borderColor: alert.type === "warning" ? "rgba(245,158,11,0.2)"
-                  : alert.type === "success" ? "rgba(16,185,129,0.2)"
-                  : "rgba(59,130,246,0.2)",
-              },
-            ]}>
-              <AlertIcon type={alert.type} />
-              <Text style={[styles.alertText, { color: colors.text }]}>{alert.message}</Text>
             </View>
-          ))}
-        </>
-      )}
-    </ScrollView>
+
+            <Goal ccy={ccy} spent={Number(a.totals.out)} days={days} colors={colors} />
+
+            {!!a.insights.length && (
+              <View style={{ gap: 8 }}>
+                {a.insights.map((i) => (
+                  <View key={i.text} style={[st.insight, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                    <Ionicons name={i.tone === "good" ? "trending-down" : i.tone === "warn" ? "alert-circle-outline" : "bulb-outline"} size={20} color={STATUS[i.tone]} />
+                    <Text style={{ color: colors.text, flex: 1, lineHeight: 20 }}>{i.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <Card title="Cash flow" colors={colors}>
+              <View style={st.legend}>
+                <Legend color={pal.inn} label="In" colors={colors} /><Legend color={pal.out} label="Out" colors={colors} />
+              </View>
+              <CashFlow data={bucket(a.daily, days)} pal={pal} ccy={ccy} colors={colors} />
+            </Card>
+
+            <Card title="Where your money goes" colors={colors}>
+              {!a.categories.length && <Text style={{ color: colors.textSecondary }}>No spending in this period.</Text>}
+              {a.categories.slice(0, 8).map((c) => {
+                const prev = Number(c.previous), now = Number(c.amount);
+                const delta = prev ? Math.round(((now - prev) / prev) * 100) : null;
+                return (
+                  <View key={c.category} style={{ marginBottom: 12 }}>
+                    <View style={st.catRow}>
+                      <View style={[st.catIcon, { backgroundColor: colors.primaryLight }]}>
+                        <Ionicons name={ICONS[c.category] ?? ICONS.other} size={16} color={PRIMARY} />
+                      </View>
+                      <Text style={{ color: colors.text, flex: 1, fontWeight: "600", textTransform: "capitalize" }}>{c.category.replace(/_/g, " ")}</Text>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(ccy, c.amount)}</Text>
+                    </View>
+                    <View style={[st.track, { backgroundColor: colors.surface }]}>
+                      <View style={[st.fill, { width: `${Math.max(2, c.share)}%`, backgroundColor: pal.inn }]} />
+                    </View>
+                    <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                      {c.share}% of spending{delta !== null ? ` · ${delta >= 0 ? "▲" : "▼"} ${Math.abs(delta)}% vs before` : ""}
+                    </Text>
+                  </View>
+                );
+              })}
+            </Card>
+
+            <Card title="Spending by day of the week" colors={colors}>
+              <Weekdays data={a.weekday} pal={pal} colors={colors} ccy={ccy} />
+            </Card>
+
+            <Card title="Who you pay most" colors={colors}>
+              {!a.payees.length && <Text style={{ color: colors.textSecondary }}>No payments yet.</Text>}
+              {a.payees.map((p, i) => (
+                <View key={p.name} style={[st.payee, { borderColor: colors.divider }]}>
+                  <Text style={{ color: colors.textMuted, width: 22, fontWeight: "700" }}>{i + 1}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: "600" }} numberOfLines={1}>{p.name}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>{p.count} payment{p.count === 1 ? "" : "s"}</Text>
+                  </View>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{fmt(ccy, p.amount)}</Text>
+                </View>
+              ))}
+            </Card>
+
+            <View style={st.row2}>
+              <Mini label="Average a day" value={fmt(ccy, a.totals.averageDailySpend)} colors={colors} />
+              <Mini label="Biggest payment" value={fmt(ccy, a.totals.biggestExpense)} colors={colors} />
+            </View>
+            <View style={st.row2}>
+              <Mini label="Payments" value={String(a.totals.transactions)} colors={colors} />
+              <Mini label="Fees paid" value={fmt(ccy, a.totals.fees)} colors={colors} />
+            </View>
+          </>
+        )}
+        {a && !a.currency && <Text style={{ color: colors.textSecondary, textAlign: "center", marginTop: 24 }}>Open a wallet to see your insights.</Text>}
+      </ScrollView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+function Tile({ color, icon, label, value, change, goodWhenUp, colors }: any) {
+  const good = change === null ? null : goodWhenUp ? change >= 0 : change <= 0;
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />
+        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{label}</Text>
+        <Ionicons name={icon} size={12} color={colors.textSecondary} />
+      </View>
+      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800", marginTop: 2 }}>{value}</Text>
+      {change !== null && change !== undefined && (
+        <Text style={{ color: good ? "#006300" : "#d03b3b", fontSize: 12, fontWeight: "600" }}>
+          {change >= 0 ? "▲" : "▼"} {Math.abs(change)}% vs before
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function Card({ title, children, colors }: any) {
+  return (
+    <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800", marginBottom: 10 }}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function Legend({ color, label, colors }: any) {
+  return <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+    <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: color }} />
+    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{label}</Text>
+  </View>;
+}
+
+function Mini({ label, value, colors }: any) {
+  return <View style={[st.mini, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{label}</Text>
+    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800", marginTop: 2 }}>{value}</Text>
+  </View>;
+}
+
+function CashFlow({ data, pal, ccy, colors }: { data: { label: string; in: number; out: number; title: string }[]; pal: any; ccy: string | null; colors: any }) {
+  const { width } = useWindowDimensions();
+  const [sel, setSel] = useState<number | null>(null);
+  const w = Math.min(width - 64, 640), h = 170, padL = 36, padB = 18, ih = h - padB - 6;
+  const max = Math.max(1, ...data.map((d) => Math.max(d.in, d.out)));
+  const step = (w - padL) / Math.max(1, data.length);
+  const bw = Math.max(1.5, Math.min(10, step / 2 - 1.5));
+  const y = (v: number) => 6 + ih - (v / max) * ih;
+  const every = Math.max(1, Math.ceil(data.length / 7));
+  const s = sel !== null ? data[sel] : null;
+  return (
+    <View>
+      <Svg width={w} height={h}>
+        {[0, max / 2, max].map((t) => (
+          <Line key={t} x1={padL} x2={w} y1={y(t)} y2={y(t)} stroke={pal.grid} strokeWidth={1} />
+        ))}
+        {[0, max / 2, max].map((t) => (
+          <SvgText key={`l${t}`} x={padL - 4} y={y(t) + 4} fontSize={10} fill={pal.axis} textAnchor="end">{compact(t)}</SvgText>
+        ))}
+        {data.map((d, i) => {
+          const x0 = padL + i * step + step / 2 - bw - 1;
+          const dim = sel !== null && sel !== i ? 0.45 : 1;
+          return (
+            <G key={i}>
+              <Rect x={padL + i * step} y={0} width={step} height={h} fill="transparent" onPress={() => setSel(sel === i ? null : i)} />
+              {d.in > 0 && <Path d={bar(x0, y(d.in), bw, 6 + ih - y(d.in))} fill={pal.inn} opacity={dim} />}
+              {d.out > 0 && <Path d={bar(x0 + bw + 2, y(d.out), bw, 6 + ih - y(d.out))} fill={pal.out} opacity={dim} />}
+              {i % every === 0 && <SvgText x={padL + i * step + step / 2} y={h - 4} fontSize={10} fill={pal.axis} textAnchor="middle">{d.label}</SvgText>}
+            </G>
+          );
+        })}
+      </Svg>
+      <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
+        {s ? `${s.title}: in ${fmt(ccy, s.in)} · out ${fmt(ccy, s.out)}` : "Tap a bar for the amounts."}
+      </Text>
+    </View>
+  );
+}
+
+function Weekdays({ data, pal, colors, ccy }: any) {
+  const values = WEEKDAYS.map((_, i) => Number(data.find((d: any) => d.day === i + 1)?.amount ?? 0));
+  const max = Math.max(1, ...values);
+  const top = values.indexOf(Math.max(...values));
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 6, height: 120 }}>
+      {values.map((v, i) => (
+        <View key={i} style={{ flex: 1, alignItems: "center" }}>
+          <View style={{ width: "70%", height: Math.max(2, (v / max) * 90), backgroundColor: pal.inn, borderTopLeftRadius: 4, borderTopRightRadius: 4, opacity: i === top ? 1 : 0.6 }}
+                accessibilityLabel={`${WEEKDAYS[i]} ${fmt(ccy, v)}`} />
+          <Text style={{ color: i === top ? colors.text : colors.textMuted, fontSize: 11, marginTop: 4, fontWeight: i === top ? "800" : "500" }}>{WEEKDAYS[i]}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Goal({ ccy, spent, days, colors }: { ccy: string | null; spent: number; days: number; colors: any }) {
+  const key = `spending-goal:${ccy}`;
+  const [goal, setGoal] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  useEffect(() => { AsyncStorage.getItem(key).then((v) => setGoal(v ? Number(v) : null)); }, [key]);
+  const monthly = useMemo(() => (days ? (spent / days) * 30 : 0), [spent, days]);
+  const pct = goal ? Math.min(100, (monthly / goal) * 100) : 0;
+  const over = goal !== null && monthly > goal;
+  const save = async () => {
+    const n = Number(draft);
+    if (n > 0) { await AsyncStorage.setItem(key, String(n)); setGoal(n); } else { await AsyncStorage.removeItem(key); setGoal(null); }
+    setEditing(false);
+  };
+  return (
+    <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Monthly spending goal</Text>
+        <TouchableOpacity onPress={() => { setDraft(goal ? String(goal) : ""); setEditing(!editing); }}>
+          <Text style={{ color: PRIMARY, fontWeight: "700" }}>{goal ? "Change" : "Set a goal"}</Text>
+        </TouchableOpacity>
+      </View>
+      {editing && (
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+          <TextInput value={draft} onChangeText={(t) => setDraft(t.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad" placeholder={`${ccy} per month`}
+            placeholderTextColor={colors.textMuted} style={[st.input, { color: colors.text, borderColor: colors.border }]} accessibilityLabel="Monthly goal" />
+          <TouchableOpacity style={st.save} onPress={save}><Text style={{ color: "#fff", fontWeight: "700" }}>Save</Text></TouchableOpacity>
+        </View>
+      )}
+      {goal ? (
+        <>
+          <View style={[st.track, { backgroundColor: colors.surface, marginTop: 12, height: 10 }]}>
+            <View style={[st.fill, { width: `${pct}%`, height: 10, backgroundColor: over ? "#d03b3b" : "#0ca30c" }]} />
+          </View>
+          <Text style={{ color: colors.textSecondary, marginTop: 6 }}>
+            {over ? "⚠ " : "✓ "}At this pace you'll spend {fmt(ccy, monthly)} a month, {over ? "over" : "within"} your {fmt(ccy, goal)} goal.
+          </Text>
+        </>
+      ) : !editing && <Text style={{ color: colors.textSecondary, marginTop: 6 }}>Set a monthly limit and we'll show how you're tracking. Saved on this phone only.</Text>}
+    </View>
+  );
+}
+
+function bar(x: number, y: number, w: number, h: number) {
+  const r = Math.min(4, w / 2, h);
+  if (h <= 0) return "";
+  return `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`;
+}
+
+const st = StyleSheet.create({
   container: { flex: 1 },
-  content: { paddingBottom: 100 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 56 : 44,
-    paddingBottom: 16,
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-  },
-  backButton: { padding: 8, borderRadius: 20 },
-  headerTitle: { fontSize: 18, fontWeight: "700" },
-  timeframeRow: {
-    flexDirection: "row",
-    margin: 24,
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
-  },
-  timeframeBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  timeframeTxt: { fontSize: 13, fontWeight: "600" },
-  summaryRow: { flexDirection: "row", gap: 12, paddingHorizontal: 24, marginBottom: 16 },
-  summaryCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 16,
-    gap: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  summaryLabel: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 4 },
-  summaryAmount: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  netCard: {
-    marginHorizontal: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 20,
-    marginBottom: 24,
-  },
-  netRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  netLabel: { fontSize: 13, marginBottom: 4 },
-  netAmount: { fontSize: 26, fontWeight: "800" },
-  txCountBadge: { alignItems: "center", borderRadius: 12, padding: 12 },
-  txCountText: { fontSize: 22, fontWeight: "700" },
-  txCountLabel: { fontSize: 11 },
-  progressHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  progressLabel: { fontSize: 12 },
-  progressBg: { height: 10, borderRadius: 5 },
-  progressFill: { height: 10, borderRadius: 5 },
-  sectionTitle: { fontSize: 17, fontWeight: "700", marginHorizontal: 24, marginBottom: 12 },
-  catCard: {
-    marginHorizontal: 24,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 10,
-  },
-  catHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  catIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  catName: { fontSize: 14, fontWeight: "600" },
-  catPct: { fontSize: 12, marginTop: 2 },
-  catAmount: { fontSize: 15, fontWeight: "700" },
-  catProgressBg: { height: 8, borderRadius: 4 },
-  catProgressFill: { height: 8, borderRadius: 4 },
-  emptyState: {
-    alignItems: "center",
-    marginHorizontal: 24,
-    borderRadius: 16,
-    padding: 40,
-    gap: 8,
-    marginBottom: 24,
-  },
-  emptyText: { fontSize: 15, fontWeight: "600" },
-  emptySubText: { fontSize: 13, textAlign: "center" },
-  alertCard: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginHorizontal: 24,
-    marginBottom: 10,
-    alignItems: "flex-start",
-  },
-  alertText: { fontSize: 13, flex: 1, lineHeight: 19 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 48, paddingBottom: 16, paddingHorizontal: 12 },
+  back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  body: { padding: 16, gap: 12, paddingBottom: 48 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  chipSm: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  hero: { borderWidth: 1, borderRadius: 20, padding: 18 },
+  heroNum: { fontSize: 32, fontWeight: "900", marginVertical: 6 },
+  label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  row2: { flexDirection: "row", gap: 12, marginTop: 8 },
+  insight: { flexDirection: "row", gap: 10, alignItems: "flex-start", borderWidth: 1, borderRadius: 14, padding: 12 },
+  card: { borderWidth: 1, borderRadius: 18, padding: 16 },
+  legend: { flexDirection: "row", gap: 16, marginBottom: 8 },
+  catRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
+  catIcon: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  track: { height: 8, borderRadius: 999, overflow: "hidden" },
+  fill: { height: 8, borderRadius: 999 },
+  payee: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 1 },
+  mini: { flex: 1, borderWidth: 1, borderRadius: 14, padding: 12 },
+  input: { flex: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  save: { backgroundColor: PRIMARY, borderRadius: 12, paddingHorizontal: 16, justifyContent: "center" },
 });

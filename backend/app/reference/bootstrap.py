@@ -44,6 +44,10 @@ async def seed_reference_data(conn) -> None:
         await conn.execute(insert(FeeSchedule).values(product=product, percentage=Decimal(pct), fixed=Decimal(fixed),
                                                       currency=currency, country_code=country, priority=0,
                                                       active=True))
+    from app.reference import africa_seed
+
+    for stmt, params in africa_seed.statements():
+        await conn.execute(stmt, params)
     for product, level, mn, mx, daily, monthly in seed.LIMITS:
         await conn.execute(insert(TransactionLimit).values(
             product=product, country_code="ZA", currency="ZAR", kyc_level=level,

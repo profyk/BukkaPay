@@ -111,7 +111,8 @@ async def test_maker_cannot_approve_own_request(client: AsyncClient, admin: dict
     u = await signup(client)
     r = await client.post("/api/admin/approvals", json={
         "action": "ledger.adjustment", "reason": "goodwill credit",
-        "payload": {"wallet_card_id": u["card_id"], "direction": "credit", "amount": "25.00"},
+        "payload": {"wallet_id": u["user"]["walletId"], "currency": "ZAR", "source": "goodwill",
+                    "direction": "credit", "amount": "25.00"},
     }, headers=finance["headers"])
     assert r.status_code == 201, r.text
     req_id = r.json()["id"]

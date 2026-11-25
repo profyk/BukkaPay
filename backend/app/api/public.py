@@ -22,8 +22,13 @@ router = APIRouter(prefix="/api", tags=["public"])
 @router.get("/public/countries")
 async def public_countries(db: AsyncSession = Depends(get_db)):
     countries = (await db.execute(select(Country).order_by(Country.region, Country.name))).scalars().all()
-    return [{"code": c.code, "name": c.name, "region": c.region, "status": c.status,
-             "currency": c.default_currency, "dialCode": c.dial_code} for c in countries]
+    from app.network.countries import OPERATING
+
+    # `open`: customers can sign up and sign in there. Apps list only open
+    # countries at sign-up; the backend refuses the rest regardless.
+    return [{"code": c.code, "name": c.name, "region": c.region, "status": c.status, "open": c.status in OPERATING,
+             "currency": c.default_currency, "dialCode": c.dial_code,
+             "phoneLengths": c.phone_nsn_lengths or []} for c in countries]
 
 
 @router.get("/public/currencies")

@@ -7,9 +7,7 @@ import { MERCHANT_URL, NAV } from "@/lib/site"
 export function Logo({ dark = false }: { dark?: boolean }) {
   return (
     <Link href="/" className={`flex items-center gap-2.5 font-display text-xl font-bold tracking-tight ${dark ? "text-white" : "text-ink"}`} aria-label="BukkaPay home">
-      <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-sm ring-1 ring-black/5">
-        <Image src="/logo.png" alt="" width={28} height={28} className="h-7 w-7 rounded-md" priority />
-      </span>
+      <Image src="/logo.png" alt="" width={36} height={36} className="h-9 w-9 rounded-full shadow-sm" priority />
       BukkaPay
     </Link>
   )

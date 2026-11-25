@@ -11,6 +11,7 @@ second admin approves it (maker-checker, app.governance.approvals).
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
@@ -19,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import AdminContext, require
 from app.core.errors import ApiError
+from app.core.logging import log
 from app.db.deps import get_db
 from app.governance import approvals
 from app.ledger import posting
@@ -52,6 +54,7 @@ from app.models.platform import (
 from app.models.reference import Currency
 from app.models.user import User
 from app.network import compliance, transfers
+from app.network import countries as countries_mod
 from app.reconciliation import engine as recon
 from app.schemas.base import CamelModel
 
@@ -109,24 +112,212 @@ class CountryIn(CamelModel):
 
 
 class CountryPatch(CamelModel):
+    """Reference data only. Compliance sign-off has its own endpoint, and
+    rail readiness comes from live provider coverage."""
     name: str | None = None
     region: str | None = None
     dial_code: str | None = None
     default_currency: str | None = None
     kyc_requirements: dict | None = None
     regulatory_notes: str | None = None
-    compliance_approved: bool | None = None
-    provider_ready: bool | None = None
+    capital: str | None = None
+    languages: list[str] | None = None
+    phone_nsn_lengths: list[int] | None = None
+    secondary_currencies: list[str] | None = None
+    mobile_money_operators: list[str] | None = None
 
 
 @router.get("/network/countries")
 async def list_countries(_=Depends(require("network.view")), db: AsyncSession = Depends(get_db)):
+    from app.models.platform import ProviderCountry
+    from app.reference.africa import COLLECT, PAYOUT
+
     countries = (await db.execute(select(Country).order_by(Country.region, Country.name))).scalars().all()
     custodians = {
         c for (c,) in (await db.execute(select(CountryCustodian.country_code).where(
             CountryCustodian.status == "active", CountryCustodian.role == "primary"))).all()
     }
-    return [{**row(c), "hasActiveCustodian": c.code in custodians} for c in countries]
+    live: dict[str, set[str]] = {}
+    for code, caps in (await db.execute(
+        select(ProviderCountry.country_code, ProviderCountry.capabilities)
+        .join(PaymentProvider, PaymentProvider.id == ProviderCountry.provider_id)
+        .where(ProviderCountry.status == "live", PaymentProvider.status == "active",
+               PaymentProvider.mode == "production"))).all():
+        live.setdefault(code, set()).update(caps or [])
+    out = []
+    for c in countries:
+        caps = live.get(c.code, set())
+        out.append({**row(c), "hasActiveCustodian": c.code in custodians,
+                    "liveCollection": bool(caps & set(COLLECT)), "livePayout": bool(caps & set(PAYOUT)),
+                    "liveKyc": "kyc" in caps, "open": c.status in countries_mod.OPERATING})
+    return out
+
+
+@router.get("/network/countries/{code}")
+async def country_detail(code: str, _=Depends(require("network.view")), db: AsyncSession = Depends(get_db)):
+    from app.models.platform import ProviderCountry
+    from app.reference import africa
+
+    country = await _get(db, Country, code.upper())
+    coverage = (await db.execute(
+        select(ProviderCountry, PaymentProvider).join(PaymentProvider, PaymentProvider.id == ProviderCountry.provider_id)
+        .where(ProviderCountry.country_code == country.code).order_by(PaymentProvider.name))).all()
+    links = (await db.execute(select(CountryCustodian, Custodian).join(Custodian, Custodian.id == CountryCustodian.custodian_id)
+                              .where(CountryCustodian.country_code == country.code))).all()
+    prospects = (await db.execute(select(Custodian).where(Custodian.country_code == country.code))).scalars().all()
+    currencies = (await db.execute(select(CountryCurrency).where(CountryCurrency.country_code == country.code))).scalars()
+    users = (await db.execute(select(func.count()).select_from(User).where(
+        User.residence_country == country.code, User.deleted_at.is_(None)))).scalar_one()
+    return {
+        "country": {**row(country), "open": country.status in countries_mod.OPERATING,
+                    "currencyPeg": africa.CURRENCY_PEGS.get(country.default_currency)},
+        "readiness": await countries_mod.readiness(db, country),
+        "coverage": [{**row(pc), "provider": {"id": str(p.id), "code": p.code, "name": p.name,
+                                              "status": p.status, "mode": p.mode, "providerType": p.provider_type}}
+                     for pc, p in coverage],
+        "custodians": [{**row(link), "custodian": row(c)} for link, c in links],
+        "custodianProspects": [row(c) for c in prospects],
+        "currencies": [row(x) for x in currencies],
+        "customers": users,
+        "blocs": [{"code": b, "name": africa.REGIONAL_BLOCS[b][0]} for b in (country.regional_blocs or [])
+                  if b in africa.REGIONAL_BLOCS],
+    }
+
+
+class ComplianceSignOff(CamelModel):
+    approved: bool
+    regulator: str | None = Field(default=None, max_length=200)
+    licence_model: Literal["own_licence", "partner_bank", "psp_partner", "emi_passport", "sandbox_exemption",
+                           "other"] | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+@router.post("/network/countries/{code}/compliance")
+async def country_compliance(code: str, body: ComplianceSignOff,
+                             ctx: AdminContext = Depends(require("compliance.manage")),
+                             db: AsyncSession = Depends(get_db)):
+    country = await _get(db, Country, code.upper())
+    actor = (ctx.admin.email if ctx.admin else None) or "master_key"
+    await countries_mod.record_compliance(db, country, approved=body.approved, actor=actor, regulator=body.regulator,
+                                          licence_model=body.licence_model, notes=body.notes)
+    return row(country)
+
+
+@router.get("/network/rollout")
+async def rollout(_=Depends(require("network.view")), db: AsyncSession = Depends(get_db)):
+    """The recommended provider stack and how far each provider is per country."""
+    from app.models.platform import ProviderCountry
+    from app.reference import africa
+
+    counts: dict[str, dict[str, int]] = {}
+    for code, status, n in (await db.execute(
+        select(PaymentProvider.code, ProviderCountry.status, func.count())
+        .join(ProviderCountry, ProviderCountry.provider_id == PaymentProvider.id)
+        .group_by(PaymentProvider.code, ProviderCountry.status))).all():
+        counts.setdefault(code, {})[status] = n
+    return {
+        "catalogue": [{k: v for k, v in p.items() if k != "coverage"}
+                      | {"countries": len({c for cs in p["coverage"].values() for c in cs}),
+                         "capabilities": sorted(p["coverage"]), "coverageByStatus": counts.get(p["code"], {})}
+                      for p in africa.PROVIDER_CATALOGUE],
+        "capabilities": list(africa.CAPABILITIES),
+        "blocs": [{"code": k, "name": v[0], "members": v[1]} for k, v in africa.REGIONAL_BLOCS.items()],
+    }
+
+
+# ─── Provider coverage ──────────────────────────────────────────────────────
+
+
+class CoverageIn(CamelModel):
+    provider_id: str
+    country_code: str = Field(min_length=2, max_length=2)
+    capabilities: list[str]
+    currencies: list[str] = []
+    status: Literal["planned", "contracting", "sandbox", "live", "suspended"] = "planned"
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class CoveragePatch(CamelModel):
+    capabilities: list[str] | None = None
+    currencies: list[str] | None = None
+    status: Literal["planned", "contracting", "sandbox", "live", "suspended"] | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+def _check_caps(caps: list[str]) -> list[str]:
+    from app.reference.africa import CAPABILITIES
+
+    bad = [c for c in caps if c not in CAPABILITIES]
+    if bad:
+        raise ApiError(f"Unknown capability: {', '.join(bad)}. Use: {', '.join(CAPABILITIES)}")
+    if not caps:
+        raise ApiError("Choose at least one capability")
+    return sorted(set(caps))
+
+
+@router.get("/network/providers/{provider_id}/coverage")
+async def provider_coverage(provider_id: str, _=Depends(require("network.view")), db: AsyncSession = Depends(get_db)):
+    from app.models.platform import ProviderCountry
+
+    provider = await _get(db, PaymentProvider, _uuid(provider_id))
+    rows = (await db.execute(select(ProviderCountry, Country.name).join(Country, Country.code == ProviderCountry.country_code)
+                             .where(ProviderCountry.provider_id == provider.id).order_by(Country.name))).all()
+    return [{**row(pc), "countryName": name} for pc, name in rows]
+
+
+@router.post("/network/provider-coverage", status_code=201)
+async def add_coverage(body: CoverageIn, _=Depends(require("network.manage")), db: AsyncSession = Depends(get_db)):
+    from app.models.platform import ProviderCountry
+
+    provider = await _get(db, PaymentProvider, _uuid(body.provider_id))
+    country = await _get(db, Country, body.country_code.upper())
+    existing = (await db.execute(select(ProviderCountry).where(
+        ProviderCountry.provider_id == provider.id, ProviderCountry.country_code == country.code))).scalar_one_or_none()
+    if existing is not None:
+        raise ApiError("This provider already has coverage in that country; edit it instead", status_code=409)
+    pc = ProviderCountry(provider_id=provider.id, country_code=country.code, capabilities=_check_caps(body.capabilities),
+                         currencies=[c.upper() for c in body.currencies] or [country.default_currency],
+                         status=body.status, notes=body.notes)
+    db.add(pc)
+    await db.flush()
+    return row(pc)
+
+
+@router.patch("/network/provider-coverage/{coverage_id}")
+async def update_coverage(coverage_id: str, body: CoveragePatch, _=Depends(require("network.manage")),
+                          db: AsyncSession = Depends(get_db)):
+    from app.models.platform import ProviderCountry
+
+    pc = await _get(db, ProviderCountry, _uuid(coverage_id))
+    if body.capabilities is not None:
+        pc.capabilities = _check_caps(body.capabilities)
+    if body.currencies is not None:
+        pc.currencies = [c.upper() for c in body.currencies]
+    if body.notes is not None:
+        pc.notes = body.notes
+    if body.status is not None:
+        if pc.status == "live" and body.status != "live":
+            country = await db.get(Country, pc.country_code)
+            if country.status in countries_mod.OPERATING:
+                # Allowed (a rail can fail), but say what it means.
+                log.warning("live_rail_removed_from_open_country", country=country.code, coverage=str(pc.id))
+        pc.status = body.status
+    await db.flush()
+    return row(pc)
+
+
+@router.delete("/network/provider-coverage/{coverage_id}")
+async def delete_coverage(coverage_id: str, _=Depends(require("network.manage")), db: AsyncSession = Depends(get_db)):
+    from app.models.platform import ProviderCountry
+
+    pc = await _get(db, ProviderCountry, _uuid(coverage_id))
+    if pc.status == "live":
+        country = await db.get(Country, pc.country_code)
+        if country.status in countries_mod.OPERATING:
+            raise ApiError("This rail is live in an open country. Suspend it first.", status_code=409)
+    await db.delete(pc)
+    await db.flush()
+    return {"deleted": True}
 
 
 @router.post("/network/countries", status_code=201)
@@ -548,6 +739,44 @@ async def create_approval(body: ApprovalIn, ctx: AdminContext = Depends(require(
     req = await approvals.request(db, ctx, action=body.action, payload=body.payload, reason=body.reason,
                                   evidence=body.evidence)
     return row(req)
+
+
+@router.get("/wallet-lookup")
+async def wallet_lookup(wallet_id: str = Query(alias="walletId", min_length=3), _=Depends(require("wallets.view")),
+                        db: AsyncSession = Depends(get_db)):
+    """Who a wallet ID number belongs to, before an adjustment is filed.
+    Exact wallet ID only: no searching by name, email or phone."""
+    from app.governance.adjustments import SOURCE_LABELS
+    from app.models.wallet import WalletCard
+
+    user = (await db.execute(select(User).where(func.upper(User.wallet_id) == wallet_id.strip().upper(),
+                                                User.deleted_at.is_(None)))).scalar_one_or_none()
+    if user is None:
+        raise ApiError("No customer has that wallet ID number", status_code=404)
+    wallets = (await db.execute(select(WalletCard).where(WalletCard.user_id == user.id)
+                                .order_by(WalletCard.created_at))).scalars().all()
+    return {"walletId": user.wallet_id, "name": user.name, "accountType": user.account_type,
+            "country": user.residence_country, "frozen": user.frozen, "kycLevel": user.kyc_level,
+            "wallets": [{"currency": w.currency, "balance": f"{w.balance:.2f}"} for w in wallets],
+            "sources": SOURCE_LABELS}
+
+
+@router.get("/adjustments/report")
+async def adjustments_report(days: int = Query(default=30, ge=1, le=366), _=Depends(require("ledger.view")),
+                             db: AsyncSession = Depends(get_db)):
+    """Every money adjustment: who asked, who approved, company cost, red flags."""
+    from app.governance import adjustment_controls
+
+    return await adjustment_controls.report(db, days=days)
+
+
+@router.patch("/adjustments/controls")
+async def adjustments_controls(changes: dict, ctx: AdminContext = Depends(require("ledger.view")),
+                               db: AsyncSession = Depends(get_db)):
+    """Owner only (checked inside)."""
+    from app.governance import adjustment_controls
+
+    return await adjustment_controls.set_controls(db, ctx, changes)
 
 
 @router.post("/approvals/{request_id}/decide")

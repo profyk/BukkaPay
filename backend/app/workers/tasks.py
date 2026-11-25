@@ -312,3 +312,48 @@ async def release_due_escrows(ctx: dict) -> int:
     if n:
         log.info("release_due_escrows", released=n)
     return n
+
+
+async def charge_account_fees(ctx: dict) -> dict:
+    """Monthly account fee: one decision per customer per month (charged,
+    retried daily while due, or waived). Never overdraws."""
+    from app.pricing import service as pricing
+
+    async with get_session_factory()() as db:
+        counts = await pricing.charge_account_fees(db)
+        await db.commit()
+    if any(counts.values()):
+        log.info("charge_account_fees", **counts)
+    return counts
+
+
+async def expire_agent_cash_out_codes(ctx: dict) -> int:
+    """Unused cash-out codes past their expiry: the held money goes back to
+    the customer's wallet."""
+    from app.agents import service as agents
+
+    async with get_session_factory()() as db:
+        n = await agents.expire_codes(db)
+        await db.commit()
+    if n:
+        log.info("expire_agent_cash_out_codes", expired=n)
+    return n
+
+async def weekly_settlement_run(ctx: dict) -> str | None:
+    """Mondays: net the cross-border book pools into a settlement run for
+    treasury. A plan only; nothing is booked until transfers are made and a
+    second admin approves each one."""
+    from app.core.errors import ApiError
+    from app.network import settlement
+
+    async with get_session_factory()() as db:
+        try:
+            batch = await settlement.generate(db, actor="system:weekly")
+        except ApiError as e:  # a run is still in progress: leave it
+            log.info("weekly_settlement_skipped", reason=e.message)
+            return None
+        await db.commit()
+    if batch is not None:
+        log.info("weekly_settlement_run", reference=batch.reference)
+        return batch.reference
+    return None

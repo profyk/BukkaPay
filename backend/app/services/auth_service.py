@@ -254,6 +254,10 @@ async def ensure_account_allowed(db: AsyncSession, user: User, *, app: str | Non
         raise ApiError("This email belongs to a BukkaPay admin account and can't be used here.", status_code=403)
     if user.account_type != account_type_for_app(app):
         raise ApiError(wrong_app_message(user.account_type), status_code=403)
+    # The customer's country must be open (or suspended: they can still reach their money).
+    from app.network import countries as country_service
+
+    await country_service.require_sign_in_allowed(db, user.residence_country)
 
 
 def _account_type(app: str | None) -> str:

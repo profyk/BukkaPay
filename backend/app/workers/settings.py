@@ -13,9 +13,11 @@ from arq.cron import cron
 from app.core.config import get_settings
 from app.core.logging import configure_logging, log
 from app.workers.tasks import (
+    charge_account_fees,
     charge_monthly_card_maintenance_fees,
     collect_card_overdrafts,
     daily_reconciliation,
+    expire_agent_cash_out_codes,
     expire_card_holds,
     expire_fx_quotes,
     expire_payout_quotes,
@@ -27,6 +29,7 @@ from app.workers.tasks import (
     sweep_expired_claim_payments,
     sweep_expired_payment_requests,
     sweep_expired_rent_payment_links,
+    weekly_settlement_run,
 )
 
 
@@ -62,6 +65,11 @@ class WorkerSettings:
         cron(expire_payout_quotes, minute=set(range(0, 60, 5))),
         cron(reconcile_payouts, hour=4, minute=0),
         cron(release_due_escrows, minute=set(range(0, 60, 10))),
+        # hourly in bounded batches; one decision per customer per month
+        cron(charge_account_fees, minute=40),
+        cron(expire_agent_cash_out_codes, minute=set(range(0, 60, 2))),
+        # Mondays 06:00 UTC: cross-border bulk settlement run for treasury
+        cron(weekly_settlement_run, weekday=0, hour=6, minute=0),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

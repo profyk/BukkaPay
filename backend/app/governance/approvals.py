@@ -8,15 +8,12 @@ result. The requester can never approve their own request.
 
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
-from app.ledger import accounts as ledger_accounts
 from app.ledger import posting
-from app.models.merchant import Merchant
 from app.models.platform import (
     ApprovalRequest,
     Country,
@@ -27,7 +24,7 @@ from app.models.platform import (
 )
 from app.models.reference import Currency
 from app.models.user import User
-from app.models.wallet import Transaction, WalletCard
+from app.models.wallet import WalletCard
 from app.network import countries, routing
 
 
@@ -116,38 +113,10 @@ async def _currency_wallets(db, p):
 
 
 async def _ledger_adjustment(db, p):
-    amount = posting.parse_amount(p["amount"])
-    direction = p["direction"]
-    if direction not in ("credit", "debit"):
-        raise ApiError("direction must be credit or debit")
-    if p.get("wallet_card_id"):
-        card = await db.get(WalletCard, _uuid(p["wallet_card_id"], "wallet"))
-        if card is None:
-            raise ApiError("Wallet not found", status_code=404)
-        target = await ledger_accounts.wallet_account(db, card)
-        currency = card.currency
-    elif p.get("merchant_id"):
-        merchant = await db.get(Merchant, _uuid(p["merchant_id"], "merchant"))
-        if merchant is None:
-            raise ApiError("Merchant not found", status_code=404)
-        target = await ledger_accounts.merchant_account(db, merchant)
-        currency = target.currency
-    else:
-        raise ApiError("wallet_card_id or merchant_id is required")
-    counter = await ledger_accounts.adjustments(db, currency)
-    legs = ([posting.debit(counter, amount), posting.credit(target, amount)] if direction == "credit"
-            else [posting.debit(target, amount), posting.credit(counter, amount)])
-    entry = await posting.post(
-        db, kind="manual_adjustment", description=f"Approved adjustment: {p.get('reason', '')}"[:500],
-        legs=legs, details={"approval_payload": {k: str(v) for k, v in p.items()}},
-    )
-    if p.get("wallet_card_id"):
-        db.add(Transaction(
-            user_id=card.user_id, card_id=card.id, title="Account adjustment", category="adjustment",
-            amount=amount, type="credit" if direction == "credit" else "debit", icon="tool",
-        ))
-    await db.flush()
-    return {"journal_reference": entry.reference, "amount": str(amount), "currency": currency}
+    """Wallet-ID-only, named source of funds, always balanced: app.governance.adjustments."""
+    from app.governance import adjustments
+
+    return await adjustments.execute(db, p)
 
 
 async def _wallet_unblock(db, p):
@@ -171,11 +140,16 @@ async def _user_unfreeze(db, p):
 async def _treasury_rebalance(db, p):
     from app.network import treasury
 
-    return await treasury.record_rebalance(
+    result = await treasury.record_rebalance(
         db, from_currency=p["from_currency"], from_amount=posting.parse_amount(p["from_amount"]),
         to_currency=p["to_currency"], to_amount=posting.parse_amount(p["to_amount"]),
         reference=str(p.get("reference") or "")[:80] or "rebalance", actor="maker-checker",
     )
+    if p.get("settlement_line_id"):
+        from app.network import settlement
+
+        await settlement.mark_settled(db, _uuid(p["settlement_line_id"], "settlement line"), result["journal_reference"])
+    return result
 
 
 EXECUTORS = {
@@ -216,9 +190,9 @@ async def request(db: AsyncSession, ctx, *, action: str, payload: dict, reason: 
     if not reason or len(reason.strip()) < 5:
         raise ApiError("A reason is required")
     if action == "ledger.adjustment":
-        posting.parse_amount(payload.get("amount", ""))
-        if Decimal(str(payload.get("amount"))) <= 0:
-            raise ApiError("Invalid amount")
+        from app.governance import adjustments
+
+        payload = await adjustments.validate(db, payload, ctx)
     req = ApprovalRequest(action=action, payload=payload, reason=reason.strip(), evidence=evidence or [],
                           status="pending", requested_by=ctx.admin.id if ctx.admin else None)
     db.add(req)
@@ -242,6 +216,11 @@ async def decide(db: AsyncSession, ctx, request_id, *, approve: bool, note: str 
         raise ApiError("You can't approve your own request", status_code=403)
     if req.requested_by is None and decider is None:
         raise ApiError("A request made with the master key must be approved by a named admin", status_code=403)
+    if approve and req.action == "ledger.adjustment":
+        from app.governance import adjustment_controls
+
+        # Refused here leaves the request pending for the right approver.
+        await adjustment_controls.check_approver(db, ctx, req)
     req.decided_by = decider
     req.decided_at = datetime.now(UTC)
     req.decision_note = note
