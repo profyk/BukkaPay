@@ -75,6 +75,9 @@ async def create_merchant(db: AsyncSession, user_id: uuid.UUID, **fields) -> Mer
         raise ApiError("Business name is required")
     if not fields.get("business_type"):
         raise ApiError("Business type is required")
+    from app.core import brand_guard
+
+    brand_guard.check(fields.get("business_name"), fields.get("description"), what="business name")
     if fields["business_type"] not in MerchantBusinessType.__members__.values():
         raise ApiError(f"Unsupported business type: {fields['business_type']}")
 

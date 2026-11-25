@@ -27,6 +27,59 @@ async def closure_check(user_id=Depends(get_current_user_id), db: AsyncSession =
             "confirmWith": "pin" if user.transaction_pin is not None else "password" if user.password else "set_pin"}
 
 
+@router.get("/limits")
+async def get_limits(user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    """The limits the customer set, per wallet currency, and today's spending."""
+    from sqlalchemy import select
+
+    from app.models.wallet import WalletCard
+    from app.network import limits
+
+    user = await db.get(User, user_id)
+    currencies = sorted({c for (c,) in (await db.execute(select(WalletCard.currency).where(
+        WalletCard.user_id == user_id))).all()})
+    return {"increaseDelayHours": int(limits.INCREASE_DELAY.total_seconds() // 3600),
+            "wallets": [{"currency": c, **limits.personal_limits(user, c),
+                         "spentToday": f"{await limits.spent_today(db, user_id, c):.2f}"} for c in currencies]}
+
+
+class LimitsIn(CamelModel):
+    currency: str = Field(min_length=3, max_length=3)
+    per_payment: str | None = None
+    daily: str | None = None
+    pin: str | None = None
+
+
+@router.put("/limits", dependencies=[Depends(rate_limit("limits", 20, 3600))])
+async def set_limits(body: LimitsIn, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    """Lowering applies now; raising (or removing) a limit applies after 24 hours. PIN required."""
+    from decimal import Decimal, InvalidOperation
+
+    from app.network import limits
+
+    await pin_service.verify_pin(db, user_id, body.pin)
+
+    def amount(v: str | None):
+        if v in (None, ""):
+            return None
+        try:
+            d = Decimal(str(v)).quantize(Decimal("0.01"))
+        except InvalidOperation as e:
+            raise ApiError("Enter limits as amounts, e.g. 1000") from e
+        if d <= 0:
+            raise ApiError("Limits must be more than zero (leave empty for no limit)")
+        return d
+
+    per, daily = amount(body.per_payment), amount(body.daily)
+    if per is not None and daily is not None and per > daily:
+        raise ApiError("The per-payment limit can't be higher than the daily limit")
+    user = await db.get(User, user_id)
+    stored = limits.set_personal_limits(user, body.currency.upper(), per, daily)
+    await db.flush()
+    return {"currency": body.currency.upper(), **limits.personal_limits(user, body.currency.upper()),
+            "pending": stored.get("pending")}
+
+
 class CloseIn(CamelModel):
     pin: str | None = None
     password: str | None = Field(default=None, max_length=200)

@@ -39,7 +39,11 @@ export default async function LegalDocument(props: Props) {
     )
   }
   const toc = headings(doc.body)
-  const draft = doc.reviewStatus !== "approved"
+  // A published version (version > 0, with an effective date) is in force, even
+  // while lawyers review it; only the never-published template is a draft.
+  const unpublished = doc.version === 0
+  const draft = unpublished || doc.reviewStatus !== "approved"
+  const statusLabel = unpublished ? REVIEW_LABEL.template : doc.reviewStatus === "approved" ? REVIEW_LABEL.approved : "In effect"
   return (
     <>
       <section className="bg-gradient-to-b from-brand-50 to-white">
@@ -51,7 +55,7 @@ export default async function LegalDocument(props: Props) {
           <dl className="mt-5 flex flex-wrap gap-x-6 gap-y-1 text-sm text-ink-soft">
             {doc.effectiveDate && <div><dt className="inline">Effective </dt><dd className="inline font-medium text-ink">{formatDate(doc.effectiveDate)}</dd></div>}
             {doc.version > 0 && <div><dt className="inline">Version </dt><dd className="inline font-medium text-ink">{doc.version}</dd></div>}
-            <div><dd className="inline">{REVIEW_LABEL[doc.reviewStatus]}</dd></div>
+            <div><dd className="inline">{statusLabel}</dd></div>
           </dl>
         </div>
       </section>
@@ -65,9 +69,9 @@ export default async function LegalDocument(props: Props) {
         )}
         {draft && doc.isLatest && (
           <p role="note" className="mb-6 rounded-xl border border-line bg-surface p-4 text-sm text-ink-soft">
-            {doc.reviewStatus === "template"
+            {unpublished
               ? "This document is a draft that is being reviewed by our legal advisers. It may change before BukkaPay launches in your country."
-              : "This document is being reviewed by our legal advisers and may be updated."}
+              : "This policy is in effect. Our legal advisers are reviewing it and it may be updated; we'll tell you about any material change before it takes effect."}
           </p>
         )}
 

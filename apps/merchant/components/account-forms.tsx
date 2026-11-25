@@ -14,13 +14,30 @@ import { Button, Field, Input, Modal, Notice, Select } from "@/components/ui"
 export type Country = { code: string; name: string; status: string; currency: string; dialCode?: string | null }
 
 export function useOperatingCountries() {
+  return useCountryList().countries
+}
+
+/** Open countries, with a failed-to-load state the form can show and retry. */
+export function useCountryList() {
   const [countries, setCountries] = useState<Country[]>([])
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
+    setFailed(false)
     api<Country[]>("/public/countries")
       .then((list) => setCountries(list.filter((c) => c.status === "pilot" || c.status === "live")))
-      .catch(() => setCountries([]))
-  }, [])
-  return countries
+      .catch(() => { setCountries([]); setFailed(true) })
+  }, [attempt])
+  return { countries, failed, retry: () => setAttempt((a) => a + 1) }
+}
+
+/** What's still missing before the sign-up can be sent (shown under the button). */
+export function missingFields(p: Profile, extra: Record<string, boolean>): string[] {
+  const out = Object.entries(extra).filter(([, ok]) => !ok).map(([label]) => label)
+  if (!USERNAME_RE.test(p.username.trim())) out.push("a username (3–30 letters, numbers, dots or underscores)")
+  if (!p.residenceCountry) out.push("your country")
+  if (!phoneOk(p.phone)) out.push("your phone number")
+  return out
 }
 
 export const USERNAME_RE = /^[A-Za-z0-9._]{3,30}$/
@@ -60,7 +77,7 @@ export const profileComplete = (p: Profile) => USERNAME_RE.test(p.username.trim(
 const RESEND_SECONDS = 60
 
 /** Confirms a new sign-up's email. Never a way to sign in to a verified account. */
-export function EmailCodeDialog({ email, onVerified }: { email: string | null; onVerified: () => void }) {
+export function EmailCodeDialog({ email, onVerified, onSkip }: { email: string | null; onVerified: () => void; onSkip?: () => void }) {
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -108,6 +125,11 @@ export function EmailCodeDialog({ email, onVerified }: { email: string | null; o
         <button type="button" onClick={resend} disabled={wait > 0} className="w-full text-sm font-medium text-brand-700 disabled:text-ink-muted">
           {wait > 0 ? `Resend code in ${wait}s` : "Resend code"}
         </button>
+        {onSkip && (
+          <button type="button" onClick={onSkip} className="w-full text-xs text-ink-muted underline">
+            Code not here? Continue and confirm your email later
+          </button>
+        )}
       </div>
     </Modal>
   )

@@ -6,15 +6,23 @@ import { useToast } from "../hooks/use-toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../lib/ThemeContext";
 import { getPinStatus, setTransactionPin } from "../lib/api";
+import { API_BASE } from "../lib/config";
+import { getAuthHeader } from "../lib/auth";
+import PinPrompt from "../components/PinPrompt";
+
+type LimitRow = { currency: string; perPayment: string | null; daily: string | null; spentToday: string
+                  pending: { perPayment: string | null; daily: string | null; effectiveAt: string } | null };
 
 export default function SecuritySettings() {
   const router = useRouter();
   const { toast } = useToast();
   const { colors } = useTheme();
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [loginAlerts, setLoginAlerts] = useState(true);
-  const [transactionLimit, setTransactionLimit] = useState("1000");
-  const [dailyLimit, setDailyLimit] = useState("5000");
+  // Limits live on the server and are enforced on every payment (not just saved on this phone).
+  const [limits, setLimits] = useState<{ increaseDelayHours: number; wallets: LimitRow[] } | null>(null);
+  const [currency, setCurrency] = useState<string | null>(null);
+  const [transactionLimit, setTransactionLimit] = useState("");
+  const [dailyLimit, setDailyLimit] = useState("");
+  const [limitPinOpen, setLimitPinOpen] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
@@ -31,36 +39,36 @@ export default function SecuritySettings() {
     } catch {}
   };
 
-  useEffect(() => {
-    (async () => {
-      const tfa = await AsyncStorage.getItem("2fa_enabled");
-      const la = await AsyncStorage.getItem("login_alerts");
-      const tl = await AsyncStorage.getItem("transaction_limit");
-      const dl = await AsyncStorage.getItem("daily_limit");
-      if (tfa !== null) setTwoFactorEnabled(tfa === "true");
-      if (la !== null) setLoginAlerts(la !== "false");
-      if (tl) setTransactionLimit(tl);
-      if (dl) setDailyLimit(dl);
-    })();
-    refreshPinStatus();
-  }, []);
-
-  const handle2FAToggle = async (enabled: boolean) => {
-    setTwoFactorEnabled(enabled);
-    await AsyncStorage.setItem("2fa_enabled", String(enabled));
-    toast({ title: enabled ? "2FA Enabled" : "2FA Disabled" });
+  const loadLimits = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/account/limits`, { headers: await getAuthHeader() });
+      if (!res.ok) return;
+      const data = await res.json();
+      setLimits(data);
+      const first = data.wallets.find((w: LimitRow) => w.currency === currency) ?? data.wallets[0];
+      if (first) { setCurrency(first.currency); setTransactionLimit(first.perPayment ?? ""); setDailyLimit(first.daily ?? ""); }
+    } catch {}
   };
 
-  const handleLoginAlertsToggle = async (enabled: boolean) => {
-    setLoginAlerts(enabled);
-    await AsyncStorage.setItem("login_alerts", String(enabled));
-    toast({ title: enabled ? "Login alerts enabled" : "Login alerts disabled" });
+  useEffect(() => { refreshPinStatus(); loadLimits(); }, []);
+
+  const pickCurrency = (c: string) => {
+    const w = limits?.wallets.find((x) => x.currency === c);
+    setCurrency(c); setTransactionLimit(w?.perPayment ?? ""); setDailyLimit(w?.daily ?? "");
   };
 
-  const handleSaveLimits = async () => {
-    await AsyncStorage.setItem("transaction_limit", transactionLimit);
-    await AsyncStorage.setItem("daily_limit", dailyLimit);
-    toast({ title: "Success", description: "Transaction limits updated" });
+  const handleSaveLimits = async (pin: string) => {
+    const res = await fetch(`${API_BASE}/api/account/limits`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
+      body: JSON.stringify({ currency, perPayment: transactionLimit.trim() || null, daily: dailyLimit.trim() || null, pin }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Couldn't save your limits");
+    setLimitPinOpen(false);
+    await loadLimits();
+    toast({ title: "Limits saved", description: data.pending
+      ? `Lower limits apply now. Higher limits start in ${limits?.increaseDelayHours ?? 24} hours, to protect you if your phone is taken.`
+      : "Your limits apply to every payment from now." });
   };
 
   const handleChangePin = async () => {
@@ -102,32 +110,16 @@ export default function SecuritySettings() {
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.statusBox}>
-        <Ionicons name="checkmark-circle" size={20} color="#10B981" style={{ marginTop: 2 }} />
+      <View style={[styles.statusBox, !hasPin && { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+        <Ionicons name={hasPin ? "checkmark-circle" : "alert-circle"} size={20} color={hasPin ? "#10B981" : "#D97706"} style={{ marginTop: 2 }} />
         <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={styles.statusTitle}>Account Secured</Text>
-          <Text style={styles.statusSubtitle}>Your account has security measures enabled</Text>
+          <Text style={styles.statusTitle}>{hasPin ? "Payments are protected by your PIN" : "Set your transaction PIN"}</Text>
+          <Text style={styles.statusSubtitle}>{hasPin ? "Add spending limits below for extra protection." : "You need a PIN before you can pay anyone."}</Text>
         </View>
       </View>
 
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>AUTHENTICATION</Text>
       <View style={[styles.settingsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={styles.settingRow}>
-          <Ionicons name="phone-portrait" size={20} color={colors.primary} />
-          <View style={styles.settingTextBox}>
-            <Text style={[styles.settingTitle, { color: colors.text }]}>Two-Factor Authentication</Text>
-            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Extra security for your account</Text>
-          </View>
-          <Switch
-            value={twoFactorEnabled}
-            onValueChange={handle2FAToggle}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-
-        <View style={[styles.settingDivider, { backgroundColor: colors.divider }]} />
-
         <View style={styles.settingRow}>
           <Ionicons name="finger-print" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
@@ -141,19 +133,14 @@ export default function SecuritySettings() {
 
         <View style={[styles.settingDivider, { backgroundColor: colors.divider }]} />
 
-        <View style={styles.settingRow}>
-          <Ionicons name="warning" size={20} color={colors.primary} />
+        <TouchableOpacity onPress={() => router.push("/(screens)/notification-settings" as any)} style={styles.settingRow}>
+          <Ionicons name="notifications" size={20} color={colors.primary} />
           <View style={styles.settingTextBox}>
-            <Text style={[styles.settingTitle, { color: colors.text }]}>Login Alerts</Text>
-            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Get notified of new logins</Text>
+            <Text style={[styles.settingTitle, { color: colors.text }]}>Sign-in and security alerts</Text>
+            <Text style={[styles.settingDesc, { color: colors.textMuted }]}>Choose how we alert you about new sign-ins and payments</Text>
           </View>
-          <Switch
-            value={loginAlerts}
-            onValueChange={handleLoginAlertsToggle}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
 
         <View style={[styles.settingDivider, { backgroundColor: colors.divider }]} />
 
@@ -167,40 +154,60 @@ export default function SecuritySettings() {
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>TRANSACTION LIMITS</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>SPENDING LIMITS</Text>
       <View style={[styles.limitsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.limitLabel, { color: colors.text }]}>Single Transaction Limit</Text>
-        <View style={styles.limitInputRow}>
-          <Text style={[styles.dollarSign, { color: colors.textMuted }]}>$</Text>
-          <TextInput
-            value={transactionLimit}
-            onChangeText={setTransactionLimit}
-            keyboardType="numeric"
-            placeholder="1000"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.limitInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]}
-          />
-        </View>
-        <Text style={[styles.limitHint, { color: colors.textMuted }]}>Maximum amount per transaction</Text>
-
-        <Text style={[styles.limitLabel, { color: colors.text, marginTop: 16 }]}>Daily Spending Limit</Text>
-        <View style={styles.limitInputRow}>
-          <Text style={[styles.dollarSign, { color: colors.textMuted }]}>$</Text>
-          <TextInput
-            value={dailyLimit}
-            onChangeText={setDailyLimit}
-            keyboardType="numeric"
-            placeholder="5000"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.limitInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]}
-          />
-        </View>
-        <Text style={[styles.limitHint, { color: colors.textMuted }]}>Maximum daily spending</Text>
-
-        <TouchableOpacity onPress={handleSaveLimits} style={styles.saveLimitsButton}>
-          <Text style={styles.saveLimitsButtonText}>Save Limits</Text>
-        </TouchableOpacity>
+        {!limits ? <Text style={{ color: colors.textMuted }}>Loading…</Text> : !limits.wallets.length ? (
+          <Text style={{ color: colors.textMuted }}>Open a wallet to set limits.</Text>
+        ) : (
+          <>
+            {limits.wallets.length > 1 && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                {limits.wallets.map((w) => (
+                  <TouchableOpacity key={w.currency} onPress={() => pickCurrency(w.currency)}
+                    style={{ borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6,
+                             borderColor: currency === w.currency ? colors.primary : colors.border,
+                             backgroundColor: currency === w.currency ? colors.primary : "transparent" }}>
+                    <Text style={{ color: currency === w.currency ? "#fff" : colors.text, fontWeight: "700" }}>{w.currency}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <Text style={[styles.limitLabel, { color: colors.text }]}>Most per payment</Text>
+            <View style={styles.limitInputRow}>
+              <Text style={[styles.dollarSign, { color: colors.textMuted }]}>{currency}</Text>
+              <TextInput value={transactionLimit} onChangeText={(t) => setTransactionLimit(t.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad"
+                placeholder="No limit" placeholderTextColor={colors.textMuted} accessibilityLabel="Most per payment"
+                style={[styles.limitInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]} />
+            </View>
+            <Text style={[styles.limitLabel, { color: colors.text, marginTop: 16 }]}>Most per day</Text>
+            <View style={styles.limitInputRow}>
+              <Text style={[styles.dollarSign, { color: colors.textMuted }]}>{currency}</Text>
+              <TextInput value={dailyLimit} onChangeText={(t) => setDailyLimit(t.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad"
+                placeholder="No limit" placeholderTextColor={colors.textMuted} accessibilityLabel="Most per day"
+                style={[styles.limitInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]} />
+            </View>
+            {(() => {
+              const w = limits.wallets.find((x) => x.currency === currency);
+              return (
+                <>
+                  <Text style={[styles.limitHint, { color: colors.textMuted }]}>Spent in the last 24 hours: {currency} {w?.spentToday ?? "0.00"}. Leave empty for no limit.</Text>
+                  {w?.pending && (
+                    <Text style={[styles.limitHint, { color: "#B45309" }]}>
+                      Higher limits (per payment {w.pending.perPayment ?? "no limit"}, per day {w.pending.daily ?? "no limit"}) start {new Date(w.pending.effectiveAt).toLocaleString()}.
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
+            <Text style={[styles.limitHint, { color: colors.textMuted }]}>Lowering a limit works straight away. Raising one takes {limits.increaseDelayHours} hours, so a thief with your phone can't lift it.</Text>
+            <TouchableOpacity onPress={() => setLimitPinOpen(true)} style={styles.saveLimitsButton}>
+              <Text style={styles.saveLimitsButtonText}>Save limits</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
+      <PinPrompt visible={limitPinOpen} title="Confirm limits" subtitle={`Spending limits for ${currency ?? ""}`}
+        onCancel={() => setLimitPinOpen(false)} onSubmit={handleSaveLimits} />
 
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>SECURITY TIPS</Text>
       <View style={styles.tipsBox}>
@@ -208,7 +215,7 @@ export default function SecuritySettings() {
         <View style={{ marginLeft: 12, flex: 1 }}>
           <Text style={styles.tipsTitle}>Stay Safe</Text>
           <Text style={styles.tipItem}>Never share your PIN or password</Text>
-          <Text style={styles.tipItem}>Enable two-factor authentication</Text>
+          <Text style={styles.tipItem}>Set spending limits you're comfortable with</Text>
           <Text style={styles.tipItem}>Review your transactions regularly</Text>
           <Text style={styles.tipItem}>Log out on shared devices</Text>
         </View>

@@ -63,9 +63,86 @@ async def _usage(db: AsyncSession, user_id, product: str, currency: str, since: 
     return Decimal((await db.execute(stmt)).scalar_one())
 
 
+# ─── personal spending limits (set by the customer) ─────────────────────────
+#
+# users.spending_limits = {"ZAR": {"perPayment": "1000.00", "daily": "5000.00",
+#                                  "pending": {"perPayment": ..., "daily": ..., "effectiveAt": iso}}}
+# Lowering a limit applies at once; raising one applies after INCREASE_DELAY, so
+# someone holding an unlocked phone can't lift the limit and empty the wallet.
+
+INCREASE_DELAY = timedelta(hours=24)
+NOT_SPENDING = ("currency_swap", "reversal", "test_funding")  # moving between own wallets isn't spending
+
+
+def personal_limits(user: User, currency: str, *, now: datetime | None = None) -> dict:
+    now = now or datetime.now(UTC)
+    cfg = dict(((user.spending_limits or {}).get(currency) or {}))
+    pending = cfg.get("pending")
+    if pending and datetime.fromisoformat(pending["effectiveAt"]) <= now:
+        cfg = {k: v for k, v in pending.items() if k != "effectiveAt"}
+    return {"perPayment": cfg.get("perPayment"), "daily": cfg.get("daily"),
+            "pending": cfg.get("pending") if cfg.get("pending") else None}
+
+
+def set_personal_limits(user: User, currency: str, per_payment: Decimal | None, daily: Decimal | None,
+                        *, now: datetime | None = None) -> dict:
+    """Returns the stored config. Decreases (or removing nothing) apply now; any increase waits."""
+    now = now or datetime.now(UTC)
+    current = personal_limits(user, currency, now=now)
+
+    def raised(new, old) -> bool:
+        if old is None:
+            return False  # setting a limit where there was none only restricts
+        return new is None or Decimal(str(new)) > Decimal(str(old))
+
+    new = {"perPayment": f"{per_payment:.2f}" if per_payment is not None else None,
+           "daily": f"{daily:.2f}" if daily is not None else None}
+    all_limits = dict(user.spending_limits or {})
+    if raised(new["perPayment"], current["perPayment"]) or raised(new["daily"], current["daily"]):
+        # Restricting parts apply now (take the lower of old/new); the rest waits.
+        now_cfg = {k: (min(Decimal(str(new[k])), Decimal(str(current[k]))) if new[k] is not None and current[k] is not None
+                       else current[k]) for k in ("perPayment", "daily")}
+        stored = {k: (f"{v:.2f}" if isinstance(v, Decimal) else v) for k, v in now_cfg.items()}
+        stored["pending"] = {**new, "effectiveAt": (now + INCREASE_DELAY).isoformat()}
+    else:
+        stored = new
+    all_limits[currency] = stored
+    user.spending_limits = all_limits
+    return stored
+
+
+async def spent_today(db: AsyncSession, user_id, currency: str, *, now: datetime | None = None) -> Decimal:
+    now = now or datetime.now(UTC)
+    stmt = (
+        select(func.coalesce(func.sum(JournalLine.debit), 0))
+        .select_from(JournalLine)
+        .join(JournalEntry, JournalEntry.id == JournalLine.entry_id)
+        .join(LedgerAccount, LedgerAccount.id == JournalLine.account_id)
+        .join(WalletCard, WalletCard.id == LedgerAccount.wallet_card_id)
+        .where(WalletCard.user_id == user_id, JournalLine.currency == currency,
+               JournalEntry.kind.notin_(NOT_SPENDING), JournalEntry.posted_at >= now - timedelta(days=1))
+    )
+    return Decimal((await db.execute(stmt)).scalar_one())
+
+
+async def check_personal(db: AsyncSession, user: User, amount: Decimal, *, currency: str) -> None:
+    lim = personal_limits(user, currency)
+    if lim["perPayment"] is not None and amount > Decimal(lim["perPayment"]):
+        raise ApiError(f"This is above the per-payment limit you set ({currency} {lim['perPayment']}). "
+                       "You can change it in Security settings.", status_code=403)
+    if lim["daily"] is not None:
+        used = await spent_today(db, user.id, currency)
+        if used + amount > Decimal(lim["daily"]):
+            left = max(Decimal(0), Decimal(lim["daily"]) - used)
+            raise ApiError(f"This would go over the daily limit you set ({currency} {lim['daily']}). "
+                           f"You can still spend {currency} {left:.2f} today.", status_code=403)
+
+
 async def check(
     db: AsyncSession, user: User, product: str, amount: Decimal, *, currency: str, country: str | None,
 ) -> None:
+    if product != "funding":  # the customer's own limits apply to money going out
+        await check_personal(db, user, amount, currency=currency)
     rule = await _rule(db, product, user, currency, country)
     if rule is None:
         return

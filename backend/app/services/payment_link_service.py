@@ -32,6 +32,10 @@ async def create_payment_link(
     invoice: dict | None,
 ) -> tuple[PaymentLink, Invoice | None]:
     parsed_amount = posting.parse_amount(amount or "")
+    from app.core import brand_guard
+
+    # Public page on our domain: no impersonating banks/brands, no phishing wording.
+    brand_guard.check(business_name, description, (bank_details or {}).get("accountHolder"), what="payment link")
     from app.reference import currencies
 
     currency = (await currencies.require_wallet_currency(db, currency or "ZAR")).code

@@ -7,14 +7,14 @@ import { api, setToken } from "@/lib/api"
 import { Button, Field, Input, Notice, PasswordInput } from "@/components/ui"
 import { SocialSignIn } from "@/components/social-sign-in"
 import {
-  EmailCodeDialog, ProfileFields, profileComplete, useOperatingCountries, type Profile,
+  EmailCodeDialog, ProfileFields, missingFields, profileComplete, useCountryList, type Profile,
 } from "@/components/account-forms"
 import { AuthShell } from "@/components/auth-shell"
 
 /** Business account sign-up for the merchant dashboard. */
 export default function SignupPage() {
   const router = useRouter()
-  const countries = useOperatingCountries()
+  const { countries, failed: countriesFailed, retry: retryCountries } = useCountryList()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -31,6 +31,10 @@ export default function SignupPage() {
   const strong = password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password)
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
   const ready = name.trim() && emailOk && strong && profileComplete(profile) && accepted
+  const missing = missingFields(profile, {
+    "your full name": !!name.trim(), "a valid email": emailOk,
+    "a password (8+ characters with letters and numbers)": strong,
+  }).concat(accepted ? [] : ["agreeing to the terms"])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,6 +71,9 @@ export default function SignupPage() {
         <SocialSignIn mode="signup" onSignedIn={() => router.replace("/businesses")} onError={setError} />
         <Field label="Your full name"><Input autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Business email"><Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        {countriesFailed && (
+          <Notice tone="warn">We couldn't load the country list. <button type="button" className="underline font-semibold" onClick={retryCountries}>Try again</button></Notice>
+        )}
         <ProfileFields value={profile} onChange={setProfile} countries={countries} />
         <Field label="Password" hint={password && !strong ? "At least 8 characters, with letters and numbers" : undefined}>
           <PasswordInput autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -76,10 +83,14 @@ export default function SignupPage() {
           <span>I agree to the <a className="underline" href="https://www.bukkapay.com/legal/merchant-terms" target="_blank" rel="noreferrer">Merchant Terms</a> and <a className="underline" href="https://www.bukkapay.com/legal/privacy-policy" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
         </label>
         <Button type="submit" className="w-full" disabled={!ready || busy}>{busy ? "Creating account…" : "Create business account"}</Button>
+        {!ready && !busy && missing.length > 0 && (
+          <p className="text-xs text-ink-muted" aria-live="polite">Still needed: {missing.join(", ")}.</p>
+        )}
         <p className="text-sm text-ink-muted">Already have one? <Link href="/login" className="font-medium text-brand-700 underline">Sign in</Link></p>
         <p className="text-xs text-ink-muted">Want to send and receive money personally? Use the BukkaPay app at app.bukkapay.com — personal and business accounts are separate.</p>
       </form>
-      <EmailCodeDialog email={confirmEmail} onVerified={() => router.replace("/businesses")} />
+      <EmailCodeDialog email={confirmEmail} onVerified={() => router.replace("/businesses")}
+                       onSkip={() => router.replace("/businesses")} />
     </AuthShell>
   )
 }

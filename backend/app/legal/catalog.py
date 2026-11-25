@@ -114,12 +114,34 @@ _TOKEN = re.compile(r"\{\{\s*([a-z_]+)\s*\}\}")
 
 
 def fill(text: str, details: LegalDetails) -> str:
-    """Replace {{tokens}} with company details; blanks become [labels].
-    Complaints and security mail fall back to the support/privacy address."""
+    """Replace {{tokens}} with company details. Details not set yet read as
+    plain, truthful wording (e.g. while the company is being registered)
+    rather than bracketed placeholders; anything without a sensible
+    fallback still shows a visible [label] so the gap is obvious."""
     values = details.model_dump()
     values["complaints_email"] = values["complaints_email"] or values["support_email"]
     values["security_email"] = values["security_email"] or values["privacy_email"]
     values["information_officer_email"] = values["information_officer_email"] or values["privacy_email"]
+    trading = values["trading_name"] or "BukkaPay"
+    if not values["legal_name"]:
+        # "X (registration number N), trading as Y" → one clear sentence while unregistered.
+        text = re.sub(r"\{\{\s*legal_name\s*\}\}\s*\(registration number \{\{\s*registration_number\s*\}\}\),\s*"
+                      r"trading as \{\{\s*trading_name\s*\}\}",
+                      f"{trading} (a company in the process of registration)", text)
+    fallbacks = {
+        "legal_name": trading,
+        "registration_number": "pending (company registration in progress)",
+        "registered_address": f"available on request from {values['privacy_email']}",
+        "information_officer": f"the {trading} privacy team",
+        "partner_institutions": "named in the app before you add money in your country",
+        "card_issuer": "named in the Virtual Visa Card Terms when cards launch",
+        "phone": f"email {values['support_email']}",
+        "governing_law": "the laws of the country where you use the Services",
+        "country_of_incorporation": "pending (company registration in progress)",
+    }
+    for k, v in fallbacks.items():
+        if not values.get(k):
+            values[k] = v
 
     def sub(m: re.Match) -> str:
         key = m.group(1)

@@ -1,5 +1,5 @@
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -46,6 +46,8 @@ class User(Base, CreatedOnlyMixin):
     # 0 = registered, 1 = contact verified, 2 = identity verified (KYC approved).
     # Limits per level are configured in transaction_limits.
     kyc_level: Mapped[int] = mapped_column(Integer, default=0)
+    # Customer-set spending limits per currency (app.network.limits.personal_limits).
+    spending_limits: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     # ISO-3166 alpha-2 home country (users.country_code is the phone prefix).
     residence_country: Mapped[str | None] = mapped_column(
         String(2), ForeignKey("countries.code", ondelete="RESTRICT")
