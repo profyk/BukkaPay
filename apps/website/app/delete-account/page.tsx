@@ -13,8 +13,8 @@ const blocks = [
     title: "Delete your account in the app",
     items: [
       ["Withdraw your money", "Move any remaining balance out first: a closed account can't hold money. Cancel any unused cash withdrawal code."],
-      ["Open Profile → Delete account", "You'll see what will be deleted and anything that still needs doing."],
-      ["Type DELETE and enter your PIN", "Your account closes straight away and you're signed out on every device. We email you a confirmation."],
+      ["Open Profile → Delete account", "In the BukkaPay app or at app.bukkapay.com (business accounts: merchant.bukkapay.com → Delete account). You'll see what will be deleted and anything that still needs doing."],
+      ["Type DELETE and enter your PIN (or password)", "Your account closes straight away and you're signed out on every device. We email you a confirmation."],
     ],
   },
   {

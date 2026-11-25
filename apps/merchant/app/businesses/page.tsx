@@ -41,6 +41,7 @@ export default function BusinessesPage() {
         subtitle="Choose a business to manage, register a new one, or join one with a staff invite code."
         actions={<>
           <Button variant="secondary" onClick={() => { setToken(null); router.replace("/login") }}>Sign out</Button>
+            <Button variant="ghost" onClick={() => router.push("/account/delete")}>Delete account</Button>
           <Button onClick={() => setCreating(true)}>Register a business</Button>
         </>}
       />

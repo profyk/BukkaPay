@@ -26,15 +26,17 @@ export default function DeleteAccount() {
   const { colors } = useTheme();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["closure-check"],
-    queryFn: () => call<{ canClose: boolean; blockers: string[]; retentionYears: number }>("GET", "/api/account/closure-check"),
+    queryFn: () => call<{ canClose: boolean; blockers: string[]; retentionYears: number; confirmWith: "pin" | "password" | "set_pin" }>("GET", "/api/account/closure-check"),
   });
   const [confirm, setConfirm] = useState("");
   const [reason, setReason] = useState("");
   const [pinOpen, setPinOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
-  const close = async (pin: string) => {
-    await call("POST", "/api/account/close", { pin, confirm, reason: reason || undefined });
+  const close = async (pin?: string) => {
+    await call("POST", "/api/account/close", { pin, password: pin ? undefined : password, confirm, reason: reason || undefined });
     setPinOpen(false);
     setDone(true);
     await logout();
@@ -89,8 +91,23 @@ export default function DeleteAccount() {
             <Text style={{ color: colors.text, fontWeight: "700" }}>Type DELETE to confirm</Text>
             <TextInput value={confirm} onChangeText={setConfirm} autoCapitalize="characters" placeholder="DELETE" placeholderTextColor={colors.textMuted}
               style={[st.input, { color: colors.text, borderColor: colors.border }]} accessibilityLabel="Type DELETE to confirm" />
-            <TouchableOpacity style={[st.danger, confirm.trim().toUpperCase() !== "DELETE" && { opacity: 0.4 }]}
-              disabled={confirm.trim().toUpperCase() !== "DELETE"} onPress={() => setPinOpen(true)}>
+            {data.confirmWith === "password" && (
+              <TextInput value={password} onChangeText={setPassword} secureTextEntry placeholder="Your password" placeholderTextColor={colors.textMuted}
+                style={[st.input, { color: colors.text, borderColor: colors.border }]} accessibilityLabel="Password" />
+            )}
+            {data.confirmWith === "set_pin" && (
+              <TouchableOpacity onPress={() => router.push("/(screens)/security-settings" as any)}>
+                <Text style={{ color: RED, fontWeight: "700" }}>Set a transaction PIN first (Security), then come back to delete your account.</Text>
+              </TouchableOpacity>
+            )}
+            {!!error && <Text style={{ color: RED }}>{error}</Text>}
+            <TouchableOpacity style={[st.danger, (confirm.trim().toUpperCase() !== "DELETE" || data.confirmWith === "set_pin" || (data.confirmWith === "password" && !password)) && { opacity: 0.4 }]}
+              disabled={confirm.trim().toUpperCase() !== "DELETE" || data.confirmWith === "set_pin" || (data.confirmWith === "password" && !password)}
+              onPress={async () => {
+                setError("");
+                if (data.confirmWith === "pin") { setPinOpen(true); return; }
+                try { await close(); } catch (e: any) { setError(e.message); }
+              }}>
               <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Delete my account</Text>
             </TouchableOpacity>
           </View>

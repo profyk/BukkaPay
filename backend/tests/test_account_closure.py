@@ -61,3 +61,22 @@ async def test_customer_deletes_account(client: AsyncClient):
         await db.commit()
         await db.refresh(rec)
         assert rec.snapshot is None and rec.purged_at is not None
+
+
+async def test_business_account_deletes_with_password(client: AsyncClient):
+    from tests.conftest import signup_business
+
+    owner = await signup_business(client, "Closing Shop")
+    check = await client.get("/api/account/closure-check", headers=owner["headers"])
+    assert check.status_code == 200, check.text  # business tokens can use /api/account
+    assert check.json()["canClose"] is True and check.json()["confirmWith"] == "pin"
+    async with get_session_factory()() as db:  # a web-only owner with no PIN confirms with the password
+        user = await db.get(User, uuid.UUID(owner["user"]["id"]))
+        user.transaction_pin = None
+        await db.commit()
+    assert (await client.get("/api/account/closure-check", headers=owner["headers"])).json()["confirmWith"] == "password"
+    bad = await client.post("/api/account/close", json={"confirm": "DELETE", "password": "wrong"}, headers=owner["headers"])
+    assert bad.status_code == 401
+    ok = await client.post("/api/account/close", json={"confirm": "DELETE", "password": "password123"},
+                           headers=owner["headers"])
+    assert ok.status_code == 200, ok.text

@@ -33,6 +33,7 @@ _SHARED_ROUTES = [re.compile(p) for p in (
     r"^/api/auth(/|$)",
     r"^/api/upload(/|$)",
     r"^/api/public(/|$)",
+    r"^/api/account(/|$)",  # account deletion: personal and business accounts alike
 )]
 
 
