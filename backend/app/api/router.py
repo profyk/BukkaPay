@@ -36,6 +36,7 @@ from app.api import (
 )
 from app.api import payouts as payouts_api
 from app.api import push as push_api
+from app.api import support as support_api
 from app.api import trade as trade_api
 
 api_router = APIRouter()
@@ -56,6 +57,7 @@ api_router.include_router(push_api.router)
 api_router.include_router(payouts_api.router)
 api_router.include_router(agents_api.router)
 api_router.include_router(account_api.router)
+api_router.include_router(support_api.router)
 api_router.include_router(analytics_api.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
@@ -78,6 +80,7 @@ from app.api.admin import network as admin_network
 from app.api.admin import platform as admin_platform
 from app.api.admin import revenue as admin_revenue
 from app.api.admin import settlements as admin_settlements
+from app.api.admin import support as admin_support
 from app.api.admin import trade as admin_trade
 from app.api.admin import travel as admin_travel
 from app.api.admin import users as admin_users
@@ -98,3 +101,4 @@ admin_router.include_router(admin_trade.router)
 admin_router.include_router(admin_fx.router)
 admin_router.include_router(admin_revenue.router)
 admin_router.include_router(admin_settlements.router)
+admin_router.include_router(admin_support.router)

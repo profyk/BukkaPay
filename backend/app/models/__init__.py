@@ -71,6 +71,7 @@ from app.models.reference import Currency
 from app.models.rental import Property, PropertyUnit, RentPayment, RentPaymentLink, Tenant
 from app.models.revenue import AccountFeeCharge, Agent, AgentTransaction, PricingSetting
 from app.models.settlement import SettlementBatch, SettlementLine
+from app.models.support import SupportTicket, TicketMessage
 from app.models.trade import (
     EscrowContract,
     EscrowEvent,
@@ -95,6 +96,8 @@ __all__ = [
     "PricingSetting",
     "SettlementBatch",
     "SettlementLine",
+    "SupportTicket",
+    "TicketMessage",
     "SiteContent",
     "WaitlistSignup",
     "LegalDocument",

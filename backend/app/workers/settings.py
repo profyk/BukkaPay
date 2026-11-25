@@ -28,6 +28,7 @@ from app.workers.tasks import (
     refresh_fx_rates,
     release_due_escrows,
     rescreen_customers,
+    support_housekeeping,
     sweep_expired_claim_payments,
     sweep_expired_payment_requests,
     sweep_expired_rent_payment_links,
@@ -75,6 +76,7 @@ class WorkerSettings:
         cron(purge_closed_accounts, hour=2, minute=45),
         # every 30 s: swap pairs re-priced from live market rates (+ buffer; spread on top)
         cron(refresh_fx_rates, second={0, 30}),
+        cron(support_housekeeping, minute=20),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

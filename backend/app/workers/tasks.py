@@ -377,3 +377,12 @@ async def refresh_fx_rates(ctx: dict) -> dict:
         status = await fx_feed.refresh(db)
         await db.commit()
     return status
+
+async def support_housekeeping(ctx: dict) -> dict:
+    """Hourly: tickets waiting on the customer for 7 days are resolved; resolved for 7 days are closed."""
+    from app.support import service as support
+
+    async with get_session_factory()() as db:
+        counts = await support.sweep(db)
+        await db.commit()
+    return counts

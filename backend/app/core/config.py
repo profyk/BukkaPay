@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     # FATF "call for action" jurisdictions; transfers touching them are flagged.
     high_risk_countries: str = Field(default="KP,IR,MM", alias="HIGH_RISK_COUNTRIES")
     resend_from_email: str | None = Field(default="noreply@bukkapay.com", alias="RESEND_FROM_EMAIL")
+    # Help desk: replies come from (and customers write to) this address; inbound mail is
+    # POSTed to /api/webhooks/support-email signed with SUPPORT_INBOUND_SECRET.
+    support_email: str = Field(default="support@bukkapay.com", alias="SUPPORT_EMAIL")
+    support_inbound_secret: str | None = Field(default=None, alias="SUPPORT_INBOUND_SECRET")
     bank_partner_api_url: str | None = Field(default=None, alias="BANK_PARTNER_API_URL")
     bank_partner_api_key: str | None = Field(default=None, alias="BANK_PARTNER_API_KEY")
     bank_partner_account_id: str | None = Field(default=None, alias="BANK_PARTNER_ACCOUNT_ID")

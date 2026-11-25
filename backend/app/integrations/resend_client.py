@@ -12,6 +12,9 @@ async def send_resend_email(
     html: str,
     text: str,
     from_name: str = "BukkaPay",
+    from_email: str | None = None,
+    reply_to: str | None = None,
+    headers: dict | None = None,
 ) -> dict:
     settings = get_settings()
     if not settings.resend_api_key or not settings.resend_from_email:
@@ -25,12 +28,16 @@ async def send_resend_email(
         html = layout(html, preheader=subject)
 
     payload = {
-        "from": f"{from_name} <{settings.resend_from_email}>",
+        "from": f"{from_name} <{from_email or settings.resend_from_email}>",
         "to": [to],
         "subject": subject,
         "html": html,
         "text": text,
     }
+    if reply_to:
+        payload["reply_to"] = reply_to
+    if headers:
+        payload["headers"] = headers
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(

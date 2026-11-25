@@ -29,6 +29,12 @@ async def send_user_message(db: AsyncSession, user_id: uuid.UUID, message: str) 
     chat_message = ChatMessage(user_id=user_id, message=text, is_user_message=True, read=False)
     db.add(chat_message)
     await db.flush()
+    # Every chat message belongs to a help-desk ticket (app.support.service).
+    from app.support import service as support
+
+    user = await db.get(User, user_id)
+    if user is not None:
+        await support.chat_message(db, user, text)
     return chat_message
 
 
@@ -39,6 +45,9 @@ async def send_admin_reply(db: AsyncSession, user_id: uuid.UUID, message: str) -
 
     chat_message = ChatMessage(user_id=user_id, message=text, is_user_message=False, read=False)
     db.add(chat_message)
+    from app.support import service as support
+
+    await support.record_legacy_agent_chat(db, user_id, text)
     await notification_service.create_notification(
         db, user_id, NotificationType.INFO, "New message from Support",
         text if len(text) <= 120 else f"{text[:117]}...",
