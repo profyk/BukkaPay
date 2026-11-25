@@ -16,7 +16,9 @@ BRAND_DARK = "#5B21B6"
 INK = "#1A1A2E"
 MUTED = "#6B7280"
 BG = "#F5F3FF"
-LOGO_URL = "https://www.bukkapay.com/logo.png"
+# Versioned file (apps/website/public/brand/): mail clients cache images by
+# URL, so a new logo gets a new name instead of replacing the old file.
+LOGO_URL = "https://www.bukkapay.com/brand/bukkapay-email-logo-v2.png"
 SITE_URL = "https://www.bukkapay.com"
 SUPPORT_EMAIL = "support@bukkapay.com"
 
@@ -72,7 +74,7 @@ def layout(content_html: str, *, preheader: str = "") -> str:
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
     <tr><td style="padding:0 8px 20px;">
       <a href="{SITE_URL}" style="text-decoration:none;">
-        <img src="{LOGO_URL}" width="40" height="40" alt="" style="vertical-align:middle;border:0;border-radius:10px;">
+        <img src="{LOGO_URL}" width="44" height="44" alt="BukkaPay" style="vertical-align:middle;border:0;border-radius:50%;display:inline-block;">
         <span style="vertical-align:middle;margin-left:10px;font-size:20px;font-weight:700;color:{INK};">BukkaPay</span>
       </a>
     </td></tr>

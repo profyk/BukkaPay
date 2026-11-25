@@ -75,6 +75,13 @@ async def save_draft(slug: str, body: DraftBody, ctx: AdminContext = Depends(req
     return await legal_service.save_draft(db, slug, body.data, actor=_actor(ctx), expected_version=body.version)
 
 
+@router.post("/legal/{slug}/load-template")
+async def load_template(slug: str, ctx: AdminContext = Depends(require("legal.manage")),
+                        db: AsyncSession = Depends(get_db)):
+    """Put BukkaPay's latest template text into the draft (then publish it)."""
+    return await legal_service.load_template(db, slug, actor=_actor(ctx))
+
+
 @router.post("/legal/{slug}/publish")
 async def publish(slug: str, body: dict, ctx: AdminContext = Depends(require("legal.publish")),
                   db: AsyncSession = Depends(get_db)):

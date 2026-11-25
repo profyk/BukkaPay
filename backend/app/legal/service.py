@@ -211,6 +211,20 @@ async def save_draft(db: AsyncSession, slug: str, data: dict, *, actor: str | No
     return await admin_get(db, slug)
 
 
+async def load_template(db: AsyncSession, slug: str, *, actor: str | None) -> dict:
+    """Replace the draft body with BukkaPay's latest template (e.g. after the
+    template was expanded). Published versions are untouched; publish the
+    draft to make it live."""
+    if slug not in catalog.BY_SLUG:
+        raise ApiError("Only standard documents have a template", status_code=404)
+    row = await _lock_or_seed(db, slug, actor)
+    row.body = catalog.template(slug)
+    row.draft_version += 1
+    row.updated_by = actor
+    await db.flush()
+    return await admin_get(db, slug)
+
+
 async def create(db: AsyncSession, *, slug: str, title: str, actor: str | None) -> dict:
     slug = slug.strip().lower()
     if not SLUG.match(slug) or len(slug) > 60:

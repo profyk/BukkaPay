@@ -419,6 +419,7 @@ export default function Profile() {
           right={<Toggle value={biometricEnabled} onChange={handleBiometricToggle} disabled={!biometricSupported} label={biometricLabel} />} />
         <Row icon="keypad-outline" tint="#6366F1" label="PIN, limits and two-step sign-in" hint="Change your PIN, set spending limits" onPress={() => router.push("/(screens)/security-settings")} />
         <Row icon="notifications-outline" tint="#EF4444" label="Notifications" hint="Alerts, devices and lock-screen privacy" onPress={() => router.push("/(screens)/notification-settings" as any)} />
+        <Row icon="trash-outline" tint="#DC2626" label="Delete account" hint="Close your account and delete your data" onPress={() => router.push("/(screens)/delete-account" as any)} />
       </Group>
 
       <Group title="PREFERENCES">

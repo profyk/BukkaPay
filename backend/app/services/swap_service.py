@@ -41,6 +41,7 @@ class SwapQuote:
     gross: Decimal           # amount * rate, in to_currency
     spread: Decimal          # in to_currency
     receive: Decimal         # credited, in to_currency
+    note: str | None = None  # e.g. why the rate is capped (fx_guard)
 
 
 async def _pair(db: AsyncSession, src: str, dst: str) -> CurrencyCorridor:
@@ -54,18 +55,38 @@ async def _pair(db: AsyncSession, src: str, dst: str) -> CurrencyCorridor:
     return pair
 
 
-async def quote(db: AsyncSession, src: str, dst: str, amount: Decimal) -> SwapQuote:
+async def _priced(db: AsyncSession, pair: CurrencyCorridor) -> tuple[Decimal, Decimal, dict]:
+    """Rate and spread after the FX protections (app.services.fx_guard)."""
+    from app.services import fx_guard
+
+    pol = await fx_guard.policy(db)
+    fx_guard.check_fresh(pair, pol)
+    rate = Decimal(pair.exchange_rate)
+    pct = fx_guard.effective_pct(pair.fee_percentage, pol)
+    await fx_guard.check_round_trip(db, pair.from_currency, pair.to_currency, rate, pct, pol)
+    return rate, pct, pol
+
+
+async def quote(db: AsyncSession, src: str, dst: str, amount: Decimal, *, user_id=None) -> SwapQuote:
+    """`user_id` set for customer-initiated swaps: adds the daily limit and
+    the reverse-swap rate cap."""
+    from app.services import fx_guard
+
     pair = await _pair(db, src, dst)
     if amount < pair.min_amount or amount > pair.max_amount:
         raise ApiError(f"Swap between {src} {pair.min_amount} and {src} {pair.max_amount}")
-    rate = Decimal(pair.exchange_rate)
-    pct = Decimal(pair.fee_percentage or 0)
+    rate, pct, pol = await _priced(db, pair)
+    note = None
+    if user_id is not None:
+        cap, why = await fx_guard.user_limits(db, user_id, src, dst, pol)
+        if cap is not None and cap < rate:
+            rate, note = cap.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN), why
     gross = (amount * rate).quantize(CENT, rounding=ROUND_DOWN)
     spread = (gross * pct / 100).quantize(CENT, rounding=ROUND_HALF_UP)
     receive = gross - spread
     if receive <= 0:
         raise ApiError("Amount is too small to swap")
-    return SwapQuote(src, dst, amount, rate, pct, gross, spread, receive)
+    return SwapQuote(src, dst, amount, rate, pct, gross, spread, receive, note)
 
 
 async def quote_for_target(db: AsyncSession, src: str, dst: str, target: Decimal) -> SwapQuote:
@@ -73,8 +94,7 @@ async def quote_for_target(db: AsyncSession, src: str, dst: str, target: Decimal
     spread (used to pay an invoice from a wallet in another currency). Amounts
     round up, so the target is always fully covered."""
     pair = await _pair(db, src, dst)
-    rate = Decimal(pair.exchange_rate)
-    pct = Decimal(pair.fee_percentage or 0)
+    rate, pct, _ = await _priced(db, pair)
     gross = (target / (1 - pct / 100)).quantize(CENT, rounding=ROUND_UP)
     spread = gross - target
     amount = (gross / rate).quantize(CENT, rounding=ROUND_UP)
@@ -106,7 +126,7 @@ async def swap(db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_cu
         raise ApiError("Wallet not found", status_code=404)
     if source.frozen or source.blocked or source.flagged:
         raise ApiError("This wallet is restricted", status_code=403)
-    q = await quote(db, source.currency, to_currency.upper(), amount)
+    q = await quote(db, source.currency, to_currency.upper(), amount, user_id=user_id)
     # Price protection: the customer confirms the amount they saw.
     if expected_receive is not None and q.receive != expected_receive:
         raise ApiError(f"The rate changed — you'd now receive {q.to_currency} {q.receive}. Please confirm again.",
@@ -117,6 +137,8 @@ async def swap(db: AsyncSession, user_id: uuid.UUID, *, from_card_id: str, to_cu
     entry = await posting.post(
         db, kind="currency_swap", description=f"Swap {q.from_currency} {q.amount} → {q.to_currency} {q.receive}",
         legs=legs, details={"user_id": str(user_id), "rate": str(q.rate), "spread_pct": str(q.spread_pct),
+                            "from_currency": q.from_currency, "to_currency": q.to_currency,
+                            "amount": str(q.amount), "receive": str(q.receive), "rate_capped": bool(q.note),
                             "spread": str(q.spread), "from_card_id": str(source.id), "to_card_id": str(target.id)},
     )
     return q, entry, target

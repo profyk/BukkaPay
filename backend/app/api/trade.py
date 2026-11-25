@@ -301,9 +301,11 @@ async def merchant_dispute(merchant_id: str, reference: str, body: DisputeIn, us
 async def swap_quote(from_currency: str = Query(alias="from"), to_currency: str = Query(alias="to"),
                      amount: str = Query(...), user_id=Depends(get_current_user_id),
                      db: AsyncSession = Depends(get_db)) -> dict:
-    q = await swap_service.quote(db, from_currency.upper(), to_currency.upper(), posting.parse_amount(amount))
+    q = await swap_service.quote(db, from_currency.upper(), to_currency.upper(), posting.parse_amount(amount),
+                                 user_id=user_id)
     return {"from": q.from_currency, "to": q.to_currency, "amount": f"{q.amount:.2f}", "rate": str(q.rate),
-            "spreadPercent": str(q.spread_pct), "spread": f"{q.spread:.2f}", "receive": f"{q.receive:.2f}"}
+            "spreadPercent": str(q.spread_pct), "spread": f"{q.spread:.2f}", "receive": f"{q.receive:.2f}",
+            "note": q.note}
 
 
 class SwapIn(CamelModel):

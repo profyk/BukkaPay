@@ -26,6 +26,10 @@ const LABELS: Record<string, string> = {
   cash_in_commission_bps: "Agent cash-in commission (basis points, 100 = 1%)",
   cash_out_agent_share_pct: "Agent share of the cash-out fee (%)", code_ttl_minutes: "Cash-out code valid for (minutes)",
   max_code_attempts: "Wrong codes before an agent is locked out",
+  min_spread_bps: "Minimum FX spread on every swap (basis points, 50 = 0.5%)",
+  max_rate_age_hours: "Pause swaps when a rate is older than (hours)",
+  reverse_window_hours: "Cap converting back at the rate paid within (hours)",
+  max_swaps_per_day: "Currency swaps per customer per day",
 }
 
 export default function RevenuePage() {

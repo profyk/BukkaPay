@@ -357,3 +357,14 @@ async def weekly_settlement_run(ctx: dict) -> str | None:
         log.info("weekly_settlement_run", reference=batch.reference)
         return batch.reference
     return None
+
+async def purge_closed_accounts(ctx: dict) -> int:
+    """Daily: identity details of closed accounts past the legal retention period are deleted."""
+    from app.services import account_closure
+
+    async with get_session_factory()() as db:
+        n = await account_closure.purge_expired(db)
+        await db.commit()
+    if n:
+        log.info("purge_closed_accounts", purged=n)
+    return n

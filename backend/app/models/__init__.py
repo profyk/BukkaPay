@@ -13,6 +13,7 @@ from app.models.cards import (
 )
 from app.models.chat import ChatMessage
 from app.models.claim_payment import ClaimPayment
+from app.models.closure import ClosedAccount
 from app.models.contribution import Contribution, ContributionGroup
 from app.models.dormant import FamilyMember, SecuritySetting
 from app.models.gamification import Achievement, Challenge
@@ -88,6 +89,7 @@ register_create_all_hooks(JournalLine.__table__)
 
 __all__ = [
     "AccountFeeCharge",
+    "ClosedAccount",
     "Agent",
     "AgentTransaction",
     "PricingSetting",

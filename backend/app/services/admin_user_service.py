@@ -123,27 +123,13 @@ async def set_verified(db: AsyncSession, user: User, verified: bool) -> User:
 
 
 async def delete_user(db: AsyncSession, user: User) -> None:
-    """Soft-delete: anonymize PII and freeze the account rather than hard-
-    deleting the row. Every FK from transactions/wallet_cards/
-    international_transfers/notifications back to users is
-    ondelete="CASCADE" — an actual DELETE would silently wipe that user's
-    entire financial audit trail along with them. Uniqueness on email/
-    username means the anonymized values must still be unique, hence the
-    user id suffix."""
-    anon_suffix = str(user.id)
-    user.name = "Deleted User"
-    user.email = f"deleted-{anon_suffix}@bukkapay.internal"
-    user.username = f"deleted-{anon_suffix}"
-    user.phone = None
-    user.avatar = None
-    user.password = None
-    user.biometric_enabled = False
-    user.frozen = True
-    user.deleted_at = datetime.now(UTC)
-    from app.push import service as push_service
+    """Close the account (app.services.account_closure): refused while it holds
+    or moves money; identity details sealed for the legal retention period;
+    the live row anonymised (never a DELETE, which would cascade away the
+    financial audit trail)."""
+    from app.services import account_closure
 
-    await push_service.remove_all_devices(db, user.id)
-    await db.flush()
+    await account_closure.close(db, user, by="admin")
 
 
 async def notify_user(db: AsyncSession, user: User, *, type: str | None, title: str, message: str) -> None:

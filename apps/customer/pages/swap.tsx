@@ -91,6 +91,7 @@ export default function Swap() {
               <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>{getCurrency(to).symbol}{quote.receive}</Text>
               <Text style={{ color: colors.textMuted }}>1 {from} = {Number(quote.rate).toFixed(4)} {to}</Text>
               <Text style={{ color: colors.textMuted }}>FX spread {quote.spreadPercent}% · {getCurrency(to).symbol}{quote.spread} (included above)</Text>
+              {!!quote.note && <Text style={{ color: "#B45309" }}>{quote.note}</Text>}
             </View>
           )}
         </View>

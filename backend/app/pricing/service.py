@@ -42,6 +42,12 @@ DEFAULTS: dict[str, dict] = {
         "last_retry_day": 25,         # after this day of the month, an unpaid fee is waived
         "charge_day": 1,              # first day of the month it's attempted
     },
+    "fx": {
+        "min_spread_bps": 50,           # every swap earns at least 0.5%, even if a pair is set lower
+        "max_rate_age_hours": 24,       # swaps pause on a pair whose rate is older than this
+        "reverse_window_hours": 24,     # converting back within this window is capped at the rate paid
+        "max_swaps_per_day": 10,        # per customer
+    },
     "agents": {
         "cash_in_commission_bps": 50,   # BukkaPay pays the agent 0.5% of cash-in (customer pays nothing)
         "cash_out_agent_share_pct": 60,  # the agent keeps 60% of the customer's cash-out fee

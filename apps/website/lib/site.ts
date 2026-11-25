@@ -15,7 +15,7 @@ export const NAV = [
 
 export const PAGES = [
   "", "/about", "/how-it-works", "/wallet", "/merchants", "/trade", "/travel", "/cross-border", "/payment-links", "/contributions",
-  "/countries", "/pricing", "/partners", "/security", "/faq", "/contact",
+  "/countries", "/pricing", "/partners", "/security", "/faq", "/contact", "/delete-account",
   "/legal",
 ]
 

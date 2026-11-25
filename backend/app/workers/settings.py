@@ -23,6 +23,7 @@ from app.workers.tasks import (
     expire_payout_quotes,
     issue_pending_cards,
     process_outbox,
+    purge_closed_accounts,
     reconcile_payouts,
     release_due_escrows,
     rescreen_customers,
@@ -70,6 +71,7 @@ class WorkerSettings:
         cron(expire_agent_cash_out_codes, minute=set(range(0, 60, 2))),
         # Mondays 06:00 UTC: cross-border bulk settlement run for treasury
         cron(weekly_settlement_run, weekday=0, hour=6, minute=0),
+        cron(purge_closed_accounts, hour=2, minute=45),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

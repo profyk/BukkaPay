@@ -185,6 +185,19 @@ function DocumentEditor({ slug, list, labels, canEdit, canPublish, onBack }: {
       subtitle={`/legal/${slug} · ${latest ? `version ${latest.version} live since ${latest.effectiveDate}` : "never published — the website shows the template with a draft banner"}`}
       actions={<>
         <Button variant="ghost" onClick={onBack}>← All documents</Button>
+        {canEdit && data.draft.standard && (
+          <Button variant="outline" disabled={saving} onClick={async () => {
+            if (dirty && !window.confirm("Replace your unsaved changes with BukkaPay's latest template?")) return
+            setSaving(true)
+            try {
+              await api.post(`/admin/legal/${slug}/load-template`)
+              toast({ title: "Latest template loaded into the draft", description: "Review it, then publish to make it live." })
+              await Promise.all([qc.invalidateQueries({ queryKey: ["legal", slug] }), qc.invalidateQueries({ queryKey: ["legal"] })])
+            } catch (e) {
+              toast({ title: "Not loaded", description: errorMessage(e), variant: "destructive" })
+            } finally { setSaving(false) }
+          }}>Load latest template</Button>
+        )}
         <a href={`${SITE_URL}/legal/${slug}`} target="_blank" rel="noopener" className="self-center text-sm text-primary underline">View on website ↗</a>
       </>}>
       <div className="grid gap-4 md:grid-cols-4">

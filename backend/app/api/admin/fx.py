@@ -101,6 +101,9 @@ async def update_pair(pair_id: str, body: PairIn, ctx: AdminContext = Depends(re
         c.is_active = body.active
     if c.max_amount < c.min_amount:
         raise ApiError("The maximum must be at least the minimum")
+    from app.services import fx_guard
+
+    await fx_guard.validate_pair_prices(db, c)
     await db.flush()
     await ctx.audit(db, "fx.pair.update", target_type="currency_corridor", target_id=c.id,
                     details={"before": before, "after": _pair(c), "reason": body.reason})
@@ -131,6 +134,9 @@ async def create_pair(body: NewPairIn, ctx: AdminContext = Depends(require("fx.m
         c.min_amount = body.min_amount
     if body.max_amount is not None:
         c.max_amount = body.max_amount
+    from app.services import fx_guard
+
+    await fx_guard.validate_pair_prices(db, c)
     db.add(c)
     await db.flush()
     await ctx.audit(db, "fx.pair.create", target_type="currency_corridor", target_id=c.id,

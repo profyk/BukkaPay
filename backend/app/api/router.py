@@ -7,6 +7,7 @@ together.
 
 from fastapi import APIRouter
 
+from app.api import account as account_api
 from app.api import agents as agents_api
 from app.api import analytics as analytics_api
 from app.api import (
@@ -54,6 +55,7 @@ api_router.include_router(notification.router)
 api_router.include_router(push_api.router)
 api_router.include_router(payouts_api.router)
 api_router.include_router(agents_api.router)
+api_router.include_router(account_api.router)
 api_router.include_router(analytics_api.router)
 api_router.include_router(upload.router)
 api_router.include_router(webauthn.router)
