@@ -1,64 +1,65 @@
 import { useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react"
 import { useLocation } from "wouter"
 import { motion, AnimatePresence } from "framer-motion"
-import { AlertCircle, Eye, EyeOff, Lock, Loader2, Mail, ShieldCheck } from "lucide-react"
+import { AlertCircle, Eye, EyeOff, Lock, Loader2, Mail } from "lucide-react"
 import { boardApi, errorText, setToken } from "./api"
-import { ThemeToggle } from "./theme-toggle"
 
-/* Same layout as the customer app sign-in (apps/customer/pages/login.tsx):
-   deep-blue brand header, one centred card overlapping it, brand footer. */
+/* A copy of the customer app sign-in (apps/customer/pages/login.tsx +
+   components/AuthHero.tsx), with the customer theme's exact colours
+   (lib/theme.ts, light and dark). Only what can't apply to an invite-only
+   portal is left out: Google sign-in, "Forgot?" and "Sign Up". */
 
-const ICON = "/icons/icon-512.png"
+const ICON = "/icons/icon-512.png" // same file as apps/customer/assets/logo.png
 
 function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
-    <div className="min-h-screen w-full bg-[#F5F3FF] text-[#1A1A2E] dark:bg-background dark:text-foreground">
-      {/* Brand header */}
-      <header className="relative overflow-hidden rounded-b-[32px] bg-[#010C38] px-6 pt-14 pb-20 text-white">
-        <div aria-hidden className="absolute -top-32 -right-20 h-[280px] w-[280px] rounded-full bg-[rgba(0,82,255,0.35)] blur-2xl" />
-        <div aria-hidden className="absolute -bottom-36 -left-24 h-[300px] w-[300px] rounded-full bg-[rgba(34,211,238,0.14)] blur-2xl" />
-        <div className="absolute right-4 top-4"><ThemeToggle onDark /></div>
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-          className="relative mx-auto flex max-w-[480px] flex-col items-center text-center">
+    <div className="min-h-screen w-full bg-white text-[#1A1A2E] dark:bg-[#0D0D1A] dark:text-[#F1F1FF]">
+      {/* AuthHero */}
+      <header className="relative overflow-hidden rounded-b-[32px] bg-[#010C38] px-6 pt-14 pb-16">
+        <div aria-hidden className="absolute -top-[120px] -right-20 h-[280px] w-[280px] rounded-full bg-[rgba(0,82,255,0.35)]" />
+        <div aria-hidden className="absolute -bottom-[140px] -left-[100px] h-[300px] w-[300px] rounded-full bg-[rgba(34,211,238,0.14)]" />
+        <div className="relative mx-auto flex w-full max-w-[480px] flex-col items-center">
           <img src={ICON} alt="BukkaPay" className="h-[72px] w-[72px] rounded-[18px]" />
-          <p className="mt-3.5 text-[26px] font-extrabold tracking-tight">BukkaPay</p>
-          <p className="mt-1 text-[15px] text-white/70">Board and investor portal</p>
+          <p className="mt-3.5 text-[26px] font-extrabold tracking-[-0.5px] text-white">BukkaPay</p>
+          <p className="mt-1 text-center text-[15px] text-white/[0.72]">Africa's money, without borders.</p>
           <div className="mt-[18px] flex flex-wrap justify-center gap-2">
-            {["Live company numbers", "Investor updates", "By invitation only"].map((c) => (
-              <span key={c} className="rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white/85">{c}</span>
+            {["ZAR · BWP · USD", "Free transfers", "Escrow for traders"].map((c) => (
+              <span key={c} className="rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white/[0.85]">{c}</span>
             ))}
           </div>
-        </motion.div>
+        </div>
       </header>
 
       {/* Card */}
-      <motion.main initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08 }}
-        className="relative mx-auto -mt-10 w-[92%] max-w-[480px] rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:border-border dark:bg-card">
-        <h1 className="text-center text-[28px] font-bold">{title}</h1>
-        <p className="mb-7 mt-2 text-center text-sm text-[#6B7280] dark:text-muted-foreground">{subtitle}</p>
+      <main className="relative mx-auto -mt-10 w-[92%] max-w-[480px] rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:border-[#2D2D45] dark:bg-[#1E1E30]">
+        <h1 className="mb-2 text-center text-[28px] font-bold">{title}</h1>
+        <p className="mb-7 text-center text-sm text-[#9CA3AF] dark:text-[#6B6B90]">{subtitle}</p>
         {children}
-        <div className="mt-6 flex items-start gap-2.5 border-t border-[#E5E7EB] pt-5 dark:border-border">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#7C3AED]" />
-          <p className="text-xs leading-relaxed text-[#6B7280] dark:text-muted-foreground">
-            Two-step sign-in with a code emailed to you. Company totals only, never a customer. Every sign-in is recorded.
-          </p>
+        <div className="my-6 flex items-center">
+          <span className="h-px flex-1 bg-[#E5E7EB] dark:bg-[#2D2D45]" />
+          <span className="px-3 text-sm text-[#9CA3AF] dark:text-[#6B6B90]">or</span>
+          <span className="h-px flex-1 bg-[#E5E7EB] dark:bg-[#2D2D45]" />
         </div>
-      </motion.main>
+        <p className="mt-2 text-center text-sm text-[#9CA3AF] dark:text-[#6B6B90]">
+          Need access? <span className="font-semibold text-[#7C3AED]">Ask BukkaPay for an invitation</span>
+        </p>
+      </main>
 
-      <footer className="pb-8 pt-8 text-center">
+      <footer className="mt-8 pb-8 text-center">
         <p className="text-2xl font-bold">BukkaPay</p>
-        <p className="mt-1 text-sm italic text-[#6B7280] dark:text-muted-foreground">The Pulse of African Finance</p>
+        <p className="mt-1 text-sm italic text-[#9CA3AF] dark:text-[#6B6B90]">The Pulse of African Finance</p>
       </footer>
     </div>
   )
 }
 
-const boxCls = "flex items-center rounded-xl border border-[#E5E7EB] bg-white focus-within:border-[#7C3AED] focus-within:ring-2 focus-within:ring-[#7C3AED]/20 dark:border-border dark:bg-background"
-const fieldCls = "min-w-0 flex-1 bg-transparent px-2.5 py-3.5 text-base outline-none placeholder:text-[#9CA3AF] dark:placeholder:text-muted-foreground"
+const boxCls = "flex items-center rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] dark:border-[#2D2D45] dark:bg-[#252538]"
+const fieldCls = "min-w-0 flex-1 bg-transparent px-2.5 py-3.5 text-base text-[#1A1A2E] outline-none placeholder:text-[#9CA3AF] dark:text-[#F1F1FF] dark:placeholder:text-[#6B6B90]"
+const iconCls = "ml-3 h-5 w-5 shrink-0 text-[#9CA3AF] dark:text-[#6B6B90]"
 
 function Label({ text, children }: { text: string; children: ReactNode }) {
   return (
-    <label className="block">
+    <label className="mb-1 block">
       <span className="mb-2 block text-sm font-medium">{text}</span>
       {children}
     </label>
@@ -68,7 +69,7 @@ function Label({ text, children }: { text: string; children: ReactNode }) {
 function TextInput({ icon: Icon, ...props }: { icon: typeof Mail } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className={boxCls}>
-      <Icon className="ml-3 h-5 w-5 shrink-0 text-[#6B7280] dark:text-muted-foreground" />
+      <Icon className={iconCls} />
       <input {...props} className={fieldCls} />
     </div>
   )
@@ -78,10 +79,10 @@ function PasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
   const [show, setShow] = useState(false)
   return (
     <div className={boxCls}>
-      <Lock className="ml-3 h-5 w-5 shrink-0 text-[#6B7280] dark:text-muted-foreground" />
+      <Lock className={iconCls} />
       <input {...props} type={show ? "text" : "password"} className={fieldCls} />
       <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"}
-        className="px-3 py-3.5 text-[#6B7280] transition hover:text-[#1A1A2E] dark:text-muted-foreground dark:hover:text-foreground">
+        className="py-3.5 pr-3 text-[#9CA3AF] dark:text-[#6B6B90]">
         {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
       </button>
     </div>
@@ -90,9 +91,9 @@ function PasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
 
 function Submit({ busy, disabled, busyText, children }: { busy: boolean; disabled?: boolean; busyText: string; children: ReactNode }) {
   return (
-    <button type="submit" disabled={busy || disabled}
-      className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-[#7C3AED] py-4 text-lg font-semibold text-white transition hover:bg-[#6D28D9] disabled:opacity-60">
-      {busy ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />{busyText}</> : children}
+    <button type="submit" disabled={busy || disabled} aria-label={busy ? busyText : undefined}
+      className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-[#7C3AED] py-4 text-lg font-semibold text-white disabled:opacity-60">
+      {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : children}
     </button>
   )
 }
@@ -136,20 +137,20 @@ export function LoginPage() {
   }
 
   return step === "password" ? (
-    <Shell title="Welcome Back" subtitle="Sign in to the BukkaPay board portal">
+    <Shell title="Welcome Back" subtitle="Sign in to your BukkaPay board account">
       <ErrorBox text={error} />
-      <form onSubmit={submit} className="space-y-5">
-        <Label text="Email"><TextInput icon={Mail} type="email" autoComplete="username" required placeholder="you@fund.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Label>
-        <Label text="Password"><PasswordInput autoComplete="current-password" required placeholder="••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} /></Label>
+      <form onSubmit={submit} className="space-y-4">
+        <Label text="Email"><TextInput icon={Mail} type="email" autoComplete="username" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Label>
+        <Label text="Password"><PasswordInput autoComplete="current-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} /></Label>
         <Submit busy={busy} busyText="Checking…">Sign In</Submit>
       </form>
     </Shell>
   ) : (
     <Shell title="Check your email" subtitle={`Enter the 6-digit code we sent to ${email}. It expires in 10 minutes.`}>
       <ErrorBox text={error} />
-      <form onSubmit={submit} className="space-y-5">
+      <form onSubmit={submit} className="space-y-4">
         <input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" aria-label="Sign-in code"
-          className="h-14 w-full rounded-xl border border-[#E5E7EB] bg-white text-center text-2xl tracking-[0.5em] outline-none focus:border-[#7C3AED] focus:ring-2 focus:ring-[#7C3AED]/20 dark:border-border dark:bg-background" value={code}
+          className="h-14 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-center text-2xl tracking-[0.5em] outline-none dark:border-[#2D2D45] dark:bg-[#252538]" value={code}
           onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 6); setCode(v); if (v.length === 6) void submit(undefined, v) }} />
         <Submit busy={busy} disabled={code.length !== 6} busyText="Verifying…">Verify and sign in</Submit>
         <button type="button" className="w-full text-sm font-semibold text-[#7C3AED]" onClick={() => { setStep("password"); setCode(""); setError(null) }}>
@@ -187,10 +188,10 @@ export function AcceptPage() {
     <Shell title="Accept your invitation" subtitle="Choose a password of at least 12 characters.">
       <ErrorBox text={token ? error : "This link is missing its invitation code. Open the link from your email again."} />
       {token && (
-        <form onSubmit={submit} className="space-y-5">
+        <form onSubmit={submit} className="space-y-4">
           <Label text="New password"><PasswordInput autoComplete="new-password" minLength={12} required value={password} onChange={(e) => setPassword(e.target.value)} /></Label>
           <div className="flex gap-1.5" aria-hidden>
-            {[0, 1, 2, 3].map((i) => <span key={i} className={`h-1 flex-1 rounded-full ${i < strength ? (strength >= 3 ? "bg-emerald-400" : "bg-amber-400") : "bg-[#E5E7EB] dark:bg-muted"}`} />)}
+            {[0, 1, 2, 3].map((i) => <span key={i} className={`h-1 flex-1 rounded-full ${i < strength ? (strength >= 3 ? "bg-emerald-400" : "bg-amber-400") : "bg-[#E5E7EB] dark:bg-[#2D2D45]"}`} />)}
           </div>
           <Label text="Confirm password"><PasswordInput autoComplete="new-password" minLength={12} required value={confirm} onChange={(e) => setConfirm(e.target.value)} /></Label>
           <Submit busy={busy} busyText="Saving…">Accept invitation</Submit>
