@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+/* Scan this folder for class names in every build (the board portal build
+   starts from board/, which would otherwise find none). */
+@source "./";
 
 /* `dark:` utilities follow the .dark class on <html> (src/lib/theme.ts). */
 @custom-variant dark (&:where(.dark, .dark *));
