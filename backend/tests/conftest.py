@@ -79,6 +79,11 @@ async def _create_schema():
 
         for stmt in trade_guard.TRIGGERS:
             await conn.execute(text(stmt))
+        # Boardroom: append-only audit and votes, immutable published reports (migration 0045).
+        from app.db import board_guard
+
+        for stmt in board_guard.STATEMENTS:
+            await conn.execute(text(stmt))
     yield
     await engine.dispose()
 

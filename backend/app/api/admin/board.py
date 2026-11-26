@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import AdminContext, admin_auth
 from app.board import service as svc
+from app.board.permissions import ROLES
 from app.core.errors import ApiError
 from app.db.deps import get_db
 from app.models.board import BoardAccessLog, BoardFinancial, BoardMember, BoardUpdate
@@ -36,7 +37,8 @@ def _uuid(v: str) -> uuid.UUID:
 
 def _member(m: BoardMember) -> dict:
     return {"id": str(m.id), "email": m.email, "name": m.name, "organisation": m.organisation, "title": m.title,
-            "status": "owner" if svc.is_owner(m) else svc.member_status(m), "lastLoginAt": m.last_login_at.isoformat() if m.last_login_at else None,
+            "status": "owner" if svc.is_owner(m) else svc.member_status(m), "role": m.role,
+            "mfa": bool(m.mfa_secret), "lastLoginAt": m.last_login_at.isoformat() if m.last_login_at else None,
             "inviteExpiresAt": m.invite_expires_at.isoformat() if m.invite_expires_at else None,
             "createdAt": m.created_at.isoformat() if m.created_at else None}
 
@@ -56,12 +58,13 @@ class InviteIn(CamelModel):
     name: str = Field(min_length=2, max_length=120)
     organisation: str | None = Field(default=None, max_length=160)
     title: str | None = Field(default=None, max_length=120)
+    role: str = "investor"
 
 
 @router.post("/members", status_code=201)
 async def invite(body: InviteIn, ctx: AdminContext = Depends(owner), db: AsyncSession = Depends(get_db)):
     m, link, sent = await svc.invite(db, email=body.email, name=body.name, organisation=body.organisation,
-                                     title=body.title, by=ctx.admin)
+                                     title=body.title, by=ctx.admin, role=body.role)
     await ctx.audit(db, "board.member_invited", target_type="board_member", target_id=m.id, details={"email": m.email})
     return {"member": _member(m), "link": link, "emailSent": sent}
 
@@ -72,7 +75,7 @@ async def resend(member_id: str, ctx: AdminContext = Depends(owner), db: AsyncSe
     if m is None:
         raise ApiError("Not found", status_code=404)
     m, link, sent = await svc.invite(db, email=m.email, name=m.name, organisation=m.organisation, title=m.title,
-                                     by=ctx.admin)
+                                     by=ctx.admin, role=m.role if m.role in ROLES else "investor")
     await ctx.audit(db, "board.invite_resent", target_type="board_member", target_id=m.id)
     return {"member": _member(m), "link": link, "emailSent": sent}
 

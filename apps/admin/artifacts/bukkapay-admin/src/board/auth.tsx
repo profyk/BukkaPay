@@ -1,29 +1,31 @@
-import { useEffect, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react"
-import { useLocation } from "wouter"
+import { useState, type InputHTMLAttributes, type ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { AlertCircle, Eye, EyeOff, Lock, Loader2, Mail } from "lucide-react"
-import { boardApi, errorText, setToken } from "./api"
+import { AlertCircle, Eye, EyeOff, Lock, Loader2, Mail, ShieldCheck } from "lucide-react"
 
-/* A copy of the customer app sign-in (apps/customer/pages/login.tsx +
-   components/AuthHero.tsx), with the customer theme's exact colours
-   (lib/theme.ts, light and dark). Only what can't apply to an invite-only
-   portal is left out: Google sign-in, "Forgot?" and "Sign Up". */
+/* The customer app sign-in layout (apps/customer/pages/login.tsx +
+   components/AuthHero.tsx), branded for BukkaPay Boardroom: midnight navy
+   hero, emerald actions, a gold rule. Invite-only, so no sign-up or social
+   sign-in. Sign-in is password + authenticator app code. */
 
-const ICON = "/icons/icon-512.png" // same file as apps/customer/assets/logo.png
+// Admin panel → Board & Investors, where the owner opens the Boardroom.
+const OWNER_ENTRY = (import.meta.env.VITE_ADMIN_WEB_URL || "https://admin.bukkapay.com").replace(/\/$/, "") + "/board-portal"
 
-function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+export const ICON = "/icons/icon-512.png" // same file as apps/customer/assets/logo.png
+
+export function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
     <div className="min-h-screen w-full bg-white text-[#1A1A2E] dark:bg-[#0D0D1A] dark:text-[#F1F1FF]">
       {/* AuthHero */}
-      <header className="relative overflow-hidden rounded-b-[32px] bg-[#010C38] px-6 pt-[max(3.5rem,calc(env(safe-area-inset-top)+1.5rem))] pb-16">
-        <div aria-hidden className="absolute -top-[120px] -right-20 h-[280px] w-[280px] rounded-full bg-[rgba(0,82,255,0.35)]" />
-        <div aria-hidden className="absolute -bottom-[140px] -left-[100px] h-[300px] w-[300px] rounded-full bg-[rgba(34,211,238,0.14)]" />
+      <header className="relative overflow-hidden rounded-b-[32px] bg-[#0A1630] px-6 pt-[max(3.5rem,calc(env(safe-area-inset-top)+1.5rem))] pb-16">
+        <div aria-hidden className="absolute -top-[120px] -right-20 h-[280px] w-[280px] rounded-full bg-[rgba(16,185,129,0.28)]" />
+        <div aria-hidden className="absolute -bottom-[140px] -left-[100px] h-[300px] w-[300px] rounded-full bg-[rgba(201,162,39,0.16)]" />
         <div className="relative mx-auto flex w-full max-w-[480px] flex-col items-center">
           <img src={ICON} alt="BukkaPay" className="h-[72px] w-[72px] rounded-[18px]" />
-          <p className="mt-3.5 text-[26px] font-extrabold tracking-[-0.5px] text-white">BukkaPay</p>
-          <p className="mt-1 text-center text-[15px] text-white/[0.72]">Board and investor portal</p>
+          <p className="mt-3.5 text-[26px] font-extrabold tracking-[-0.5px] text-white">BukkaPay <span className="text-[#C9A227]">Boardroom</span></p>
+          <span aria-hidden className="mt-2 h-px w-16 bg-gradient-to-r from-transparent via-[#C9A227] to-transparent" />
+          <p className="mt-2 text-center text-[15px] text-white/[0.72]">Financial Intelligence. Transparency. Growth.</p>
           <div className="mt-[18px] flex flex-wrap justify-center gap-2">
-            {["Board members", "Investors", "By invitation only"].map((c) => (
+            {["Directors", "Investors", "Shareholders", "By invitation only"].map((c) => (
               <span key={c} className="rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white/[0.85]">{c}</span>
             ))}
           </div>
@@ -37,20 +39,24 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
         {children}
         <div className="my-6 flex items-center">
           <span className="h-px flex-1 bg-[#E5E7EB] dark:bg-[#2D2D45]" />
-          <span className="px-3 text-sm text-[#9CA3AF] dark:text-[#6B6B90]">or</span>
+          <ShieldCheck className="mx-3 h-4 w-4 text-[#0B8F63] dark:text-[#10B981]" />
           <span className="h-px flex-1 bg-[#E5E7EB] dark:bg-[#2D2D45]" />
         </div>
         <p className="mt-2 text-center text-sm text-[#9CA3AF] dark:text-[#6B6B90]">
-          Restricted to BukkaPay's board members and investors. Access is by invitation from the owner.
+          Restricted to BukkaPay's directors, investors and shareholders. Access is by invitation, and every sign-in needs your authenticator app.
         </p>
         <p className="mt-3 text-center text-xs text-[#9CA3AF] dark:text-[#6B6B90]">
-          Owner? Open the portal from the admin panel: <span className="font-semibold text-[#7C3AED]">Board &amp; Investors → Open board portal</span>
+          Owner or super admin? You sign in with your admin account, not a Boardroom password.
         </p>
+        {/* The owner's admin sign-in (password + authenticator) issues a single-use pass into the Boardroom. */}
+        <a href={OWNER_ENTRY} className="mt-3 flex w-full items-center justify-center rounded-xl border border-[#0B8F63] py-3 text-sm font-semibold text-[#0B8F63] dark:border-[#10B981] dark:text-[#10B981]">
+          Owner sign-in via the admin panel
+        </a>
       </main>
 
       <footer className="mt-8 pb-[max(2rem,env(safe-area-inset-bottom))] text-center">
         <p className="text-2xl font-bold">BukkaPay</p>
-        <p className="mt-1 text-sm italic text-[#9CA3AF] dark:text-[#6B6B90]">The Pulse of African Finance</p>
+        <p className="mt-1 text-sm italic text-[#9CA3AF] dark:text-[#6B6B90]">Confidential · for authorised members only</p>
       </footer>
     </div>
   )
@@ -60,7 +66,7 @@ const boxCls = "flex items-center rounded-xl border border-[#E5E7EB] bg-[#F9FAFB
 const fieldCls = "min-w-0 flex-1 bg-transparent px-2.5 py-3.5 text-base text-[#1A1A2E] outline-none placeholder:text-[#9CA3AF] dark:text-[#F1F1FF] dark:placeholder:text-[#6B6B90]"
 const iconCls = "ml-3 h-5 w-5 shrink-0 text-[#9CA3AF] dark:text-[#6B6B90]"
 
-function Label({ text, children }: { text: string; children: ReactNode }) {
+export function Label({ text, children }: { text: string; children: ReactNode }) {
   return (
     <label className="mb-1 block">
       <span className="mb-2 block text-sm font-medium">{text}</span>
@@ -69,7 +75,7 @@ function Label({ text, children }: { text: string; children: ReactNode }) {
   )
 }
 
-function TextInput({ icon: Icon, ...props }: { icon: typeof Mail } & InputHTMLAttributes<HTMLInputElement>) {
+export function TextInput({ icon: Icon, ...props }: { icon: typeof Mail } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className={boxCls}>
       <Icon className={iconCls} />
@@ -78,7 +84,7 @@ function TextInput({ icon: Icon, ...props }: { icon: typeof Mail } & InputHTMLAt
   )
 }
 
-function PasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
+export function PasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
   const [show, setShow] = useState(false)
   return (
     <div className={boxCls}>
@@ -92,16 +98,16 @@ function PasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
   )
 }
 
-function Submit({ busy, disabled, busyText, children }: { busy: boolean; disabled?: boolean; busyText: string; children: ReactNode }) {
+export function Submit({ busy, disabled, busyText, children }: { busy: boolean; disabled?: boolean; busyText: string; children: ReactNode }) {
   return (
     <button type="submit" disabled={busy || disabled} aria-label={busy ? busyText : undefined}
-      className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-[#7C3AED] py-4 text-lg font-semibold text-white disabled:opacity-60">
+      className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-[#0B8F63] hover:bg-[#09784f] py-4 text-lg font-semibold text-white disabled:opacity-60">
       {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : children}
     </button>
   )
 }
 
-function ErrorBox({ text }: { text: string | null }) {
+export function ErrorBox({ text }: { text: string | null }) {
   return (
     <AnimatePresence>
       {text && (
@@ -116,110 +122,3 @@ function ErrorBox({ text }: { text: string | null }) {
   )
 }
 
-export function LoginPage() {
-  const [, go] = useLocation()
-  const [step, setStep] = useState<"password" | "code">("password")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [code, setCode] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = async (e?: FormEvent, value = code) => {
-    e?.preventDefault(); if (busy) return
-    setBusy(true); setError(null)
-    try {
-      if (step === "password") {
-        await boardApi.post("/auth/login", { email: email.trim(), password })
-        setStep("code"); setPassword("")
-      } else {
-        const { data } = await boardApi.post("/auth/verify", { email: email.trim(), code: value })
-        setToken(data.token); go("/")
-      }
-    } catch (err) { setError(errorText(err)); if (step === "code") setCode("") } finally { setBusy(false) }
-  }
-
-  return step === "password" ? (
-    <Shell title="Welcome Back" subtitle="For BukkaPay board members and investors">
-      <ErrorBox text={error} />
-      <form onSubmit={submit} className="space-y-4">
-        <Label text="Email"><TextInput icon={Mail} type="email" autoComplete="username" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Label>
-        <Label text="Password"><PasswordInput autoComplete="current-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} /></Label>
-        <Submit busy={busy} busyText="Checking…">Sign In</Submit>
-      </form>
-    </Shell>
-  ) : (
-    <Shell title="Check your email" subtitle={`Enter the 6-digit code we sent to ${email}. It expires in 10 minutes.`}>
-      <ErrorBox text={error} />
-      <form onSubmit={submit} className="space-y-4">
-        <input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" aria-label="Sign-in code"
-          className="h-14 w-full rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-center text-2xl tracking-[0.5em] outline-none dark:border-[#2D2D45] dark:bg-[#252538]" value={code}
-          onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 6); setCode(v); if (v.length === 6) void submit(undefined, v) }} />
-        <Submit busy={busy} disabled={code.length !== 6} busyText="Verifying…">Verify and sign in</Submit>
-        <button type="button" className="w-full text-sm font-semibold text-[#7C3AED]" onClick={() => { setStep("password"); setCode(""); setError(null) }}>
-          Use a different email or send a new code
-        </button>
-      </form>
-    </Shell>
-  )
-}
-
-/** The owner arrives here from Admin → Board & Investors with a single-use
- *  pass in the URL fragment (never sent to a server log). */
-export function OwnerPage() {
-  const [, go] = useLocation()
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    const code = window.location.hash.slice(1)
-    history.replaceState(null, "", "/owner")  // the pass leaves the address bar at once
-    if (!code) { setError("Open the board portal from the admin panel: Board & Investors → Open board portal."); return }
-    boardApi.post("/auth/owner", { code })
-      .then(({ data }) => { setToken(data.token); go("/") })
-      .catch((err) => setError(errorText(err)))
-  }, [])  // once: the pass is single-use
-  return (
-    <Shell title={error ? "Couldn't sign you in" : "Signing you in…"} subtitle={error ? "" : "Opening the board portal as the owner."}>
-      {error ? <ErrorBox text={error} /> : <div className="flex justify-center py-2"><Loader2 className="h-6 w-6 animate-spin text-[#7C3AED]" /></div>}
-    </Shell>
-  )
-}
-
-export function AcceptPage() {
-  const [, go] = useLocation()
-  const token = new URLSearchParams(window.location.search).get("token") ?? ""
-  const [password, setPassword] = useState("")
-  const [confirm, setConfirm] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
-  const strength = [password.length >= 12, /[A-Z]/.test(password) && /[a-z]/.test(password), /\d/.test(password), /[^A-Za-z0-9]/.test(password)].filter(Boolean).length
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (password !== confirm) { setError("The passwords don't match"); return }
-    setBusy(true); setError(null)
-    try { await boardApi.post("/auth/accept", { token, password }); setDone(true) }
-    catch (err) { setError(errorText(err)) } finally { setBusy(false) }
-  }
-
-  if (done) return (
-    <Shell title="Your access is ready" subtitle="Sign in with your new password. We'll email you a code each time.">
-      <form onSubmit={(e) => { e.preventDefault(); go("/login") }}><Submit busy={false} busyText="">Go to sign in</Submit></form>
-    </Shell>
-  )
-  return (
-    <Shell title="Accept your invitation" subtitle="Choose a password of at least 12 characters.">
-      <ErrorBox text={token ? error : "This link is missing its invitation code. Open the link from your email again."} />
-      {token && (
-        <form onSubmit={submit} className="space-y-4">
-          <Label text="New password"><PasswordInput autoComplete="new-password" minLength={12} required value={password} onChange={(e) => setPassword(e.target.value)} /></Label>
-          <div className="flex gap-1.5" aria-hidden>
-            {[0, 1, 2, 3].map((i) => <span key={i} className={`h-1 flex-1 rounded-full ${i < strength ? (strength >= 3 ? "bg-emerald-400" : "bg-amber-400") : "bg-[#E5E7EB] dark:bg-[#2D2D45]"}`} />)}
-          </div>
-          <Label text="Confirm password"><PasswordInput autoComplete="new-password" minLength={12} required value={confirm} onChange={(e) => setConfirm(e.target.value)} /></Label>
-          <Submit busy={busy} busyText="Saving…">Accept invitation</Submit>
-        </form>
-      )}
-    </Shell>
-  )
-}

@@ -37,17 +37,27 @@ async def test_board_portal_end_to_end(client: AsyncClient, admin: dict, monkeyp
     assert r.status_code == 201, r.text
     token = re.search(r"token=([^&]+)", r.json()["link"]).group(1)
 
-    # Accept, then sign in: password, then emailed code.
-    assert (await client.post("/api/board/auth/accept", json={"token": token, "password": "short"})).status_code in (400, 422)
-    assert (await client.post("/api/board/auth/accept", json={"token": token, "password": "a-long-password-1"})).status_code == 200
-    assert (await client.post("/api/board/auth/accept", json={"token": token, "password": "a-long-password-1"})).status_code == 400
+    # Accept: authenticator set-up + password. Sign in: password, then an authenticator code.
+    from app.business.mfa import _totp
+
+    st = await client.post("/api/board/auth/accept/start", json={"token": token})
+    assert st.status_code == 200, st.text
+    secret = st.json()["secret"]
+    assert st.json()["otpauthUri"].startswith("otpauth://totp/")
+    import time
+
+    now = int(time.time())
+    assert (await client.post("/api/board/auth/accept", json={"token": token, "password": "short", "otp": _totp(secret, now)})).status_code in (400, 422)
+    assert (await client.post("/api/board/auth/accept", json={"token": token, "password": "a-long-password-1", "otp": "000000" if _totp(secret, now) != "000000" else "111111"})).status_code == 400
+    assert (await client.post("/api/board/auth/accept", json={"token": token, "password": "a-long-password-1", "otp": _totp(secret, now)})).status_code == 200
+    assert (await client.post("/api/board/auth/accept", json={"token": token, "password": "a-long-password-1", "otp": _totp(secret, now)})).status_code == 400
     bad = await client.post("/api/board/auth/login", json={"email": body["email"], "password": "wrong-password"})
     assert bad.status_code == 401
     ok = await client.post("/api/board/auth/login", json={"email": body["email"], "password": "a-long-password-1"})
-    assert ok.status_code == 200 and codes
-    wrong = await client.post("/api/board/auth/verify", json={"email": body["email"], "code": "000000" if codes[-1] != "000000" else "111111"})
+    assert ok.status_code == 200 and ok.json()["method"] == "totp" and not codes  # no emailed code any more
+    wrong = await client.post("/api/board/auth/verify", json={"email": body["email"], "code": "000000" if _totp(secret, now) != "000000" else "111111"})
     assert wrong.status_code == 401
-    v = await client.post("/api/board/auth/verify", json={"email": body["email"], "code": codes[-1]})
+    v = await client.post("/api/board/auth/verify", json={"email": body["email"], "code": _totp(secret, now + 30)})
     assert v.status_code == 200, v.text
     h = {"Authorization": f"Bearer {v.json()['token']}"}
 

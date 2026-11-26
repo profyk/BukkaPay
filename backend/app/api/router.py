@@ -71,6 +71,9 @@ api_router.include_router(public.router)
 api_router.include_router(trade_api.router)
 api_router.include_router(card_webhooks.router)
 api_router.include_router(board_api.router)
+from app.api import boardroom as boardroom_api  # noqa: E402
+
+api_router.include_router(boardroom_api.router)
 
 from app.api.admin import auth as admin_auth
 from app.api.admin import board as admin_board

@@ -1,0 +1,63 @@
+/* BukkaPay Boardroom theme: deep midnight navy, emerald, subtle gold.
+   Applied by the .boardroom class on <html> (board build only). Chart
+   series colours were validated for colour-blind separation and contrast
+   against these exact surfaces (light #ffffff card, dark #0f1d3a card). */
+
+.boardroom {
+  --background: 220 33% 97%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 160 86% 30%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 220 25% 94%;
+  --muted-foreground: 220 12% 40%;
+  --accent: 220 25% 94%;
+  --accent-foreground: 222 47% 11%;
+  --border: 220 18% 88%;
+  --ring: 160 86% 30%;
+  --sidebar: 222 64% 11%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-border: 222 40% 20%;
+
+  --br-navy: #0a1630;
+  --br-navy-2: #0f1d3a;
+  --br-gold: #c9a227;
+  --br-emerald: #0b8f63;
+  --s1: #0b8f63; /* emerald */
+  --s2: #257de0; /* blue */
+  --s3: #b97c08; /* gold */
+  --s4: #e24d8b; /* magenta */
+  --good: #0b8f63;
+  --bad: #c2410c;
+}
+
+.boardroom.dark {
+  --background: 222 65% 8%;
+  --foreground: 216 33% 94%;
+  --card: 221 59% 14%;
+  --card-foreground: 216 33% 94%;
+  --primary: 160 84% 39%;
+  --primary-foreground: 222 65% 8%;
+  --muted: 221 45% 18%;
+  --muted-foreground: 218 20% 68%;
+  --accent: 221 45% 18%;
+  --accent-foreground: 216 33% 94%;
+  --border: 221 35% 22%;
+  --ring: 160 84% 39%;
+  --sidebar: 222 70% 6%;
+  --sidebar-border: 222 40% 15%;
+
+  --s1: #10b981;
+  --s2: #4b93ee;
+  --s3: #c48f17;
+  --s4: #e2649a;
+  --good: #10b981;
+  --bad: #f97316;
+}
+
+@media print {
+  .boardroom { --background: 0 0% 100%; }
+  .br-noprint { display: none !important; }
+  .br-main { margin: 0 !important; padding: 0 !important; }
+}

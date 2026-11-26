@@ -142,17 +142,22 @@ If emails stop or FX rates look stale, the **worker** is probably down (section 
 - Until the company is registered, company details read truthfully as "in the process of registration". When you are registered, enter the legal name, registration number and address in the legal settings, and every document updates.
 - Google's branding verification reads the published privacy policy at bukkapay.com/legal/privacy.
 
-## 10a. The board portal (investors)
+## 10a. BukkaPay Boardroom (board, investors, shareholders)
 
-The board portal at board.bukkapay.com is a separate app for board members and investors. It shows company totals only: customers, active users, payment volume, revenue by month and by product, gross profit, profit and loss, cash, burn and runway, unit economics (take rate, revenue per user, average payment), customers by country, retention by signup month, and your investor updates. It never shows a customer, merchant or staff record.
+BukkaPay Boardroom at board.bukkapay.com is a separate app for directors, investors and shareholders. It never shows a customer, merchant or staff record, and a Boardroom account can never reach this admin panel. Full technical notes: docs/BOARDROOM.md.
 
-- **You open it from here.** Company → Board & Investors → **Open board portal** signs you in as the owner with a single-use pass that lasts 60 seconds. Your access comes from your admin sign-in (password and authenticator), so there's no separate board password for you, and nobody can sign in as you on the board page. You can't be removed from the portal.
-- **Only you can invite.** Company → Board & Investors → Invite. They set a password from the email, and every sign-in also needs a 6-digit code sent to their email. Sessions end after 12 hours or when the browser closes.
-- **Remove access** ends their session at once.
-- **Management accounts**: the ledger knows revenue and direct costs, but not salaries, rent or cash in the bank. Each month, enter staff, technology, marketing, compliance and legal, office and other costs, other income, month-end cash, funding received and headcount. Use the same currency every month; the portal reports in it and converts the ledger's currencies at live mid-rates.
-- **Investor updates**: write a monthly letter (highlights, lowlights, numbers, asks). Drafts stay hidden until you tick Publish.
-- **Access log**: who signed in and what they opened or exported.
-- Investors can download a CSV and print a **board pack** (every section on one printout).
+- **You open it from here.** Company → Board & Investors → **Open board portal** signs you in as the owner (Company Super Administrator) with a single-use, 60-second pass. There's no Boardroom password for you, nobody can sign in as you there, and you can't be removed.
+- **Roles.** Chair, Executive Director, Non-Executive Director, Investor, Shareholder, Financial Observer. Each role has a fixed set of permissions; in Users & access you can add or remove single permissions per person. A Financial Observer sees nothing until you tick what they may see. Owner-only items (users, publishing reports, investor records, management accounts) can't be given to anyone.
+- **Inviting.** Boardroom → Users & access → Invite (or here: Board & Investors → Invite). They choose a password and set up an authenticator app; every sign-in needs both. Lost phone: Users & access → Reset MFA. Forgotten password: they use "Forgot password?", which also needs their authenticator.
+- **Suspend / reactivate / revoke / sign out everywhere** take effect at once. Sessions end after 12 hours, or 30 minutes idle.
+- **Management accounts** (Boardroom → Company settings): the ledger knows revenue and direct costs; enter each month's operating costs (salaries, technology, cloud, marketing, legal and compliance, banking, PSP fees, cybersecurity, administration, country operations, other), depreciation, tax, month-end cash, the balance sheet lines and cash flow, and how reliable the figures are (draft, management, reviewed, audited). Close or lock a period once it's final: locked months can't be edited.
+- **Currencies.** Amounts are always shown in their own currency first. Converted totals use each month's own month-end rate (saved daily from the FX feed); today's rate is never used for a past month. A currency without a rate is listed as not converted, never guessed.
+- **Reports.** Create a report for a period, approve it, then publish: the figures are frozen with a fingerprint and members get a notification and a PDF. A mistake is fixed with "Publish a correction" (a new version); the old one stays on record as superseded.
+- **Governance.** The chair schedules meetings, sets agendas, records attendance and publishes minutes (published minutes can't change). Resolutions: directors vote as the board, one vote each; shareholder resolutions use the share register and can be weighted by shares only with the legal basis written down. Votes are final; concluded resolutions are permanent.
+- **Investors.** Record investors, funding rounds, investments and the share register (copied from the legal register: the Boardroom never issues shares). Each investor sees only their own records plus round totals.
+- **Use of funds.** Budgets change only after someone other than the proposer approves (the chair can approve). If you're the only approver configured, your own approvals are marked "self-approved".
+- **Custodians.** Record each custodian statement and say where the balance came from. A balance is "reconciled" only with a statement or live feed, a supporting document, and an exact match with the ledger.
+- **Audit trail.** Every change is logged and the database refuses to edit or delete the log.
 
 **One-time setup (Vercel).** Create a new Vercel project from the same GitHub repository with Root Directory `apps/admin` and the environment variable `APP_TARGET=board`. Add the domain `board.bukkapay.com`. It builds the board portal instead of the admin panel and deploys from `main` like the others. If the API's invitation links should point somewhere else, set `BOARD_WEB_URL` on the Railway API service.
 
@@ -171,8 +176,8 @@ The board portal at board.bukkapay.com is a separate app for board members and i
 | "Outside the countries you cover" | Same as above | Same as above. |
 | A customer's payment is refused for a limit | Their own spending limit, or their KYC level | Ask them to check Security settings, or review their KYC. |
 | A merchant is stuck at sign-up | Missing fields or an unconfirmed email | The form lists what's missing; the email code step can be skipped and confirmed later. |
-| A board member can't sign in | Wrong password (locked for 15 minutes after 5 tries), a code older than 10 minutes, or access removed | Ask them to wait and try again, or Re-invite from Board & Investors. |
-| The board portal shows no costs, profit or runway | Management accounts not entered for those months | Board & Investors → Management accounts → Enter a month. |
+| A board member can't sign in | Wrong password or authenticator code (locked for 15 minutes after 5 tries), suspended, or access removed | Ask them to wait and try again; Boardroom → Users & access to reactivate, reset their authenticator or re-invite. |
+| The Boardroom shows no costs, profit or runway | Management accounts not entered for those months | Boardroom → Company settings → Management accounts. |
 
 ## 12. Emergencies
 

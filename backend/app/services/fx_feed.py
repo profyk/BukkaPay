@@ -99,6 +99,13 @@ async def refresh(db: AsyncSession) -> dict:
         await get_redis().set(MIDS_KEY, json.dumps({"base": base, "at": status["at"],
                                                    "mids": {k: str(v) for k, v in mids.items()}}), ex=7 * 24 * 3600)
         status |= {"ok": True, "base": base, **result}
+        try:  # one snapshot a day for Boardroom reports (historical periods keep their own rates)
+            from app.board.money import snapshot_today
+
+            async with db.begin_nested():  # savepoint: a failure here can't roll back the re-pricing
+                await snapshot_today(db)
+        except Exception as e:  # noqa: BLE001 - reporting snapshot must never break swap pricing
+            log.warning("board_fx_snapshot_failed", error=str(e)[:200])
     except Exception as e:  # noqa: BLE001 - feed down: keep old rates; they go stale and pause on their own
         status |= {"ok": False, "error": str(e)[:200]}
         log.warning("fx_feed_failed", error=str(e)[:200])

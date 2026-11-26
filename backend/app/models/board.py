@@ -21,9 +21,10 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.crypto import EncryptedText
 from app.db.base import Base
 from app.models.mixins import CreatedOnlyMixin, TimestampMixin, UUIDPk
 
@@ -51,6 +52,19 @@ class BoardMember(Base, CreatedOnlyMixin):
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(TS)
     last_login_at: Mapped[datetime | None] = mapped_column(TS)
+    # Boardroom (migration 0045)
+    role: Mapped[str] = mapped_column(String(30), default="investor")
+    permission_grants: Mapped[list] = mapped_column(JSONB, default=list)  # extra permissions for this person
+    permission_denies: Mapped[list] = mapped_column(JSONB, default=list)  # removed from their role's set
+    mfa_secret: Mapped[str | None] = mapped_column(EncryptedText)  # authenticator app (TOTP), encrypted
+    mfa_pending_secret: Mapped[str | None] = mapped_column(EncryptedText)
+    mfa_enabled_at: Mapped[datetime | None] = mapped_column(TS)
+    reset_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    reset_expires_at: Mapped[datetime | None] = mapped_column(TS)
+    suspended_at: Mapped[datetime | None] = mapped_column(TS)
+    suspended_reason: Mapped[str | None] = mapped_column(Text)
+    appointed_on: Mapped[date | None] = mapped_column(Date)
+    phone: Mapped[str | None] = mapped_column(String(40))
 
 
 class BoardSession(Base, CreatedOnlyMixin):
@@ -62,6 +76,8 @@ class BoardSession(Base, CreatedOnlyMixin):
     expires_at: Mapped[datetime] = mapped_column(TS)
     revoked_at: Mapped[datetime | None] = mapped_column(TS)
     ip: Mapped[str | None] = mapped_column(String(64))
+    last_seen_at: Mapped[datetime | None] = mapped_column(TS)
+    user_agent: Mapped[str | None] = mapped_column(String(300))
 
 
 class BoardAccessLog(Base, CreatedOnlyMixin):
@@ -72,6 +88,7 @@ class BoardAccessLog(Base, CreatedOnlyMixin):
     member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("board_members.id", ondelete="CASCADE"))
     action: Mapped[str] = mapped_column(String(60))
     ip: Mapped[str | None] = mapped_column(String(64))
+    details: Mapped[dict | None] = mapped_column(JSONB)
 
 
 class BoardFinancial(Base, TimestampMixin):
@@ -95,6 +112,25 @@ class BoardFinancial(Base, TimestampMixin):
     funding_raised: Mapped[Decimal] = mapped_column(AMOUNT, default=0)
     headcount: Mapped[int | None] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)
+    # Boardroom (migration 0045): fuller expense lines, P&L below EBITDA,
+    # balance sheet and cash flow, and how far the figures can be relied on.
+    cloud_costs: Mapped[Decimal] = mapped_column(AMOUNT, default=0)
+    banking_costs: Mapped[Decimal] = mapped_column(AMOUNT, default=0)
+    psp_costs: Mapped[Decimal] = mapped_column(AMOUNT, default=0)
+    cybersecurity_costs: Mapped[Decimal] = mapped_column(AMOUNT, default=0)
+    country_ops_costs: Mapped[Decimal] = mapped_column(AMOUNT, default=0)
+    depreciation: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    amortisation: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    finance_costs: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    tax: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    receivables: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    other_assets: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    other_liabilities: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    equity: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    operating_cash_flow: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    investing_cash_flow: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    financing_cash_flow: Mapped[Decimal | None] = mapped_column(AMOUNT)
+    accounts_status: Mapped[str] = mapped_column(String(16), default="management")  # draft/management/reviewed/audited
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("admin_users.id",
                                                                                       ondelete="SET NULL"))
 
@@ -108,5 +144,9 @@ class BoardUpdate(Base, CreatedOnlyMixin):
     period: Mapped[str | None] = mapped_column(String(60))  # e.g. "November 2026"
     body: Mapped[str] = mapped_column(Text)
     published_at: Mapped[datetime | None] = mapped_column(TS)
+    # Boardroom (migration 0045): announcements with categories and audiences.
+    category: Mapped[str] = mapped_column(String(30), default="business_update")
+    audience: Mapped[list] = mapped_column(JSONB, default=list)  # roles; empty = everyone
+    document_ids: Mapped[list] = mapped_column(JSONB, default=list)
     author_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("admin_users.id",
                                                                                      ondelete="SET NULL"))
