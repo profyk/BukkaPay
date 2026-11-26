@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
-import { Download, LogOut, Printer } from "lucide-react"
+import { BarChart3, Download, Globe2, LayoutDashboard, LogOut, Mail, PieChart, Printer, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { boardApi, errorText, getToken, setToken, type Overview, type Series, type Update } from "./api"
 import { ThemeToggle } from "./theme-toggle"
@@ -16,6 +16,10 @@ const INK = "var(--muted-foreground)"
 
 const TABS = ["Overview", "Growth", "Financials", "Unit economics", "Markets & retention", "Updates"] as const
 type Tab = (typeof TABS)[number]
+const TAB_ICON: Record<Tab, typeof LayoutDashboard> = { "Overview": LayoutDashboard, "Growth": TrendingUp, "Financials": BarChart3,
+  "Unit economics": PieChart, "Markets & retention": Globe2, "Updates": Mail }
+const TAB_SHORT: Record<Tab, string> = { "Overview": "Overview", "Growth": "Growth", "Financials": "Finance",
+  "Unit economics": "Units", "Markets & retention": "Markets", "Updates": "Updates" }
 
 const monthLabel = (m: string) => new Date(m + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", year: "2-digit", timeZone: "UTC" })
 const num = (v?: number | null) => v == null ? "—" : new Intl.NumberFormat(undefined, { notation: Math.abs(v) >= 100_000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(v)
@@ -42,27 +46,43 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card/60 backdrop-blur sticky top-0 z-10 print:static">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+      <header className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-20 print:static pt-[env(safe-area-inset-top)]">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
           <img src="/icons/icon-192.png" alt="" className="w-8 h-8 rounded-lg" />
-          <div className="mr-auto"><p className="text-lg leading-tight tracking-tight" style={{ fontFamily: "Fraunces, Georgia, serif" }}>BukkaPay <span className="text-muted-foreground">Board</span></p>
-            <p className="text-xs text-muted-foreground">{me.data ? `${me.data.name}${me.data.organisation ? ` · ${me.data.organisation}` : ""}` : "Confidential"}</p></div>
-          <select aria-label="Period" value={months} onChange={(e) => setMonths(Number(e.target.value))}
-            className="h-9 rounded-md border border-border bg-background px-2 text-sm print:hidden">
-            {[6, 12, 24, 36].map((m) => <option key={m} value={m}>Last {m} months</option>)}
-          </select>
-          <Button size="sm" variant="outline" className="print:hidden" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
-          <Button size="sm" variant="outline" className="print:hidden" onClick={boardPack}><Printer className="w-4 h-4 mr-1.5" />Board pack</Button>
+          <div className="mr-auto min-w-0"><p className="text-lg leading-tight tracking-tight" style={{ fontFamily: "Fraunces, Georgia, serif" }}>BukkaPay <span className="text-muted-foreground">Board</span></p>
+            <p className="text-xs text-muted-foreground truncate max-w-[52vw] sm:max-w-none">{me.data ? `${me.data.name}${me.data.organisation ? ` · ${me.data.organisation}` : ""}` : "Confidential"}</p></div>
           <span className="print:hidden"><ThemeToggle /></span>
-          <Button size="sm" variant="ghost" className="print:hidden" onClick={signOut}><LogOut className="w-4 h-4 mr-1.5" />Sign out</Button>
+          <Button size="sm" variant="ghost" className="print:hidden px-2 sm:px-3" onClick={signOut} aria-label="Sign out"><LogOut className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">Sign out</span></Button>
+          <div className="w-full sm:w-auto flex items-center gap-2 print:hidden">
+            <select aria-label="Period" value={months} onChange={(e) => setMonths(Number(e.target.value))}
+              className="h-9 flex-1 sm:flex-none rounded-md border border-border bg-background px-2 text-sm">
+              {[6, 12, 24, 36].map((m) => <option key={m} value={m}>Last {m} months</option>)}
+            </select>
+            <Button size="sm" variant="outline" onClick={exportCsv} aria-label="Download CSV"><Download className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">CSV</span></Button>
+            <Button size="sm" variant="outline" onClick={boardPack} aria-label="Print board pack"><Printer className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">Board pack</span></Button>
+          </div>
         </div>
-        <nav className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto print:hidden">
+        <nav className="hidden md:flex max-w-7xl mx-auto px-4 gap-1 overflow-x-auto print:hidden">
           {TABS.map((t) => <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-2 text-sm whitespace-nowrap border-b-2 ${tab === t ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{t}</button>)}
         </nav>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      {/* Phone: bottom tab bar, like the customer app */}
+      <nav aria-label="Sections" className="md:hidden fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)] print:hidden">
+        <div className="grid grid-cols-6">
+          {TABS.map((t) => { const Icon = TAB_ICON[t]; const on = tab === t
+            return (
+              <button key={t} onClick={() => { setTab(t); window.scrollTo({ top: 0 }) }} aria-current={on ? "page" : undefined}
+                className={`flex flex-col items-center gap-1 py-2 text-[10px] leading-none ${on ? "text-[#7C3AED] dark:text-[#9B6EFF] font-semibold" : "text-muted-foreground"}`}>
+                <Icon className="w-5 h-5" />{TAB_SHORT[t]}
+              </button>
+            ) })}
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-28 md:pb-6 space-y-4 sm:space-y-6">
+        <h1 className="md:hidden text-xl font-semibold">{tab}</h1>
         {q.isLoading && <p className="text-muted-foreground">Loading the numbers…</p>}
         {q.error && <p className="text-destructive">{errorText(q.error)}</p>}
         {d && (
@@ -86,9 +106,9 @@ export default function Dashboard() {
 
 function Kpi({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: ReactNode; tone?: "good" | "bad" }) {
   return (
-    <div className="bg-card border border-border rounded-2xl p-4">
+    <div className="bg-card border border-border rounded-2xl p-3 sm:p-4 min-w-0">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-2xl font-semibold mt-1 tabular-nums">{value}</p>
+      <p className="text-xl sm:text-2xl font-semibold mt-1 tabular-nums break-words">{value}</p>
       {sub != null && <p className={`text-xs mt-1 ${tone === "good" ? "text-emerald-600 dark:text-emerald-400" : tone === "bad" ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"}`}>{sub}</p>}
     </div>
   )
@@ -219,7 +239,7 @@ function FinancialsTab({ d, money }: { d: Overview; money: (v?: number | null) =
         <Card title={`Where the money goes${latest ? ` (${monthLabel(latest.month)})` : ""}`}>
           {breakdown.length ? (
             <Chart><BarChart data={breakdown} layout="vertical" margin={{ left: 24 }}><CartesianGrid horizontal={false} stroke={GRID} />
-              <XAxis type="number" tickFormatter={num} {...axis} /><YAxis type="category" dataKey="name" {...axis} width={120} />
+              <XAxis type="number" tickFormatter={num} {...axis} /><YAxis type="category" dataKey="name" {...axis} width={96} />
               <Tooltip formatter={(v: number) => money(v)} cursor={{ fill: "var(--muted)" }} />
               <Bar dataKey="value" name="Cost" fill={BLUE} radius={[0, 4, 4, 0]} maxBarSize={22} /></BarChart></Chart>
           ) : <p className="text-sm text-muted-foreground">No management accounts yet.</p>}
@@ -250,7 +270,7 @@ function UnitTab({ d, money }: { d: Overview; money: (v?: number | null) => stri
       <Card title="Revenue by product" note="Over the period shown.">
         {d.revenueStreams.length ? (
           <Chart height={Math.max(160, d.revenueStreams.length * 34)}><BarChart data={d.revenueStreams} layout="vertical" margin={{ left: 24 }}>
-            <CartesianGrid horizontal={false} stroke={GRID} /><XAxis type="number" tickFormatter={num} {...axis} /><YAxis type="category" dataKey="stream" {...axis} width={150}
+            <CartesianGrid horizontal={false} stroke={GRID} /><XAxis type="number" tickFormatter={num} {...axis} /><YAxis type="category" dataKey="stream" {...axis} width={104}
               tickFormatter={(s: string) => s.replace(/_/g, " ")} />
             <Tooltip formatter={(v: number) => money(v)} cursor={{ fill: "var(--muted)" }} /><Bar dataKey="amount" name="Revenue" fill={BLUE} radius={[0, 4, 4, 0]} maxBarSize={22} /></BarChart></Chart>
         ) : <p className="text-sm text-muted-foreground">No revenue recorded in this period yet.</p>}

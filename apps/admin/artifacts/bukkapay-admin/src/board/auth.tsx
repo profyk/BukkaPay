@@ -15,7 +15,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
   return (
     <div className="min-h-screen w-full bg-white text-[#1A1A2E] dark:bg-[#0D0D1A] dark:text-[#F1F1FF]">
       {/* AuthHero */}
-      <header className="relative overflow-hidden rounded-b-[32px] bg-[#010C38] px-6 pt-14 pb-16">
+      <header className="relative overflow-hidden rounded-b-[32px] bg-[#010C38] px-6 pt-[max(3.5rem,calc(env(safe-area-inset-top)+1.5rem))] pb-16">
         <div aria-hidden className="absolute -top-[120px] -right-20 h-[280px] w-[280px] rounded-full bg-[rgba(0,82,255,0.35)]" />
         <div aria-hidden className="absolute -bottom-[140px] -left-[100px] h-[300px] w-[300px] rounded-full bg-[rgba(34,211,238,0.14)]" />
         <div className="relative mx-auto flex w-full max-w-[480px] flex-col items-center">
@@ -31,7 +31,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
       </header>
 
       {/* Card */}
-      <main className="relative mx-auto -mt-10 w-[92%] max-w-[480px] rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:border-[#2D2D45] dark:bg-[#1E1E30]">
+      <main className="relative mx-auto -mt-10 w-[92%] max-w-[480px] rounded-3xl border border-[#E5E7EB] bg-white p-6 sm:p-8 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:border-[#2D2D45] dark:bg-[#1E1E30]">
         <h1 className="mb-2 text-center text-[28px] font-bold">{title}</h1>
         <p className="mb-7 text-center text-sm text-[#9CA3AF] dark:text-[#6B6B90]">{subtitle}</p>
         {children}
@@ -45,7 +45,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
         </p>
       </main>
 
-      <footer className="mt-8 pb-8 text-center">
+      <footer className="mt-8 pb-[max(2rem,env(safe-area-inset-bottom))] text-center">
         <p className="text-2xl font-bold">BukkaPay</p>
         <p className="mt-1 text-sm italic text-[#9CA3AF] dark:text-[#6B6B90]">The Pulse of African Finance</p>
       </footer>
