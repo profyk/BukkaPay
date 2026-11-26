@@ -34,7 +34,10 @@ async def list_users(
     q: str | None = Query(default=None), frozen: bool | None = Query(default=None),
     _ctx: AdminContext = Depends(require("users.view")), db: AsyncSession = Depends(get_db),
 ) -> UsersListResponse:
-    users, total = await svc.list_users(db, page=page, limit=limit, q=q, frozen=frozen)
+    from app.governance import scope
+
+    users, total = await svc.list_users(db, page=page, limit=limit, q=q, frozen=frozen,
+                                        countries=scope.countries(_ctx))
     return UsersListResponse.model_validate({
         "users": [_user_row(u) for u in users],
         "pagination": {"page": page, "limit": limit, "total": total, "pages": -(-total // limit)},
@@ -48,6 +51,9 @@ async def get_user(
     user = await svc.get_user(db, user_id)
     if user is None:
         raise ApiError("User not found", status_code=404)
+    from app.governance import scope
+
+    scope.require(_ctx, user.residence_country)
     detail = await svc.get_user_detail(db, user)
     detail["user"] = _user_row(user)
     return AdminUserDetailResponse.model_validate(detail)
@@ -132,7 +138,9 @@ async def list_kyc(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=100),
     _ctx: AdminContext = Depends(require("kyc.view")), db: AsyncSession = Depends(get_db),
 ) -> KycListResponse:
-    rows, total = await svc.list_kyc(db, page=page, limit=limit)
+    from app.governance import scope
+
+    rows, total = await svc.list_kyc(db, page=page, limit=limit, countries=scope.countries(_ctx))
     return KycListResponse.model_validate({
         "kyc": rows, "pagination": {"page": page, "limit": limit, "total": total, "pages": -(-total // limit)},
     })

@@ -37,6 +37,7 @@ from app.models.wallet import CurrencyCorridor
 
 DEFAULT_URL = "https://open.er-api.com/v6/latest/USD"
 STATUS_KEY = "fx:feed:status"
+MIDS_KEY = "fx:feed:mids"
 RATE_DP = Decimal("0.000001")
 
 
@@ -94,6 +95,9 @@ async def refresh(db: AsyncSession) -> dict:
     try:
         base, mids = await fetch_mids()
         result = await apply(db, mids, pol)
+        # Reporting conversions (board dashboard) reuse the last good mids.
+        await get_redis().set(MIDS_KEY, json.dumps({"base": base, "at": status["at"],
+                                                   "mids": {k: str(v) for k, v in mids.items()}}), ex=7 * 24 * 3600)
         status |= {"ok": True, "base": base, **result}
     except Exception as e:  # noqa: BLE001 - feed down: keep old rates; they go stale and pause on their own
         status |= {"ok": False, "error": str(e)[:200]}
@@ -107,3 +111,21 @@ async def last_status() -> dict | None:
 
     raw = await get_redis().get(STATUS_KEY)
     return json.loads(raw) if raw else None
+
+
+async def cached_mids() -> dict | None:
+    """Last good mids from the feed: {"base", "at", "mids": {ccy: Decimal}}. Fetches once if none cached."""
+    from app.core.redis import get_redis
+
+    raw = await get_redis().get(MIDS_KEY)
+    if raw:
+        d = json.loads(raw)
+        return {**d, "mids": {k: Decimal(v) for k, v in d["mids"].items()}}
+    try:
+        base, mids = await fetch_mids()
+    except Exception:  # noqa: BLE001 - no rates: callers report per currency
+        return None
+    at = datetime.now(UTC).isoformat()
+    await get_redis().set(MIDS_KEY, json.dumps({"base": base, "at": at, "mids": {k: str(v) for k, v in mids.items()}}),
+                          ex=24 * 3600)
+    return {"base": base, "at": at, "mids": mids}

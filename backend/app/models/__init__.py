@@ -4,6 +4,7 @@ Alembic autogenerate/FK resolution, so everything is re-exported here.
 
 from app.ledger.ddl import register_create_all_hooks
 from app.models.admin import AdminInvite, AdminSession, AdminUser
+from app.models.board import BoardAccessLog, BoardFinancial, BoardMember, BoardSession, BoardUpdate
 from app.models.cards import (
     CardAuthorization,
     CardClearing,
@@ -37,6 +38,7 @@ from app.models.merchant import (
 )
 from app.models.misc import Contact, PaymentRequest, PurchaseTransaction
 from app.models.notification import Notification
+from app.models.org import Department
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.payouts import Payout, PayoutRecipient
 from app.models.platform import (
@@ -91,6 +93,12 @@ register_create_all_hooks(JournalLine.__table__)
 __all__ = [
     "AccountFeeCharge",
     "ClosedAccount",
+    "Department",
+    "BoardAccessLog",
+    "BoardFinancial",
+    "BoardMember",
+    "BoardSession",
+    "BoardUpdate",
     "Agent",
     "AgentTransaction",
     "PricingSetting",

@@ -147,6 +147,7 @@ class Settings(BaseSettings):
     smile_id_sandbox: bool = Field(default=True, alias="SMILE_ID_SANDBOX")
     # Admin panel origin, used in admin invitation links.
     admin_web_url: str = Field(default="https://admin.bukkapay.com", alias="ADMIN_WEB_URL")
+    board_web_url: str = Field(default="https://board.bukkapay.com", alias="BOARD_WEB_URL")
 
     # CORS
     allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")

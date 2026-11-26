@@ -33,7 +33,9 @@ async def list_merchants(
     page: int = Query(default=1, ge=1), limit: int = Query(default=50, ge=1, le=100),
     _ctx: AdminContext = Depends(require("merchants.view")), db: AsyncSession = Depends(get_db),
 ) -> AdminMerchantsListResponse:
-    rows, total = await svc.list_merchants(db, page=page, limit=limit)
+    from app.governance import scope
+
+    rows, total = await svc.list_merchants(db, page=page, limit=limit, countries=scope.countries(_ctx))
     merchants = [
         {**{c.name: getattr(m, c.name) for c in m.__table__.columns}, "user": user}
         for m, user in rows

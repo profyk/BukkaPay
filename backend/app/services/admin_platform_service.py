@@ -67,13 +67,16 @@ async def get_stats(db: AsyncSession) -> dict:
     }
 
 
-async def list_merchants(db: AsyncSession, *, page: int, limit: int) -> tuple[list[tuple[Merchant, User]], int]:
-    stmt = (
-        select(Merchant, User).join(User, Merchant.user_id == User.id)
-        .order_by(Merchant.created_at.desc()).limit(limit).offset((page - 1) * limit)
-    )
-    rows = (await db.execute(stmt)).all()
-    total = (await db.execute(select(func.count()).select_from(Merchant))).scalar_one()
+async def list_merchants(db: AsyncSession, *, page: int, limit: int,
+                         countries: list[str] | None = None) -> tuple[list[tuple[Merchant, User]], int]:
+    stmt = select(Merchant, User).join(User, Merchant.user_id == User.id)
+    count = select(func.count()).select_from(Merchant)
+    if countries is not None:  # staff country scope
+        stmt = stmt.where(Merchant.country_code.in_(countries))
+        count = count.where(Merchant.country_code.in_(countries))
+    rows = (await db.execute(stmt.order_by(Merchant.created_at.desc()).limit(limit)
+                             .offset((page - 1) * limit))).all()
+    total = (await db.execute(count)).scalar_one()
     return rows, total
 
 

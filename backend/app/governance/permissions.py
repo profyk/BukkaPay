@@ -30,6 +30,8 @@ ALL_PERMISSIONS = {
     # Drafting legal documents is separate from publishing them: publishing
     # changes what customers agree to.
     "legal.view", "legal.manage", "legal.publish",
+    # The company itself: departments, staff profiles, country coverage.
+    "org.view", "org.manage",
 }
 
 _VIEW_ALL = {p for p in ALL_PERMISSIONS if p.endswith(".view")}
@@ -41,6 +43,8 @@ ROLE_LABELS: dict[str, str] = {
     "technical_admin": "Technical Admin", "auditor": "Auditor",
     "risk_analyst": "Risk Analyst", "kyc_analyst": "KYC Analyst", "treasury_manager": "Treasury Manager",
     "marketing_manager": "Marketing Manager", "travel_manager": "Travel Manager",
+    "country_manager": "Country Manager", "people_manager": "People Manager",
+    "legal_counsel": "Legal Counsel", "data_analyst": "Data Analyst",
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
@@ -78,6 +82,20 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "marketing_manager": {"dashboard.view", "website.view", "website.manage", "broadcast.send", "support.view",
                           "legal.view"},
     "travel_manager": {"dashboard.view", "travel.manage", "transactions.view", "support.view", "support.manage"},
+    # Runs BukkaPay in their assigned countries (country_scope): customers, merchants,
+    # agents, support and the country's network setup. Can't move money or approve.
+    "country_manager": _VIEW_ALL | {
+        "users.manage", "users.freeze", "kyc.review", "merchants.manage", "merchants.kyb_review", "network.manage",
+        "support.manage", "broadcast.send",
+    },
+    # Departments, staff profiles and country coverage. Not roles or money.
+    "people_manager": {"dashboard.view", "org.view", "org.manage", "audit.view", "support.view"},
+    # Drafts and publishes legal documents; reads compliance.
+    "legal_counsel": {"dashboard.view", "legal.view", "legal.manage", "legal.publish", "compliance.view",
+                      "merchants.view", "audit.view", "org.view"},
+    # Read-only numbers: analytics, revenue, transactions. No customer changes.
+    "data_analyst": {"dashboard.view", "transactions.view", "fees.view", "fx.view", "ledger.view",
+                     "reconciliation.view", "merchants.view", "network.view"},
     # Legacy general-purpose role from before least-privilege roles existed.
     "admin": _VIEW_ALL | {
         "users.manage", "users.freeze", "kyc.review", "wallets.restrict", "merchants.manage",

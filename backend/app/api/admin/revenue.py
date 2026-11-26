@@ -115,7 +115,9 @@ async def account_fees(period: str | None = Query(default=None, pattern=r"^\d{4}
 @router.get("/agents")
 async def list_agents(status: Literal["pending", "active", "suspended"] | None = None,
                       _=Depends(require("merchants.view")), db: AsyncSession = Depends(get_db)):
-    q = select(Agent).order_by(Agent.created_at.desc()).limit(500)
+    from app.governance import scope
+
+    q = scope.filter(select(Agent).order_by(Agent.created_at.desc()).limit(500), _, Agent.country)
     if status:
         q = q.where(Agent.status == status)
     return [row(a) for a in (await db.execute(q)).scalars()]

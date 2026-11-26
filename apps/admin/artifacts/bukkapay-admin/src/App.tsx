@@ -71,6 +71,9 @@ import MoneyControlsPage from "@/pages/money-controls"
 import SettlementsPage from "@/pages/settlements"
 import AnalyticsPage from "@/pages/analytics"
 import HelpDeskPage from "@/pages/help-desk"
+import OrganisationPage from "@/pages/organisation"
+import ManualPage from "@/pages/manual"
+import BoardPortalPage from "@/pages/board-portal"
 import NotFound from "@/pages/not-found"
 
 const queryClient = new QueryClient({
@@ -129,6 +132,9 @@ function Router() {
       <Route path="/settlements"      component={SettlementsPage} />
       <Route path="/analytics"        component={AnalyticsPage} />
       <Route path="/help-desk"        component={HelpDeskPage} />
+      <Route path="/organisation"     component={OrganisationPage} />
+      <Route path="/manual"           component={ManualPage} />
+      <Route path="/board-portal"     component={BoardPortalPage} />
       <Route component={NotFound} />
     </Switch>
   )

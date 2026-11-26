@@ -5,6 +5,9 @@ import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
 const isVercel = process.env.VERCEL === "1";
+// APP_TARGET=board builds the investor board portal (board.bukkapay.com) from
+// this same workspace: own entry (board/index.html), shared UI kit, no PWA.
+const isBoard = process.env.APP_TARGET === "board";
 const isDev = process.env.NODE_ENV !== "production";
 
 const rawPort = process.env.PORT;
@@ -23,7 +26,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    VitePWA({
+    !isBoard && VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "icons/apple-touch-icon.png"],
       // Installable from the browser ("Install app"), never listed in an app
@@ -71,7 +74,8 @@ export default defineConfig({
     },
     dedupe: ["react", "react-dom"],
   },
-  root: path.resolve(import.meta.dirname),
+  root: isBoard ? path.resolve(import.meta.dirname, "board") : path.resolve(import.meta.dirname),
+  publicDir: path.resolve(import.meta.dirname, "public"),
   build: {
     outDir: path.resolve(import.meta.dirname, isVercel ? "dist" : "dist/public"),
     emptyOutDir: true,
@@ -88,6 +92,7 @@ export default defineConfig({
     },
     fs: {
       strict: true,
+      allow: [path.resolve(import.meta.dirname)],
       deny: ["**/.*"],
     },
   },

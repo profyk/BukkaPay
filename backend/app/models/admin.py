@@ -1,7 +1,8 @@
 import uuid
+from datetime import date
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Date, Enum, ForeignKey, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -23,6 +24,16 @@ class AdminUser(Base, CreatedOnlyMixin):
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_login_at: Mapped[OptionalTimestamp]
+    # Organisation (app.models.org / app.governance.scope)
+    department_id: Mapped[UUIDFk | None] = mapped_column(UUID(as_uuid=True), ForeignKey("departments.id",
+                                                                                      ondelete="SET NULL"))
+    title: Mapped[str | None] = mapped_column(String(100))
+    manager_id: Mapped[UUIDFk | None] = mapped_column(UUID(as_uuid=True), ForeignKey("admin_users.id",
+                                                                                   ondelete="SET NULL"))
+    phone: Mapped[str | None] = mapped_column(String(30))
+    started_on: Mapped[date | None] = mapped_column(Date)
+    # Countries this person may work on (ISO codes). Empty = all countries.
+    country_scope: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
 
 
 class AdminSession(Base, CreatedOnlyMixin):

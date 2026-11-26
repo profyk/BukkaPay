@@ -61,7 +61,9 @@ async def _get(db: AsyncSession, ticket_id: str) -> SupportTicket:
 @router.get("/support/tickets")
 async def list_tickets(status: str | None = Query(default="active"), mine: bool = False, q: str | None = None,
                        ctx: AdminContext = Depends(require("support.view")), db: AsyncSession = Depends(get_db)):
-    stmt = select(SupportTicket)
+    from app.governance import scope
+
+    stmt = scope.filter_by_user(select(SupportTicket), ctx, SupportTicket.user_id)
     if status == "active":
         stmt = stmt.where(SupportTicket.status.in_(("open", "waiting_customer")))
     elif status and status != "all":

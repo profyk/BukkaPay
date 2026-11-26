@@ -26,6 +26,10 @@ class AdminRole(StrEnum):
     TREASURY_MANAGER = "treasury_manager"
     MARKETING_MANAGER = "marketing_manager"
     TRAVEL_MANAGER = "travel_manager"
+    COUNTRY_MANAGER = "country_manager"
+    PEOPLE_MANAGER = "people_manager"
+    LEGAL_COUNSEL = "legal_counsel"
+    DATA_ANALYST = "data_analyst"
 
 
 class TransactionType(StrEnum):

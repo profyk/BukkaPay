@@ -16,9 +16,13 @@ from app.services import notification_service
 
 async def list_users(
     db: AsyncSession, *, page: int, limit: int, q: str | None, frozen: bool | None,
+    countries: list[str] | None = None,
 ) -> tuple[list[User], int]:
     stmt = select(User).where(User.deleted_at.is_(None))
     count_stmt = select(func.count()).select_from(User).where(User.deleted_at.is_(None))
+    if countries is not None:  # staff country scope (app.governance.scope)
+        stmt = stmt.where(User.residence_country.in_(countries))
+        count_stmt = count_stmt.where(User.residence_country.in_(countries))
 
     if q:
         pattern = f"%{q}%"
@@ -150,8 +154,11 @@ async def broadcast(db: AsyncSession, *, type: str | None, title: str, message: 
     return len(user_ids)
 
 
-async def list_kyc(db: AsyncSession, *, page: int, limit: int) -> tuple[list[dict], int]:
+async def list_kyc(db: AsyncSession, *, page: int, limit: int,
+                   countries: list[str] | None = None) -> tuple[list[dict], int]:
     has_submission = User.kyc_status != KycStatus.NOT_SUBMITTED
+    if countries is not None:
+        has_submission = has_submission & User.residence_country.in_(countries)
     count_result = await db.execute(select(func.count()).select_from(User).where(has_submission))
     total = count_result.scalar_one()
 

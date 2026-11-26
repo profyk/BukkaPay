@@ -34,6 +34,7 @@ from app.api import (
     wallet,
     webauthn,
 )
+from app.api import board as board_api  # noqa: E402
 from app.api import payouts as payouts_api
 from app.api import push as push_api
 from app.api import support as support_api
@@ -69,14 +70,17 @@ api_router.include_router(chat.router)
 api_router.include_router(public.router)
 api_router.include_router(trade_api.router)
 api_router.include_router(card_webhooks.router)
+api_router.include_router(board_api.router)
 
 from app.api.admin import auth as admin_auth
+from app.api.admin import board as admin_board
 from app.api.admin import cards as admin_cards
 from app.api.admin import chat as admin_chat
 from app.api.admin import finance as admin_finance
 from app.api.admin import fx as admin_fx
 from app.api.admin import legal as admin_legal
 from app.api.admin import network as admin_network
+from app.api.admin import org as admin_org
 from app.api.admin import platform as admin_platform
 from app.api.admin import revenue as admin_revenue
 from app.api.admin import settlements as admin_settlements
@@ -102,3 +106,5 @@ admin_router.include_router(admin_fx.router)
 admin_router.include_router(admin_revenue.router)
 admin_router.include_router(admin_settlements.router)
 admin_router.include_router(admin_support.router)
+admin_router.include_router(admin_org.router)
+admin_router.include_router(admin_board.router)

@@ -30,7 +30,7 @@ export function useAction(invalidate: unknown[][] = []) {
   const qc = useQueryClient()
   const { toast } = useToast()
   return useMutation({
-    mutationFn: async (args: { method?: "post" | "patch" | "delete"; url: string; body?: any; success?: string }) => {
+    mutationFn: async (args: { method?: "post" | "put" | "patch" | "delete"; url: string; body?: any; success?: string }) => {
       const res = await api.request({ method: args.method ?? "post", url: args.url, data: args.body })
       return { data: res.data, success: args.success }
     },

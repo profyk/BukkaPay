@@ -6,7 +6,7 @@ import {
   Link2, Store, Megaphone, ChevronRight,
   ShieldCheck, Settings2, Globe2, PlaneTakeoff, Route as RouteIcon,
   Stamp, BookOpen, Scale, BadgeCheck, Map as MapIcon, Coins, Landmark, PlugZap, Waypoints,
-  ShieldAlert, Gavel, TrendingUp, HandCoins, LifeBuoy,
+  ShieldAlert, Gavel, TrendingUp, HandCoins, LifeBuoy, Building2, BookMarked, Presentation,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -83,6 +83,14 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
       { href: "/network/providers",  label: "Providers",      icon: PlugZap,   perm: "network.view" },
       { href: "/network/corridors",  label: "Corridors & FX", icon: Waypoints, perm: "network.view" },
       { href: "/fees",               label: "Fees & Limits",  icon: Settings2, perm: "fees.view" },
+    ],
+  },
+  {
+    label: "Company",
+    links: [
+      { href: "/organisation",   label: "Organisation",       icon: Building2,       perm: "org.view" },
+      { href: "/board-portal",   label: "Board & Investors",  icon: Presentation,    perm: "admins.manage" },
+      { href: "/manual",         label: "Owner's Manual",     icon: BookMarked,      perm: "dashboard.view" },
     ],
   },
   {

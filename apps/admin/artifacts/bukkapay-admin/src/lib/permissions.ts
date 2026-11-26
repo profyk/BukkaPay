@@ -4,7 +4,8 @@ import { api } from "@/lib/api";
 export type AdminRole =
   | "super_admin" | "ceo" | "finance_admin" | "compliance_officer" | "operations_admin"
   | "customer_support" | "merchant_support" | "technical_admin" | "auditor" | "admin" | "master"
-  | "risk_analyst" | "kyc_analyst" | "treasury_manager" | "marketing_manager" | "travel_manager";
+  | "risk_analyst" | "kyc_analyst" | "treasury_manager" | "marketing_manager" | "travel_manager"
+  | "country_manager" | "people_manager" | "legal_counsel" | "data_analyst";
 
 export interface AdminMe {
   id?: string;

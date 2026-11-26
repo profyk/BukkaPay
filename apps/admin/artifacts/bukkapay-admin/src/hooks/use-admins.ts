@@ -44,6 +44,10 @@ export const ASSIGNABLE_ROLES: { value: string; label: string; summary: string }
   { value: "treasury_manager", label: "Treasury Manager", summary: "FX, reconciliation and ledger adjustment requests (approved by another admin)." },
   { value: "marketing_manager", label: "Marketing Manager", summary: "Website content and broadcast messages." },
   { value: "travel_manager", label: "Travel Manager", summary: "Airlines, flight routes and travel support." },
+  { value: "country_manager", label: "Country Manager", summary: "Runs assigned countries: customers, merchants, agents, support and network setup. Set their countries in Organisation." },
+  { value: "people_manager", label: "People Manager", summary: "Departments, staff profiles, reporting lines and country coverage. Not roles or money." },
+  { value: "legal_counsel", label: "Legal Counsel", summary: "Drafts and publishes legal documents; reads compliance." },
+  { value: "data_analyst", label: "Data Analyst", summary: "Read-only analytics, revenue, transactions and the ledger." },
   { value: "auditor", label: "Auditor", summary: "Read-only access to everything." },
   { value: "admin", label: "Admin (legacy)", summary: "General admin role." },
 ];
