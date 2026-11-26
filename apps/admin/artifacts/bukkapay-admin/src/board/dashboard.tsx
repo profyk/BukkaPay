@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query"
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
-import { Download, LogOut, Moon, Printer, Sun } from "lucide-react"
+import { Download, LogOut, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getThemeChoice, setThemeChoice } from "@/lib/theme"
 import { boardApi, errorText, getToken, setToken, type Overview, type Series, type Update } from "./api"
+import { ThemeToggle } from "./theme-toggle"
 
 // Validated categorical pair (dataviz palette): identity / polarity poles.
 const BLUE = "#2a78d6"
@@ -39,14 +39,13 @@ export default function Dashboard() {
     const a = Object.assign(document.createElement("a"), { href: url, download: "bukkapay-board-metrics.csv" })
     a.click(); URL.revokeObjectURL(url)
   }
-  const [dark, setDark] = useState(getThemeChoice() === "dark" || document.documentElement.classList.contains("dark"))
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-card/60 backdrop-blur sticky top-0 z-10 print:static">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
           <img src="/icons/icon-192.png" alt="" className="w-8 h-8 rounded-lg" />
-          <div className="mr-auto"><p className="font-semibold leading-tight">BukkaPay board portal</p>
+          <div className="mr-auto"><p className="text-lg leading-tight tracking-tight" style={{ fontFamily: "Fraunces, Georgia, serif" }}>BukkaPay <span className="text-muted-foreground">Board</span></p>
             <p className="text-xs text-muted-foreground">{me.data ? `${me.data.name}${me.data.organisation ? ` · ${me.data.organisation}` : ""}` : "Confidential"}</p></div>
           <select aria-label="Period" value={months} onChange={(e) => setMonths(Number(e.target.value))}
             className="h-9 rounded-md border border-border bg-background px-2 text-sm print:hidden">
@@ -54,8 +53,7 @@ export default function Dashboard() {
           </select>
           <Button size="sm" variant="outline" className="print:hidden" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
           <Button size="sm" variant="outline" className="print:hidden" onClick={boardPack}><Printer className="w-4 h-4 mr-1.5" />Board pack</Button>
-          <Button size="sm" variant="ghost" className="print:hidden" aria-label="Toggle dark mode"
-            onClick={() => { setThemeChoice(dark ? "light" : "dark"); setDark(!dark) }}>{dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}</Button>
+          <span className="print:hidden"><ThemeToggle /></span>
           <Button size="sm" variant="ghost" className="print:hidden" onClick={signOut}><LogOut className="w-4 h-4 mr-1.5" />Sign out</Button>
         </div>
         <nav className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto print:hidden">
