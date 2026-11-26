@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -65,6 +66,8 @@ async def invite(db: AsyncSession, *, email: str, name: str, organisation: str |
                  by) -> tuple[BoardMember, str, bool]:
     email = email.strip().lower()
     m = (await db.execute(select(BoardMember).where(BoardMember.email == email))).scalar_one_or_none()
+    if m and is_owner(m):
+        raise ApiError("You already have access: use Open board portal", status_code=409)
     if m and m.accepted_at and m.active:
         raise ApiError("This person already has board access", status_code=409)
     token = secrets.token_urlsafe(32)
@@ -115,7 +118,7 @@ async def start_login(db: AsyncSession, email: str, password: str) -> None:
     """Step 1: password. Sends the emailed code. Same error for every failure."""
     bad = ApiError("Email or password is incorrect", status_code=401)
     m = (await db.execute(select(BoardMember).where(BoardMember.email == email.strip().lower()))).scalar_one_or_none()
-    if m is None or not m.active or not m.password_hash:
+    if m is None or not m.active or not m.password_hash or is_owner(m):
         raise bad
     _check_lock(m)
     ok, _ = verify_secret(password, m.password_hash)
@@ -155,6 +158,56 @@ async def member_for_token(db: AsyncSession, token: str) -> BoardMember | None:
     if row is None or not row[1].active:
         return None
     return row[1]
+
+
+OWNER_PASS_TTL = 60  # seconds
+OWNER_TITLE = "Owner"
+
+
+def is_owner(m: BoardMember) -> bool:
+    from app.governance.owner import OWNER_EMAIL
+
+    return m.email.lower() == OWNER_EMAIL.lower()
+
+
+async def owner_pass(db: AsyncSession, admin) -> str:
+    """The owner opens the board portal from the admin panel (which already
+    needs their password and authenticator code). Returns a single-use pass
+    that lives 60 seconds. The owner's board record never has a password, so
+    nobody can sign in as the owner on the board sign-in page."""
+    from app.core.redis import get_redis
+    from app.governance.owner import OWNER_EMAIL
+
+    email = OWNER_EMAIL.lower()
+    m = (await db.execute(select(BoardMember).where(BoardMember.email == email))).scalar_one_or_none()
+    if m is None:
+        m = BoardMember(email=email, name=admin.name or "Owner")
+        db.add(m)
+    m.name = admin.name or m.name
+    m.title, m.organisation, m.active = OWNER_TITLE, "BukkaPay", True
+    m.password_hash = m.invite_token_hash = m.invite_expires_at = m.login_code_hash = None
+    m.accepted_at = m.accepted_at or _now()
+    await db.flush()
+    code = secrets.token_urlsafe(32)
+    await get_redis().set(f"board:owner-pass:{_h(code)}", str(m.id), ex=OWNER_PASS_TTL)
+    return code
+
+
+async def redeem_owner_pass(db: AsyncSession, code: str, ip: str | None) -> tuple[str, BoardMember]:
+    from app.core.redis import get_redis
+
+    r = get_redis()
+    key = f"board:owner-pass:{_h(code)}"
+    member_id = await r.get(key)
+    await r.delete(key)  # single use, whatever happens next
+    m = await db.get(BoardMember, uuid.UUID(member_id)) if member_id else None
+    if m is None or not m.active or not is_owner(m):
+        raise ApiError("This link has expired. Open the board portal again from the admin panel.", status_code=401)
+    m.last_login_at = _now()
+    token = secrets.token_urlsafe(32)
+    db.add(BoardSession(member_id=m.id, token_hash=_h(token), expires_at=_now() + SESSION_TTL, ip=ip))
+    await db.flush()
+    return token, m
 
 
 async def end_sessions(db: AsyncSession, member_id, token: str | None = None) -> None:

@@ -54,6 +54,10 @@ class LoginIn(CamelModel):
     password: str = Field(min_length=1, max_length=200)
 
 
+class OwnerPassIn(CamelModel):
+    code: str = Field(min_length=20, max_length=200)
+
+
 class CodeIn(CamelModel):
     email: str = Field(min_length=3, max_length=255)
     code: str = Field(min_length=6, max_length=6)
@@ -79,7 +83,15 @@ async def verify(body: CodeIn, request: Request, db: AsyncSession = Depends(get_
 
 
 def _me(m: BoardMember) -> dict:
-    return {"name": m.name, "email": m.email, "organisation": m.organisation, "title": m.title}
+    return {"name": m.name, "email": m.email, "organisation": m.organisation, "title": m.title,
+            "isOwner": svc.is_owner(m)}
+
+
+@router.post("/auth/owner", dependencies=[Depends(rate_limit("board-owner", 10, 900))])
+async def owner_sign_in(body: OwnerPassIn, request: Request, db: AsyncSession = Depends(get_db)):
+    token, m = await svc.redeem_owner_pass(db, body.code, _ip(request))
+    await _log(db, m, "owner_signed_in", request)
+    return {"token": token, "member": _me(m)}
 
 
 @router.get("/auth/me")

@@ -146,6 +146,7 @@ If emails stop or FX rates look stale, the **worker** is probably down (section 
 
 The board portal at board.bukkapay.com is a separate app for board members and investors. It shows company totals only: customers, active users, payment volume, revenue by month and by product, gross profit, profit and loss, cash, burn and runway, unit economics (take rate, revenue per user, average payment), customers by country, retention by signup month, and your investor updates. It never shows a customer, merchant or staff record.
 
+- **You open it from here.** Company → Board & Investors → **Open board portal** signs you in as the owner with a single-use pass that lasts 60 seconds. Your access comes from your admin sign-in (password and authenticator), so there's no separate board password for you, and nobody can sign in as you on the board page. You can't be removed from the portal.
 - **Only you can invite.** Company → Board & Investors → Invite. They set a password from the email, and every sign-in also needs a 6-digit code sent to their email. Sessions end after 12 hours or when the browser closes.
 - **Remove access** ends their session at once.
 - **Management accounts**: the ledger knows revenue and direct costs, but not salaries, rent or cash in the bank. Each month, enter staff, technology, marketing, compliance and legal, office and other costs, other income, month-end cash, funding received and headcount. Use the same currency every month; the portal reports in it and converts the ledger's currencies at live mid-rates.

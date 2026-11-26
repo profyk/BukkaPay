@@ -3,6 +3,7 @@ import { Copy, ExternalLink, FileText, LineChart, Plus, Send, UserPlus, Users } 
 import { Button } from "@/components/ui/button"
 import { DataTable, FormDialog, Page, Stat, StatusBadge, useAction, useApi, when } from "@/components/network/kit"
 import { useToast } from "@/hooks/use-toast"
+import { api } from "@/lib/api"
 
 type Member = { id: string; email: string; name: string; organisation?: string; title?: string; status: string; lastLoginAt?: string; inviteExpiresAt?: string }
 type Fin = Record<string, any> & { id: string; month: string; currency: string }
@@ -31,12 +32,23 @@ export default function BoardPortalPage() {
   const forbidden = (members.error as any)?.response?.status === 403
 
   const showLink = (r: any) => setLink({ link: r.data.link, emailSent: r.data.emailSent })
+  // Signs the owner in to the board portal with a single-use, 60-second pass.
+  const openPortal = async () => {
+    const w = window.open("about:blank", "_blank")  // opened now so pop-up blockers allow it
+    try {
+      const { data } = await api.post("/admin/board/owner-pass")
+      if (w) { w.opener = null; w.location.href = data.url } else window.location.href = data.url
+    } catch (e: any) {
+      w?.close()
+      toast({ title: "Couldn't open the board portal", description: e?.response?.data?.error ?? "Try again.", variant: "destructive" })
+    }
+  }
   const thisMonth = new Date().toISOString().slice(0, 7) + "-01"
 
   return (
     <Page title="Board & Investors"
       subtitle={`The board portal at ${BOARD_URL.replace("https://", "")} shows invited board members and investors the company's numbers: growth, revenue, profit and loss, cash and runway. Only you can invite people, and they only ever see company totals, never a customer.`}
-      actions={<Button variant="outline" onClick={() => window.open(BOARD_URL, "_blank", "noopener")}><ExternalLink className="w-4 h-4 mr-1.5" />Open board portal</Button>}>
+      actions={<Button onClick={openPortal}><ExternalLink className="w-4 h-4 mr-1.5" />Open board portal</Button>}>
       {forbidden ? <p className="text-sm text-muted-foreground">Only the owner manages the board portal.</p> : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -71,8 +83,8 @@ export default function BoardPortalPage() {
                 { header: "Last sign-in", cell: (m) => when(m.lastLoginAt) },
                 { header: "", className: "text-right", cell: (m) => (
                   <div className="flex justify-end gap-2">
-                    {m.status !== "active" && <Button size="sm" variant="outline" onClick={async () => showLink(await action.mutateAsync({ url: `/admin/board/members/${m.id}/resend`, success: "New invitation sent" }))}><Send className="w-4 h-4 mr-1" />{m.status === "revoked" ? "Re-invite" : "Resend"}</Button>}
-                    {m.status !== "revoked" && <Button size="sm" variant="outline" className="text-destructive" onClick={() => action.mutateAsync({ url: `/admin/board/members/${m.id}/revoke`, success: "Access removed" })}>Remove access</Button>}
+                    {m.status !== "active" && m.status !== "owner" && <Button size="sm" variant="outline" onClick={async () => showLink(await action.mutateAsync({ url: `/admin/board/members/${m.id}/resend`, success: "New invitation sent" }))}><Send className="w-4 h-4 mr-1" />{m.status === "revoked" ? "Re-invite" : "Resend"}</Button>}
+                    {m.status !== "revoked" && m.status !== "owner" && <Button size="sm" variant="outline" className="text-destructive" onClick={() => action.mutateAsync({ url: `/admin/board/members/${m.id}/revoke`, success: "Access removed" })}>Remove access</Button>}
                   </div>) },
               ]} />
           )}

@@ -91,3 +91,31 @@ async def test_board_portal_end_to_end(client: AsyncClient, admin: dict, monkeyp
 
 async def _no_rates():
     return None
+
+
+async def test_owner_opens_portal_from_admin_only(client: AsyncClient, admin: dict, monkeypatch):
+    monkeypatch.setattr("app.services.fx_feed.cached_mids", _no_rates)
+    ceo = await named_admin(client, admin, "ceo")
+    assert (await client.post("/api/admin/board/owner-pass", headers=ceo["headers"])).status_code == 403
+
+    r = await client.post("/api/admin/board/owner-pass", headers=admin["headers"])
+    assert r.status_code == 200, r.text
+    code = r.json()["url"].split("#", 1)[1]
+    s = await client.post("/api/board/auth/owner", json={"code": code})
+    assert s.status_code == 200, s.text
+    assert s.json()["member"]["isOwner"] is True
+    h = {"Authorization": f"Bearer {s.json()['token']}"}
+    assert (await client.get("/api/board/overview", headers=h)).status_code == 200
+    # Single use.
+    assert (await client.post("/api/board/auth/owner", json={"code": code})).status_code == 401
+
+    # The owner can't be revoked, re-invited, or signed in with a password on the board page.
+    from app.governance.owner import OWNER_EMAIL
+
+    members = (await client.get("/api/admin/board/members", headers=admin["headers"])).json()["members"]
+    me = next(m for m in members if m["email"] == OWNER_EMAIL)
+    assert me["status"] == "owner"
+    assert (await client.post(f"/api/admin/board/members/{me['id']}/revoke", headers=admin["headers"])).status_code == 403
+    assert (await client.post("/api/admin/board/members", headers=admin["headers"],
+                              json={"email": OWNER_EMAIL, "name": "Owner"})).status_code == 409
+    assert (await client.post("/api/board/auth/login", json={"email": OWNER_EMAIL, "password": "anything-at-all"})).status_code == 401

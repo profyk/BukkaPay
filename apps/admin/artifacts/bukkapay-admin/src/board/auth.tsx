@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react"
+import { useEffect, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react"
 import { useLocation } from "wouter"
 import { motion, AnimatePresence } from "framer-motion"
 import { AlertCircle, Eye, EyeOff, Lock, Loader2, Mail } from "lucide-react"
@@ -21,9 +21,9 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
         <div className="relative mx-auto flex w-full max-w-[480px] flex-col items-center">
           <img src={ICON} alt="BukkaPay" className="h-[72px] w-[72px] rounded-[18px]" />
           <p className="mt-3.5 text-[26px] font-extrabold tracking-[-0.5px] text-white">BukkaPay</p>
-          <p className="mt-1 text-center text-[15px] text-white/[0.72]">Africa's money, without borders.</p>
+          <p className="mt-1 text-center text-[15px] text-white/[0.72]">Board and investor portal</p>
           <div className="mt-[18px] flex flex-wrap justify-center gap-2">
-            {["ZAR · BWP · USD", "Free transfers", "Escrow for traders"].map((c) => (
+            {["Board members", "Investors", "By invitation only"].map((c) => (
               <span key={c} className="rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white/[0.85]">{c}</span>
             ))}
           </div>
@@ -41,7 +41,10 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
           <span className="h-px flex-1 bg-[#E5E7EB] dark:bg-[#2D2D45]" />
         </div>
         <p className="mt-2 text-center text-sm text-[#9CA3AF] dark:text-[#6B6B90]">
-          Need access? <span className="font-semibold text-[#7C3AED]">Ask BukkaPay for an invitation</span>
+          Restricted to BukkaPay's board members and investors. Access is by invitation from the owner.
+        </p>
+        <p className="mt-3 text-center text-xs text-[#9CA3AF] dark:text-[#6B6B90]">
+          Owner? Open the portal from the admin panel: <span className="font-semibold text-[#7C3AED]">Board &amp; Investors → Open board portal</span>
         </p>
       </main>
 
@@ -137,7 +140,7 @@ export function LoginPage() {
   }
 
   return step === "password" ? (
-    <Shell title="Welcome Back" subtitle="Sign in to your BukkaPay board account">
+    <Shell title="Welcome Back" subtitle="For BukkaPay board members and investors">
       <ErrorBox text={error} />
       <form onSubmit={submit} className="space-y-4">
         <Label text="Email"><TextInput icon={Mail} type="email" autoComplete="username" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Label>
@@ -157,6 +160,26 @@ export function LoginPage() {
           Use a different email or send a new code
         </button>
       </form>
+    </Shell>
+  )
+}
+
+/** The owner arrives here from Admin → Board & Investors with a single-use
+ *  pass in the URL fragment (never sent to a server log). */
+export function OwnerPage() {
+  const [, go] = useLocation()
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    const code = window.location.hash.slice(1)
+    history.replaceState(null, "", "/owner")  // the pass leaves the address bar at once
+    if (!code) { setError("Open the board portal from the admin panel: Board & Investors → Open board portal."); return }
+    boardApi.post("/auth/owner", { code })
+      .then(({ data }) => { setToken(data.token); go("/") })
+      .catch((err) => setError(errorText(err)))
+  }, [])  // once: the pass is single-use
+  return (
+    <Shell title={error ? "Couldn't sign you in" : "Signing you in…"} subtitle={error ? "" : "Opening the board portal as the owner."}>
+      {error ? <ErrorBox text={error} /> : <div className="flex justify-center py-2"><Loader2 className="h-6 w-6 animate-spin text-[#7C3AED]" /></div>}
     </Shell>
   )
 }

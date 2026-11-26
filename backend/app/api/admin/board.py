@@ -36,7 +36,7 @@ def _uuid(v: str) -> uuid.UUID:
 
 def _member(m: BoardMember) -> dict:
     return {"id": str(m.id), "email": m.email, "name": m.name, "organisation": m.organisation, "title": m.title,
-            "status": svc.member_status(m), "lastLoginAt": m.last_login_at.isoformat() if m.last_login_at else None,
+            "status": "owner" if svc.is_owner(m) else svc.member_status(m), "lastLoginAt": m.last_login_at.isoformat() if m.last_login_at else None,
             "inviteExpiresAt": m.invite_expires_at.isoformat() if m.invite_expires_at else None,
             "createdAt": m.created_at.isoformat() if m.created_at else None}
 
@@ -82,6 +82,8 @@ async def revoke(member_id: str, ctx: AdminContext = Depends(owner), db: AsyncSe
     m = await db.get(BoardMember, _uuid(member_id))
     if m is None:
         raise ApiError("Not found", status_code=404)
+    if svc.is_owner(m):
+        raise ApiError("The owner always has access to the board portal", status_code=403)
     m.active, m.invite_token_hash = False, None
     await svc.end_sessions(db, m.id)
     await ctx.audit(db, "board.member_revoked", target_type="board_member", target_id=m.id, details={"email": m.email})
@@ -189,6 +191,17 @@ async def delete_update(update_id: str, ctx: AdminContext = Depends(owner), db: 
     await db.delete(u)
     await ctx.audit(db, "board.update_deleted", target_type="board_update", target_id=update_id)
     return {"deleted": True}
+
+
+@router.post("/owner-pass")
+async def owner_pass(ctx: AdminContext = Depends(owner), db: AsyncSession = Depends(get_db)):
+    """Single-use, 60-second pass that signs the owner in to the board portal."""
+    from app.core.config import get_settings
+
+    code = await svc.owner_pass(db, ctx.admin)
+    await ctx.audit(db, "board.owner_opened_portal", target_type="board_portal")
+    # In the URL fragment: never sent to a server or written to access logs.
+    return {"url": f"{get_settings().board_web_url.rstrip('/')}/owner#{code}", "expiresIn": svc.OWNER_PASS_TTL}
 
 
 @router.get("/preview")

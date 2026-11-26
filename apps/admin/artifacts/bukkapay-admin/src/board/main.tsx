@@ -4,7 +4,7 @@ import { Route, Switch, Redirect } from "wouter"
 import "../index.css"
 import { initTheme } from "../lib/theme"
 import { getToken } from "./api"
-import { AcceptPage, LoginPage } from "./auth"
+import { AcceptPage, LoginPage, OwnerPage } from "./auth"
 import Dashboard from "./dashboard"
 
 initTheme()
@@ -16,6 +16,7 @@ function App() {
       <Switch>
         <Route path="/login" component={LoginPage} />
         <Route path="/accept" component={AcceptPage} />
+        <Route path="/owner" component={OwnerPage} />
         <Route>{getToken() ? <Dashboard /> : <Redirect to="/login" />}</Route>
       </Switch>
     </QueryClientProvider>

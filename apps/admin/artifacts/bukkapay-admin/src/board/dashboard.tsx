@@ -49,7 +49,7 @@ export default function Dashboard() {
       <header className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-20 print:static pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
           <img src="/icons/icon-192.png" alt="" className="w-8 h-8 rounded-lg" />
-          <div className="mr-auto min-w-0"><p className="text-lg leading-tight tracking-tight" style={{ fontFamily: "Fraunces, Georgia, serif" }}>BukkaPay <span className="text-muted-foreground">Board</span></p>
+          <div className="mr-auto min-w-0"><p className="text-lg leading-tight tracking-tight" style={{ fontFamily: "Fraunces, Georgia, serif" }}>BukkaPay <span className="text-muted-foreground">Board</span>{me.data?.isOwner && <span className="ml-2 align-middle rounded-full bg-[#7C3AED]/10 px-2 py-0.5 text-[11px] font-semibold text-[#7C3AED] dark:text-[#9B6EFF]" style={{ fontFamily: "inherit" }}>Owner</span>}</p>
             <p className="text-xs text-muted-foreground truncate max-w-[52vw] sm:max-w-none">{me.data ? `${me.data.name}${me.data.organisation ? ` · ${me.data.organisation}` : ""}` : "Confidential"}</p></div>
           <span className="print:hidden"><ThemeToggle /></span>
           <Button size="sm" variant="ghost" className="print:hidden px-2 sm:px-3" onClick={signOut} aria-label="Sign out"><LogOut className="w-4 h-4 sm:mr-1.5" /><span className="hidden sm:inline">Sign out</span></Button>
