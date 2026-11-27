@@ -3,9 +3,9 @@ Alembic autogenerate/FK resolution, so everything is re-exported here.
 """
 
 from app.ledger.ddl import register_create_all_hooks
+from app.models import boardroom  # noqa: F401  (Boardroom tables)
 from app.models.admin import AdminInvite, AdminSession, AdminUser
 from app.models.board import BoardAccessLog, BoardFinancial, BoardMember, BoardSession, BoardUpdate
-from app.models import boardroom  # noqa: F401  (Boardroom tables)
 from app.models.cards import (
     CardAuthorization,
     CardClearing,
