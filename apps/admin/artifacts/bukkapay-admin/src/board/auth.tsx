@@ -46,11 +46,11 @@ export function Shell({ title, subtitle, children }: { title: string; subtitle: 
           Restricted to BukkaPay's directors, investors and shareholders. Access is by invitation, and every sign-in needs your authenticator app.
         </p>
         <p className="mt-3 text-center text-xs text-[#9CA3AF] dark:text-[#6B6B90]">
-          Owner or super admin? You sign in with your admin account, not a Boardroom password.
+          Owner? Sign in above with your admin email and admin password, then the code from your admin authenticator app. Or open it from the admin panel:
         </p>
         {/* The owner's admin sign-in (password + authenticator) issues a single-use pass into the Boardroom. */}
         <a href={OWNER_ENTRY} className="mt-3 flex w-full items-center justify-center rounded-xl border border-[#0B8F63] py-3 text-sm font-semibold text-[#0B8F63] dark:border-[#10B981] dark:text-[#10B981]">
-          Owner sign-in via the admin panel
+          Open from the admin panel
         </a>
       </main>
 

@@ -591,3 +591,49 @@ async def test_analytics_endpoints_return_aggregates_only(client: AsyncClient, a
     assert (await client.get("/api/board/dashboard?kind=custom", headers=owner)).status_code == 422
     ai = (await client.get("/api/board/insights?ai=true", headers=owner)).json()
     assert ai["ai"]["enabled"] is False  # off until configured
+
+
+async def test_owner_signs_in_on_the_board_page_with_admin_credentials(client: AsyncClient, admin: dict):
+    """The owner uses their admin password and admin authenticator on the
+    Boardroom page; a password alone never gets in."""
+    from sqlalchemy import update
+
+    from app.business.mfa import generate_totp_secret
+    from app.db.base import get_session_factory
+    from app.governance.owner import OWNER_EMAIL
+    from app.models.admin import AdminUser
+    from tests.conftest import SUPER_ADMIN_PASSWORD
+
+    login = {"email": OWNER_EMAIL, "password": SUPER_ADMIN_PASSWORD}
+    # Without an admin authenticator the owner can't sign in here at all.
+    assert (await client.post("/api/board/auth/login", json=login)).status_code == 401
+
+    secret = generate_totp_secret(20)
+
+    async def set_mfa(on: bool):
+        async with get_session_factory()() as db:
+            await db.execute(update(AdminUser).where(AdminUser.email == OWNER_EMAIL).values(
+                mfa_enabled=on, mfa_secret=secret if on else None))
+            await db.commit()
+
+    await set_mfa(True)
+    try:
+        assert (await client.post("/api/board/auth/login", json={**login, "password": "wrong-password-1"})).status_code == 401
+        r = await client.post("/api/board/auth/login", json=login)
+        assert r.status_code == 200 and r.json()["method"] == "totp"
+        code = _totp(secret, int(time.time()))
+        bad = "000000" if code != "000000" else "111111"
+        assert (await client.post("/api/board/auth/verify", json={"email": OWNER_EMAIL, "code": bad})).status_code == 401
+        v = await client.post("/api/board/auth/verify", json={"email": OWNER_EMAIL, "code": code})
+        assert v.status_code == 200, v.text
+        me = v.json()["member"]
+        assert me["isOwner"] and me["role"] == "super_admin" and "users.manage" in me["permissions"]
+        h = {"Authorization": f"Bearer {v.json()['token']}"}
+        assert (await client.get("/api/board/users", headers=h)).status_code == 200
+        # The same code can't be used twice.
+        await client.post("/api/board/auth/login", json=login)
+        assert (await client.post("/api/board/auth/verify", json={"email": OWNER_EMAIL, "code": code})).status_code == 401
+        # A Boardroom session still can't reach the admin API.
+        assert (await client.get("/api/admin/users", headers=h)).status_code in (401, 403)
+    finally:
+        await set_mfa(False)

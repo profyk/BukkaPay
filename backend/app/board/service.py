@@ -170,6 +170,10 @@ async def start_login(db: AsyncSession, email: str, password: str, ip: str | Non
     """Step 1: password. Members with an authenticator go straight to the
     code; members who joined before authenticators were required get an
     emailed code once and must then set one up. Same error for every failure."""
+    from app.governance.owner import is_owner_email
+
+    if is_owner_email(email):
+        return await owner_start_login(db, password, ip)
     bad = ApiError("Email or password is incorrect", status_code=401)
     m = (await db.execute(select(BoardMember).where(BoardMember.email == email.strip().lower()))).scalar_one_or_none()
     if not can_sign_in(m):
@@ -206,6 +210,10 @@ async def _totp_fresh(m: BoardMember, code: str) -> bool:
 
 async def finish_login(db: AsyncSession, email: str, code: str, ip: str | None,
                        user_agent: str | None = None) -> tuple[str, BoardMember]:
+    from app.governance.owner import is_owner_email
+
+    if is_owner_email(email):
+        return await owner_finish_login(db, code, ip, user_agent)
     bad = ApiError("That code is wrong or has expired", status_code=401)
     m = (await db.execute(select(BoardMember).where(BoardMember.email == email.strip().lower()))).scalar_one_or_none()
     if not can_sign_in(m) or not m.login_code_hash or (m.login_code_expires_at or _now()) < _now():
@@ -339,12 +347,9 @@ def is_owner(m: BoardMember) -> bool:
     return m.email.lower() == OWNER_EMAIL.lower()
 
 
-async def owner_pass(db: AsyncSession, admin) -> str:
-    """The owner opens the board portal from the admin panel (which already
-    needs their password and authenticator code). Returns a single-use pass
-    that lives 60 seconds. The owner's board record never has a password, so
-    nobody can sign in as the owner on the board sign-in page."""
-    from app.core.redis import get_redis
+async def _owner_member(db: AsyncSession, admin) -> BoardMember:
+    """The owner's Boardroom record. It never has a Boardroom password: the
+    owner always proves who they are with their admin credentials."""
     from app.governance.owner import OWNER_EMAIL
 
     email = OWNER_EMAIL.lower()
@@ -354,8 +359,78 @@ async def owner_pass(db: AsyncSession, admin) -> str:
         db.add(m)
     m.name = admin.name or m.name
     m.title, m.organisation, m.active = OWNER_TITLE, "BukkaPay", True
-    m.password_hash = m.invite_token_hash = m.invite_expires_at = m.login_code_hash = None
+    m.password_hash = m.invite_token_hash = m.invite_expires_at = None
+    m.suspended_at = m.suspended_reason = None
     m.accepted_at = m.accepted_at or _now()
+    await db.flush()
+    return m
+
+
+async def _owner_admin(db: AsyncSession):
+    """The owner's admin account, if it can sign in at all (active super admin with an authenticator)."""
+    from app.governance.owner import OWNER_EMAIL
+    from app.models.admin import AdminUser
+
+    a = (await db.execute(select(AdminUser).where(AdminUser.email == OWNER_EMAIL.lower()))).scalar_one_or_none()
+    if a is None or not a.is_active or str(getattr(a.role, "value", a.role)) != "super_admin":
+        return None
+    if not a.mfa_enabled or not a.mfa_secret:
+        return None  # the Boardroom never lets the owner in on a password alone
+    return a
+
+
+async def owner_start_login(db: AsyncSession, password: str, ip: str | None) -> dict:
+    """Owner sign-in on the Boardroom page, step 1: the ADMIN password."""
+    bad = ApiError("Email or password is incorrect", status_code=401)
+    admin = await _owner_admin(db)
+    if admin is None:
+        raise bad
+    m = await _owner_member(db, admin)
+    _check_lock(m)
+    ok, _ = verify_secret(password, admin.password)
+    if not ok:
+        await _fail(db, m, ip)
+        raise bad
+    m.login_code_hash = _h(f"{m.id}:owner-password-ok:{secrets.token_hex(8)}")
+    m.login_code_expires_at = _now() + CODE_TTL
+    await db.flush()
+    return {"method": "totp"}
+
+
+async def owner_finish_login(db: AsyncSession, code: str, ip: str | None,
+                             user_agent: str | None) -> tuple[str, BoardMember]:
+    """Step 2: a code from the owner's ADMIN authenticator app, accepted once."""
+    from app.business.mfa import verify_totp
+    from app.core.redis import get_redis
+
+    bad = ApiError("That code is wrong or has expired", status_code=401)
+    admin = await _owner_admin(db)
+    if admin is None:
+        raise bad
+    m = await _owner_member(db, admin)
+    if not m.login_code_hash or (m.login_code_expires_at or _now()) < _now():
+        raise bad
+    _check_lock(m)
+    fresh = verify_totp(admin.mfa_secret, code) and bool(
+        await get_redis().set(f"board:totp-used:owner:{code.strip()}", "1", nx=True, ex=120))
+    if not fresh:
+        await _fail(db, m, ip, "authenticator")
+        raise bad
+    m.login_code_hash = m.login_code_expires_at = None
+    m.failed_attempts, m.last_login_at = 0, _now()
+    return await _new_session(db, m, ip, user_agent), m
+
+
+async def owner_pass(db: AsyncSession, admin) -> str:
+    """The owner opens the board portal from the admin panel (which already
+    needs their password and authenticator code). Returns a single-use pass
+    that lives 60 seconds. The owner's board record never has a password of
+    its own; on the board sign-in page the owner uses their admin password
+    and admin authenticator (owner_start_login / owner_finish_login)."""
+    from app.core.redis import get_redis
+
+    m = await _owner_member(db, admin)
+    m.login_code_hash = None
     await db.flush()
     code = secrets.token_urlsafe(32)
     await get_redis().set(f"board:owner-pass:{_h(code)}", str(m.id), ex=OWNER_PASS_TTL)

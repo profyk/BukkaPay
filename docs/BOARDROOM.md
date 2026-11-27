@@ -16,7 +16,7 @@ Domain: `board.bukkapay.com` (already configured in `BOARD_WEB_URL`; confirm DNS
 
 **Why not a separate Next.js app.** The brief suggested `apps/boardroom` on Next.js. A board portal already existed here as a separate Vite build with its own deployment and sign-in boundary. Rebuilding it in a second framework would have duplicated the UI kit and the deployment for no gain in isolation. The boundary that matters is enforced on the server: separate accounts, separate session tables, separate routes and a separate origin.
 
-**Separation from the operational admin panel.** Boardroom members live in `board_members`, not `admin_users`, and sessions live in `board_sessions`. `admin_auth` never accepts a Boardroom token, and the Boardroom routes never accept an admin token. The owner gets into the Boardroom only through a 60-second single-use pass issued by the admin panel, which already required their password and authenticator.
+**Separation from the operational admin panel.** Boardroom members live in `board_members`, not `admin_users`, and sessions live in `board_sessions`. `admin_auth` never accepts a Boardroom token, and the Boardroom routes never accept an admin token. The owner signs in with their admin account only: either on the Boardroom page (owner email + admin password + admin authenticator code, single-use, same lockout as members; refused if the admin account has no authenticator), or through a 60-second single-use pass issued by the admin panel. The owner's Boardroom record never has a password of its own, and a Boardroom session still can't call the admin API.
 
 ## Roles and permissions (deny by default)
 
