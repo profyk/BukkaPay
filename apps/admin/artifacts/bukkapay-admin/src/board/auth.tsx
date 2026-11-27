@@ -1,6 +1,7 @@
 import { useState, type InputHTMLAttributes, type ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { AlertCircle, Eye, EyeOff, Lock, Loader2, Mail, ShieldCheck } from "lucide-react"
+import { ThemeToggle } from "./theme-toggle"
 
 /* The customer app sign-in layout (apps/customer/pages/login.tsx +
    components/AuthHero.tsx), branded for BukkaPay Boardroom: midnight navy
@@ -18,6 +19,7 @@ export function Shell({ title, subtitle, children }: { title: string; subtitle: 
       {/* AuthHero */}
       <header className="relative overflow-hidden rounded-b-[32px] bg-[#0A1630] px-6 pt-[max(3.5rem,calc(env(safe-area-inset-top)+1.5rem))] pb-16">
         <div aria-hidden className="absolute -top-[120px] -right-20 h-[280px] w-[280px] rounded-full bg-[rgba(16,185,129,0.28)]" />
+        <div className="absolute right-4 top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-10"><ThemeToggle onDark /></div>
         <div aria-hidden className="absolute -bottom-[140px] -left-[100px] h-[300px] w-[300px] rounded-full bg-[rgba(201,162,39,0.16)]" />
         <div className="relative mx-auto flex w-full max-w-[480px] flex-col items-center">
           <img src={ICON} alt="BukkaPay" className="h-[72px] w-[72px] rounded-[18px]" />

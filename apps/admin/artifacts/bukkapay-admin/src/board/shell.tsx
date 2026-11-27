@@ -149,6 +149,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex items-center pr-3"><div className="mr-auto"><Brand /></div>
               <button aria-label="Close menu" onClick={() => setDrawer(false)} className="text-white/70 p-2"><X className="w-5 h-5" /></button></div>
             <SideNav me={m} onNavigate={() => setDrawer(false)} />
+            <div className="px-5 py-4 border-t border-white/10 flex items-center justify-between"><span className="text-xs text-white/60">Appearance</span><ThemeToggle onDark /></div>
           </aside>
           <div className="flex-1 bg-black/50" />
         </div>
@@ -161,7 +162,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <span className="hidden lg:block text-xs text-muted-foreground">Confidential · approved company information</span>
             <div className="ml-auto flex items-center gap-1.5">
               <Notifications />
-              <span className="hidden sm:inline-flex"><ThemeToggle /></span>
+              <ThemeToggle compact />
               <Link href="/account" className={`hidden sm:flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted ${loc === "/account" ? "bg-muted" : ""}`}>
                 <UserCircle className="w-5 h-5 text-muted-foreground" />
                 <span className="text-left leading-tight">

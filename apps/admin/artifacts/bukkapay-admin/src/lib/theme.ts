@@ -17,6 +17,9 @@ export function applyTheme(choice: ThemeChoice = getThemeChoice()) {
   const dark = choice === "dark" || (choice === "system" && systemDark())
   document.documentElement.classList.toggle("dark", !!dark)
   document.documentElement.style.colorScheme = dark ? "dark" : "light"
+  // Boardroom: the phone browser bar follows the mode too.
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta && document.documentElement.classList.contains("boardroom")) meta.setAttribute("content", dark ? "#060C1F" : "#0A1630")
 }
 
 export function setThemeChoice(choice: ThemeChoice) {
