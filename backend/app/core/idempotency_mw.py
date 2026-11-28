@@ -10,6 +10,10 @@ do this automatically for every request). Keys are scoped to the caller
   * same key, still running → 409, so a double tap can't run twice in parallel
   * same key, different body → 422 (a key is for one request only)
   * 5xx responses aren't stored, so a retry after a server error can run
+  * sign-in and session routes are never replayed: a replayed sign-in would
+    hand back a session that was signed out since (or an old "wrong
+    password" / "confirm your email" answer), so signing in again within the
+    apps' 2-minute key window failed. They have their own rate limits.
 
 The ledger keeps its own database-level guard on transfers; this layer
 covers every other money route the same way.
@@ -27,7 +31,11 @@ MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 TTL_DONE = 24 * 3600
 TTL_INFLIGHT = 120
 MAX_STORED_BODY = 256 * 1024
-SKIP_PREFIXES = ("/webhooks/", "/api/card-issuer/", "/api/webhooks/", "/api/bank-partner/")
+SKIP_PREFIXES = (
+    "/webhooks/", "/api/card-issuer/", "/api/webhooks/", "/api/bank-partner/",
+    # Sessions: customer + merchant, admin console, Boardroom, passkeys.
+    "/api/auth/", "/api/admin/auth/", "/api/admin/invitations/", "/api/board/auth/", "/api/webauthn/",
+)
 
 
 def _h(*parts: bytes) -> str:

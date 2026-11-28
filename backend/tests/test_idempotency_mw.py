@@ -35,3 +35,26 @@ async def test_keys_are_scoped_to_the_caller(client: AsyncClient, funded_user: d
                            headers={**other_user["headers"], "Idempotency-Key": key})
     assert r2.headers.get("idempotent-replayed") is None
     assert r.status_code in (200, 201, 400, 404) and r2.status_code in (200, 201, 400, 404)
+
+
+async def test_sign_in_is_never_replayed(client: AsyncClient):
+    """Signing out and back in within the apps' key window must give a fresh,
+    working session, not a replay of the signed-out one."""
+    u = await signup(client)
+    body = {"email": u["user"]["email"], "password": "password123"}
+    h = {"Idempotency-Key": "app-same-window"}
+    r1 = await client.post("/api/auth/login", json=body, headers=h)
+    assert r1.status_code == 200, r1.text
+    t1 = r1.json()["token"]
+    assert (await client.post("/api/auth/logout", headers={"Authorization": f"Bearer {t1}"})).status_code == 200
+    r2 = await client.post("/api/auth/login", json=body, headers=h)
+    assert r2.status_code == 200 and r2.headers.get("idempotent-replayed") is None
+    t2 = r2.json()["token"]
+    assert t2 != t1
+    assert (await client.get("/api/auth/me", headers={"Authorization": f"Bearer {t2}"})).status_code == 200
+
+    # A wrong password isn't replayed onto the right one either (same key, v1 path).
+    bad = await client.post("/api/v1/auth/login", json={**body, "password": "nope-nope"}, headers={"Idempotency-Key": "k2"})
+    assert bad.status_code == 401
+    ok = await client.post("/api/v1/auth/login", json=body, headers={"Idempotency-Key": "k2"})
+    assert ok.status_code == 200, ok.text
