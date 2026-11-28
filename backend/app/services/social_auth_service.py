@@ -76,6 +76,56 @@ def verify_google(token: str) -> VerifiedIdentity:
     return VerifiedIdentity("google", str(payload["sub"]), email, payload.get("name"))
 
 
+GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+
+
+async def verify_google_access_token(token: str) -> VerifiedIdentity:
+    """The web dashboards use BukkaPay's own Google button (Google's account
+    chooser in a popup), which hands back an OAuth access token instead of an
+    ID token. Google's tokeninfo endpoint tells us which client the token was
+    issued to: only our own client IDs are accepted, so a token minted for
+    another site can't be used to sign in here."""
+    import httpx
+
+    settings = get_settings()
+    audiences = _split(settings.google_client_id) + _split(settings.google_client_ids)
+    if not audiences:
+        raise ApiError("Google sign-in is not configured on this environment", status_code=503)
+    if not token or len(token) > 4096:
+        raise ApiError("Invalid Google token", status_code=401)
+    try:
+        async with httpx.AsyncClient(timeout=10) as http:
+            info = await http.get(GOOGLE_TOKENINFO_URL, params={"access_token": token})
+            if info.status_code != 200:
+                raise ApiError("Invalid Google token", status_code=401)
+            claims = info.json()
+            name = None
+            if claims.get("aud") in audiences or claims.get("azp") in audiences:
+                profile = await http.get(GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {token}"})
+                if profile.status_code == 200:
+                    name = profile.json().get("name")
+    except httpx.HTTPError as exc:
+        raise ApiError("Couldn't reach Google. Please try again.", status_code=503) from exc
+    return identity_from_google_tokeninfo(claims, audiences, name)
+
+
+def identity_from_google_tokeninfo(claims: dict, audiences: list[str], name: str | None) -> VerifiedIdentity:
+    if claims.get("aud") not in audiences and claims.get("azp") not in audiences:
+        raise ApiError("Invalid Google token", status_code=401)
+    try:
+        if int(claims.get("expires_in", "0")) <= 0:
+            raise ApiError("Your Google sign-in expired. Please try again.", status_code=401)
+    except (TypeError, ValueError) as exc:
+        raise ApiError("Invalid Google token", status_code=401) from exc
+    email = (claims.get("email") or "").strip().lower()
+    if not email or claims.get("email_verified") not in (True, "true"):
+        raise ApiError("Your Google account email is not verified", status_code=401)
+    if not claims.get("sub"):
+        raise ApiError("Invalid Google token", status_code=401)
+    return VerifiedIdentity("google", str(claims["sub"]), email, name)
+
+
 @lru_cache(maxsize=1)
 def _apple_jwks() -> jwt.PyJWKClient:
     # Caches Apple's keys and refetches when a token names an unknown key id.

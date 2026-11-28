@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
-import { getToken, setToken } from "@/lib/api"
+import { getToken, signOut } from "@/lib/api"
 import { can, useData, type Membership } from "@/lib/hooks"
 import { Badge, Notice } from "@/components/ui"
 import { MerchantContext } from "@/components/merchant-context"
@@ -65,7 +65,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
           </nav>
           <div className="hidden lg:block p-4 mt-auto space-y-3">
             <ThemeToggle />
-            <button className="text-xs text-ink-muted hover:text-red-600" onClick={() => { setToken(null); router.replace("/login") }}>Sign out</button>
+            <button className="text-xs text-ink-muted hover:text-red-600" onClick={() => void signOut()}>Sign out</button>
           </div>
         </aside>
         <main className="flex-1 px-4 py-6 sm:px-8 sm:py-8 max-w-6xl">

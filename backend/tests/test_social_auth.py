@@ -138,3 +138,49 @@ async def test_google_frozen_account_refused(client: AsyncClient, monkeypatch):
                         lambda _t: social.VerifiedIdentity("google", "g-1", email, "Zola"))
     r = await client.post("/api/auth/google", json={"idToken": "x"})
     assert r.status_code == 403
+
+
+# --- BukkaPay's own Google button on the web dashboards (access token) ---
+
+async def test_google_access_token_only_for_our_client():
+    aud = ["our-web-client.apps.googleusercontent.com"]
+    ok = {"aud": aud[0], "azp": aud[0], "sub": "g-1", "email": "A@Example.com", "email_verified": "true", "expires_in": "3500"}
+    ident = social.identity_from_google_tokeninfo(ok, aud, "Ama")
+    assert (ident.provider, ident.subject, ident.email, ident.name) == ("google", "g-1", "a@example.com", "Ama")
+    for bad in (
+        {**ok, "aud": "someone-else", "azp": "someone-else"},  # token minted for another site
+        {**ok, "email_verified": "false"},
+        {**ok, "expires_in": "0"},
+        {**ok, "sub": ""},
+    ):
+        with pytest.raises(social.ApiError):
+            social.identity_from_google_tokeninfo(bad, aud, None)
+
+
+async def test_google_access_token_business_signup_then_sign_in(client: AsyncClient, monkeypatch):
+    email = unique_email()
+
+    async def fake_verify(token: str):
+        assert token == "ya29.good"
+        return social.VerifiedIdentity("google", "g-" + email, email, "Biz Owner")
+
+    monkeypatch.setattr(social, "verify_google_access_token", fake_verify)
+    r = await client.post("/api/auth/google", json={"accessToken": "ya29.good", "app": "merchant"})
+    assert r.status_code == 428, r.text
+    r = await client.post("/api/auth/google", json={
+        "accessToken": "ya29.good", "app": "merchant", "username": unique_username(), "phone": "+27 82 555 0101",
+        "residenceCountry": "ZA", "acceptTerms": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["email"] == email
+    # Signing in again (same token, same key) gives a fresh session.
+    again = await client.post("/api/auth/google", json={"accessToken": "ya29.good", "app": "merchant"},
+                              headers={"Idempotency-Key": "same"})
+    assert again.status_code == 200 and again.json()["token"] != r.json()["token"]
+    # A business account can't sign in to the personal app.
+    personal = await client.post("/api/auth/google", json={"accessToken": "ya29.good"})
+    assert personal.status_code == 403
+
+
+async def test_google_needs_a_token(client: AsyncClient):
+    r = await client.post("/api/auth/google", json={"app": "merchant"})
+    assert r.status_code in (400, 503)

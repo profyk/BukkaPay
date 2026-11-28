@@ -6,12 +6,16 @@
  * phone number and country, then create the account. Personal (BukkaPay app)
  * accounts can't sign in here — the API refuses them with a clear message.
  *
- * Google renders its own button (Google Identity Services); Apple uses its JS
- * SDK in popup mode with Apple's black button style.
+ * Google: BukkaPay's own button (Google's brand guidelines) opens Google's
+ * account chooser in a popup every time and hands back an access token that
+ * the API checks with Google. Google's ready-made button isn't used: once
+ * someone has signed in it shows their name, email and photo on this page
+ * for good, even after they sign out. Apple uses its JS SDK in popup mode
+ * with Apple's black button style.
  *
  * Env: NEXT_PUBLIC_GOOGLE_CLIENT_ID, NEXT_PUBLIC_APPLE_SERVICES_ID.
  */
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { api, setToken } from "@/lib/api"
 import { Button, Modal, Notice } from "@/components/ui"
 import { ProfileFields, profileComplete, useOperatingCountries, type Profile } from "@/components/account-forms"
@@ -41,9 +45,13 @@ type Pending = { provider: "google" | "apple"; body: Record<string, unknown> }
 export function SocialSignIn({ onSignedIn, onError, mode = "signin" }: {
   onSignedIn: () => void; onError: (msg: string) => void; mode?: "signin" | "signup"
 }) {
-  const googleRef = useRef<HTMLDivElement>(null)
+  const googleClient = useRef<any>(null)
+  const [googleReady, setGoogleReady] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [pending, setPending] = useState<Pending | null>(null)
+  const [pending, setPendingState] = useState<Pending | null>(null)
+  // Google's callback outlives renders: read the latest sheet state from a ref.
+  const pendingRef = useRef<Pending | null>(null)
+  const setPending = (p: Pending | null) => { pendingRef.current = p; setPendingState(p) }
   const [profile, setProfile] = useState<Profile>({ username: "", phone: "", residenceCountry: "" })
   const [accepted, setAccepted] = useState(false)
   const [sheetError, setSheetError] = useState<string | null>(null)
@@ -53,7 +61,8 @@ export function SocialSignIn({ onSignedIn, onError, mode = "signin" }: {
     if (countries.length === 1 && !profile.residenceCountry) setProfile((p) => ({ ...p, residenceCountry: countries[0].code }))
   }, [countries])
 
-  const exchange = async (provider: "google" | "apple", body: Record<string, unknown>) => {
+  const exchange = useCallback(async (provider: "google" | "apple", body: Record<string, unknown>) => {
+    const inSheet = pendingRef.current !== null
     setBusy(true)
     try {
       const res = await api<{ token: string }>(`/auth/${provider}`, { method: "POST", json: { ...body, app: "merchant" } })
@@ -61,32 +70,53 @@ export function SocialSignIn({ onSignedIn, onError, mode = "signin" }: {
       setPending(null)
       onSignedIn()
     } catch (err: any) {
-      if (err?.status === 428) { setPending({ provider, body }); setSheetError(null); return }
-      if (pending) setSheetError(err?.message ?? "Couldn't create your account")
+      if (err?.status === 428) {
+        setPending({ provider, body: { ...body, username: undefined, phone: undefined, residenceCountry: undefined, acceptTerms: undefined } })
+        // Opening the sheet: no error yet. Already in it: say what's missing.
+        setSheetError(inSheet ? (err?.message ?? "Please complete every field") : null)
+        return
+      }
+      if (inSheet) setSheetError(err?.message ?? "Couldn't create your account")
       else onError(err?.message ?? "Sign-in failed")
     } finally {
       setBusy(false)
     }
-  }
+  }, [onSignedIn, onError])
+  const exchangeRef = useRef(exchange)
+  exchangeRef.current = exchange
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || !googleRef.current) return
+    if (!GOOGLE_CLIENT_ID) return
     let cancelled = false
     loadScript("https://accounts.google.com/gsi/client").then(() => {
       const g = (window as any).google
-      if (cancelled || !g?.accounts?.id || !googleRef.current) return
-      g.accounts.id.initialize({
+      if (cancelled || !g?.accounts?.oauth2) return
+      googleClient.current = g.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        callback: (r: { credential?: string }) => r.credential && exchange("google", { idToken: r.credential }),
-        ux_mode: "popup",
+        scope: "openid email profile",
+        // Always show the account chooser: nothing is remembered on this page.
+        prompt: "select_account",
+        callback: (r: { access_token?: string; error?: string; error_description?: string }) => {
+          if (r.access_token) void exchangeRef.current("google", { accessToken: r.access_token })
+          else { setBusy(false); if (r.error && r.error !== "access_denied") onError(r.error_description || "Google sign-in failed") }
+        },
+        error_callback: (e: { type?: string }) => {
+          setBusy(false)
+          if (e?.type !== "popup_closed") onError(e?.type === "popup_failed_to_open"
+            ? "Your browser blocked the Google window. Allow pop-ups for this site and try again."
+            : "Google sign-in failed")
+        },
       })
-      g.accounts.id.renderButton(googleRef.current, {
-        type: "standard", theme: "outline", size: "large", text: mode === "signup" ? "signup_with" : "continue_with",
-        shape: "rectangular", logo_alignment: "left", width: googleRef.current.offsetWidth || 384,
-      })
-    }).catch(() => {})
+      setGoogleReady(true)
+    }).catch(() => onError("Couldn't load Google sign-in. Check your connection and try again."))
     return () => { cancelled = true }
   }, [])
+
+  const google = () => {
+    if (!googleClient.current) return
+    setBusy(true)
+    googleClient.current.requestAccessToken()
+  }
 
   const apple = async () => {
     try {
@@ -118,7 +148,23 @@ export function SocialSignIn({ onSignedIn, onError, mode = "signin" }: {
 
   return (
     <div className="space-y-3" aria-busy={busy}>
-      {GOOGLE_CLIENT_ID && <div ref={googleRef} className="w-full flex justify-center min-h-[44px]" />}
+      {GOOGLE_CLIENT_ID && (
+        <button
+          type="button"
+          onClick={google}
+          disabled={busy || !googleReady}
+          aria-label={mode === "signup" ? "Sign up with Google" : "Continue with Google"}
+          className="w-full h-11 rounded-md border border-[#747775] bg-white text-[#1F1F1F] text-sm font-medium inline-flex items-center justify-center gap-3 hover:bg-[#F8F9FA] disabled:opacity-60 dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3] dark:hover:bg-[#1F1F20]"
+        >
+          <svg aria-hidden width="18" height="18" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+          </svg>
+          {busy && !pending ? "Opening Google…" : mode === "signup" ? "Sign up with Google" : "Continue with Google"}
+        </button>
+      )}
       {APPLE_SERVICES_ID && (
         <button
           type="button"
@@ -136,7 +182,7 @@ export function SocialSignIn({ onSignedIn, onError, mode = "signin" }: {
         <span className="h-px flex-1 bg-black/10" />or {mode === "signup" ? "sign up" : "sign in"} with email<span className="h-px flex-1 bg-black/10" />
       </div>
 
-      <Modal open={pending !== null} title="Create your business account" onClose={() => setPending(null)}>
+      <Modal open={pending !== null} title="Create your business account" onClose={() => { setPending(null); setSheetError(null) }}>
         <div className="space-y-4">
           <p className="text-sm text-ink-muted">One last step before we set up your BukkaPay Business account.</p>
           {sheetError && <Notice tone="error">{sheetError}</Notice>}

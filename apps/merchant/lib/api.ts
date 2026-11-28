@@ -74,3 +74,13 @@ function hashKey(s: string): string {
   }
   return h1.toString(16).padStart(8, "0") + h2.toString(16).padStart(8, "0")
 }
+
+/** Ends the session on the server too (not just in this browser), then goes to the login page. */
+export async function signOut() {
+  const token = getToken()
+  if (token) {
+    try { await fetch(`${API_URL}/api/v1/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }) } catch { /* offline: the token still expires */ }
+  }
+  setToken(null)
+  window.location.replace("/login")
+}

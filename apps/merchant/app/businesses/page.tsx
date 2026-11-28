@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { api, setToken } from "@/lib/api"
+import { api, signOut } from "@/lib/api"
 import { useData, type Membership } from "@/lib/hooks"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge, Button, Card, Empty, Field, Input, Modal, Notice, PageHeader, Select } from "@/components/ui"
@@ -41,7 +41,7 @@ export default function BusinessesPage() {
         title="Your businesses"
         subtitle="Choose a business to manage, register a new one, or join one with a staff invite code."
         actions={<>
-          <Button variant="secondary" onClick={() => { setToken(null); router.replace("/login") }}>Sign out</Button>
+          <Button variant="secondary" onClick={() => void signOut()}>Sign out</Button>
             <ThemeToggle />
             <Button variant="ghost" onClick={() => router.push("/account/delete")}>Delete account</Button>
           <Button onClick={() => setCreating(true)}>Register a business</Button>

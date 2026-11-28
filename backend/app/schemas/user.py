@@ -92,7 +92,10 @@ class LoginRequest(CamelModel):
 
 
 class GoogleSignInRequest(CamelModel):
-    id_token: str
+    # One of the two: an ID token (mobile apps, Google's own button) or an
+    # OAuth access token (BukkaPay's own Google button on the web dashboards).
+    id_token: str | None = None
+    access_token: str | None = None
     email: str | None = None
     name: str | None = None
     # Required the first time (account creation), ignored afterwards.

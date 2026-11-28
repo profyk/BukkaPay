@@ -63,7 +63,12 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthT
 
 @router.post("/google", dependencies=[Depends(rate_limit("auth-social", 30, 900))])
 async def google_login(body: GoogleSignInRequest, db: AsyncSession = Depends(get_db)) -> AuthTokenResponse:
-    identity = social_auth_service.verify_google(body.id_token)
+    if body.id_token:
+        identity = social_auth_service.verify_google(body.id_token)
+    elif body.access_token:  # BukkaPay's own Google button on the web dashboards
+        identity = await social_auth_service.verify_google_access_token(body.access_token)
+    else:
+        raise ApiError("Google didn't return a sign-in token. Please try again.", status_code=400)
     user = await social_auth_service.sign_in(
         db, identity, name=body.name, residence_country=body.residence_country, accept_terms=body.accept_terms,
         username=body.username, phone=body.phone, app=body.app,
