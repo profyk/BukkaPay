@@ -80,6 +80,8 @@ class UpdateMerchantBankingRequest(CamelModel):
     account_holder: str
     account_number: str
     account_type: str = "savings"
+    # Changing where payouts go needs the owner's transaction PIN.
+    pin: str | None = None
 
 
 class BankOption(CamelModel):

@@ -22,6 +22,7 @@ from app.api import (
     kyc,
     loyalty,
     merchant,
+    merchant_plans,
     merchant_platform,
     misc,
     notification,
@@ -47,6 +48,7 @@ api_router.include_router(cards.router)
 api_router.include_router(misc.router)
 api_router.include_router(merchant.router)
 api_router.include_router(merchant_platform.router)
+api_router.include_router(merchant_plans.router)
 api_router.include_router(payment_link.router)
 api_router.include_router(claim_payment.router)
 api_router.include_router(purchase_transaction.router)
@@ -84,6 +86,7 @@ from app.api.admin import fx as admin_fx
 from app.api.admin import legal as admin_legal
 from app.api.admin import network as admin_network
 from app.api.admin import org as admin_org
+from app.api.admin import plans as admin_plans
 from app.api.admin import platform as admin_platform
 from app.api.admin import revenue as admin_revenue
 from app.api.admin import settlements as admin_settlements
@@ -107,6 +110,7 @@ admin_router.include_router(admin_legal.router)
 admin_router.include_router(admin_trade.router)
 admin_router.include_router(admin_fx.router)
 admin_router.include_router(admin_revenue.router)
+admin_router.include_router(admin_plans.router)
 admin_router.include_router(admin_settlements.router)
 admin_router.include_router(admin_support.router)
 admin_router.include_router(admin_org.router)

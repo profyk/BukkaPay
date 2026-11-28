@@ -57,6 +57,7 @@ const SECTIONS: { label: string; links: NavItem[] }[] = [
     label: "Treasury & Finance",
     links: [
       { href: "/revenue",        label: "Revenue & Pricing",  icon: TrendingUp,      perm: "fees.view" },
+      { href: "/merchant-plans", label: "Merchant Plans",     icon: BadgeCheck,      perm: "fees.view" },
       { href: "/fx-desk",        label: "FX Desk",            icon: Repeat,          perm: "fees.view" },
       { href: "/settlements",    label: "Cross-Border Settlement", icon: Waypoints,  perm: "ledger.view" },
       { href: "/treasury",       label: "Treasury",           icon: Landmark,        perm: "ledger.view" },

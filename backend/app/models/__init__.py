@@ -42,6 +42,7 @@ from app.models.notification import Notification
 from app.models.org import Department
 from app.models.payment_link import Invoice, InvoicePayment, PaymentLink, SavedPaymentLink
 from app.models.payouts import Payout, PayoutRecipient
+from app.models.plans import MerchantPlan, MerchantPlanCharge, MerchantPlanSubscription  # noqa: F401
 from app.models.platform import (
     ApprovalRequest,
     AuditLog,

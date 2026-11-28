@@ -18,17 +18,14 @@ from app.models.enums import (
     MerchantTransactionStatus,
     MerchantTransactionType,
     NotificationType,
-    SubscriptionStatus,
     TransactionType,
 )
-from app.models.merchant import Merchant, MerchantStaff, MerchantSubscription, MerchantTransaction
+from app.models.merchant import Merchant, MerchantStaff, MerchantTransaction
 from app.models.user import User
 from app.models.wallet import Transaction, WalletCard
 from app.network import fees
 from app.services import notification_service, pin_service
 from app.services.stitch_service import STITCH_BANKS
-
-SUBSCRIPTION_PLANS = {"starter": Decimal(0), "pro": Decimal(99), "business": Decimal(299)}
 
 # Merchants hold one settlement balance today; per-merchant currency
 # arrives with multi-country merchant onboarding.
@@ -116,9 +113,26 @@ async def delete_merchant(db: AsyncSession, merchant: Merchant) -> None:
 
 
 async def update_merchant(db: AsyncSession, merchant: Merchant, **fields) -> Merchant:
+    import re
+
+    fields = {k: (" ".join(v.split()) if isinstance(v, str) else v) for k, v in fields.items() if v is not None}
+    if "business_name" in fields:
+        if not 2 <= len(fields["business_name"]) <= 120:
+            raise ApiError("Business name must be 2 to 120 characters")
+        from app.core import brand_guard
+
+        brand_guard.check(fields["business_name"], None, what="business name")
+    email = fields.get("business_email")
+    if email and not re.match(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$", email):
+        raise ApiError("Enter a valid business email")
+    phone = fields.get("business_phone")
+    if phone and not 6 <= len(re.sub(r"\D", "", phone)) <= 15:
+        raise ApiError("Enter a valid business phone number")
+    site = fields.get("website")
+    if site and not re.match(r"^https?://[^\s/$.?#].[^\s]*$", site, re.I):
+        raise ApiError("Website must start with https://")
     for key, value in fields.items():
-        if value is not None:
-            setattr(merchant, key, value)
+        setattr(merchant, key, value)
     await db.flush()
     return merchant
 
@@ -130,14 +144,21 @@ async def update_banking_details(
     bank = next((b for b in STITCH_BANKS if b["id"] == bank_id), None)
     if bank is None:
         raise ApiError("Unsupported bank")
-    if not account_holder.strip() or not account_number.strip():
-        raise ApiError("Account holder name and account number are required")
+    holder = " ".join((account_holder or "").split())
+    number = "".join(ch for ch in (account_number or "") if not ch.isspace() and ch != "-")
+    if len(holder) < 2 or len(holder) > 120:
+        raise ApiError("Enter the account holder's name as the bank has it")
+    if not number.isdigit() or not 6 <= len(number) <= 17:
+        raise ApiError("Enter a valid account number (6 to 17 digits)")
+    account_type = (account_type or "savings").strip().lower()
+    if account_type not in ("savings", "cheque", "current", "transmission", "business"):
+        raise ApiError("Account type must be savings, cheque, current, transmission or business")
 
     merchant.bank_id = bank_id
     merchant.bank_name = bank["name"]
-    merchant.account_holder = account_holder.strip()
-    merchant.account_number = account_number.strip()
-    merchant.account_type = account_type or "savings"
+    merchant.account_holder = holder
+    merchant.account_number = number
+    merchant.account_type = account_type
     await db.flush()
     return merchant
 
@@ -509,29 +530,6 @@ async def withdraw(
         "status": disbursement["status"],
         "fee": f"{fee.fee:.2f}",
     }
-
-
-async def subscribe(db: AsyncSession, merchant: Merchant, plan: str) -> datetime:
-    if plan not in SUBSCRIPTION_PLANS:
-        raise ApiError("Invalid plan")
-
-    expires_at = datetime.now(UTC) + timedelta(days=30)
-    price = SUBSCRIPTION_PLANS[plan]
-
-    existing = await db.execute(
-        select(MerchantSubscription).where(MerchantSubscription.merchant_id == merchant.id)
-    )
-    if existing.scalar_one_or_none() is None:
-        db.add(MerchantSubscription(
-            merchant_id=merchant.id, plan=plan, status=SubscriptionStatus.ACTIVE,
-            price=price, billing_cycle="monthly", expires_at=expires_at,
-        ))
-
-    merchant.subscription_plan = plan
-    merchant.subscription_status = SubscriptionStatus.ACTIVE
-    merchant.subscription_expires_at = expires_at
-    await db.flush()
-    return expires_at
 
 
 async def get_pay_info(db: AsyncSession, merchant: Merchant) -> dict:

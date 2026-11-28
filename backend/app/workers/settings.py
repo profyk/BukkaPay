@@ -27,6 +27,7 @@ from app.workers.tasks import (
     reconcile_payouts,
     refresh_fx_rates,
     release_due_escrows,
+    renew_merchant_plans,
     rescreen_customers,
     support_housekeeping,
     sweep_expired_claim_payments,
@@ -70,6 +71,8 @@ class WorkerSettings:
         cron(release_due_escrows, minute=set(range(0, 60, 10))),
         # hourly in bounded batches; one decision per customer per month
         cron(charge_account_fees, minute=40),
+        # hourly: merchant plan renewals and scheduled downgrades
+        cron(renew_merchant_plans, minute=50),
         cron(expire_agent_cash_out_codes, minute=set(range(0, 60, 2))),
         # Mondays 06:00 UTC: cross-border bulk settlement run for treasury
         cron(weekly_settlement_run, weekday=0, hour=6, minute=0),

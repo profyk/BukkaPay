@@ -14,16 +14,19 @@ import { ThemeToggle } from "@/components/theme-toggle"
 const NAV: { href: string; label: string; cap?: "collect" | "finance" | "settings" | "developer" | "owner" }[] = [
   { href: "", label: "Overview" },
   { href: "/insights", label: "Insights" },
+  { href: "/customers", label: "Customers" },
   { href: "/transactions", label: "Transactions" },
   { href: "/qr", label: "QR codes", cap: "collect" },
   { href: "/links", label: "Checkout links", cap: "collect" },
   { href: "/trade", label: "Trade invoices", cap: "collect" },
   { href: "/agent", label: "Cash agent" },
   { href: "/billing", label: "Bills", cap: "owner" },
+  { href: "/plan", label: "Plan & billing", cap: "finance" },
   { href: "/settlements", label: "Settlements", cap: "finance" },
   { href: "/staff", label: "Staff", cap: "settings" },
   { href: "/developers", label: "Developers", cap: "developer" },
   { href: "/verification", label: "Verification" },
+  { href: "/settings", label: "Settings" },
   { href: "/support", label: "Help & support" },
 ]
 
@@ -64,6 +67,11 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
               )
             })}
           </nav>
+          {/* Phones: theme and sign-out stay reachable (the sidebar is a scroll strip there). */}
+          <div className="lg:hidden flex items-center justify-between gap-3 px-4 pb-3">
+            <ThemeToggle />
+            <button className="text-xs font-semibold text-ink-muted hover:text-red-600" onClick={() => void signOut()}>Sign out</button>
+          </div>
           <div className="hidden lg:block p-4 mt-auto space-y-3">
             <ThemeToggle />
             <button className="text-xs text-ink-muted hover:text-red-600" onClick={() => void signOut()}>Sign out</button>

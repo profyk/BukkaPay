@@ -4,6 +4,7 @@ import { useParams } from "next/navigation"
 import { useData } from "@/lib/hooks"
 import { money, when } from "@/lib/format"
 import { Badge, Card, Empty, Notice, PageHeader, Stat, Table } from "@/components/ui"
+import { GettingStarted } from "@/components/getting-started"
 
 type Dashboard = {
   currency: string
@@ -26,6 +27,7 @@ export default function OverviewPage() {
   return (
     <>
       <PageHeader title="Overview" subtitle={`All amounts in ${c}. Balances come straight from the BukkaPay ledger.`} />
+      <GettingStarted id={id} payments={Number(t.transactionCount ?? 0)} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Today" value={money(t.todaySales, c)} sub={`${t.todayCount} payments`} />
         <Stat label="This month" value={money(t.monthSales, c)} sub={`${t.monthCount} payments`} />

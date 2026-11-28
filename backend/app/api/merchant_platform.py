@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import Response
+from sqlalchemy import String as sa_String
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,6 +75,15 @@ async def merchant_access(db: AsyncSession, merchant_id: str, user_id, capabilit
 
 def _money(v) -> str:
     return f"{Decimal(v or 0):.2f}"
+
+
+async def _plan_limit(db: AsyncSession, merchant: Merchant, key: str) -> None:
+    """Refuse one more of `key` when the business's published plan is full."""
+    from app.plans import service as plans
+
+    if not await plans.limits_for(db, merchant):
+        return  # plan not published (or none): nothing enforced
+    await plans.enforce_limit(db, merchant, key, (await plans.usage(db, merchant))[key])
 
 
 # ─── KYB ────────────────────────────────────────────────────────────────────
@@ -208,6 +218,45 @@ async def verify_individual(merchant_id: str, user_id=Depends(get_current_user_i
 
 
 # ─── Dashboard & reporting ─────────────────────────────────────────────────
+
+
+@router.get("/merchants/{merchant_id}/customers")
+async def customers(merchant_id: str, days: int = Query(default=90, ge=1, le=730), limit: int = Query(default=100, ge=1, le=500),
+                    user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)):
+    """Who buys from this business: completed payments grouped by payer
+    (BukkaPay customers by account, others by the name they paid with),
+    with totals, visits, first and last purchase, and repeat-customer rate."""
+    merchant, _ = await merchant_access(db, merchant_id, user_id, "view")
+    since = datetime.now(UTC) - timedelta(days=days)
+    who = func.coalesce(func.cast(MerchantTransaction.payer_id, sa_String()), func.lower(MerchantTransaction.payer_name), "guest")
+    rows = (await db.execute(
+        select(who.label("who"), func.max(MerchantTransaction.payer_name), func.count(), func.sum(MerchantTransaction.amount),
+               func.min(MerchantTransaction.created_at), func.max(MerchantTransaction.created_at),
+               func.bool_or(MerchantTransaction.payer_id.is_not(None)))
+        .where(MerchantTransaction.merchant_id == merchant.id, MerchantTransaction.type == MerchantTransactionType.PAYMENT,
+               MerchantTransaction.status == MerchantTransactionStatus.COMPLETED, MerchantTransaction.created_at >= since)
+        .group_by(who).order_by(func.sum(MerchantTransaction.amount).desc())
+    )).all()
+    total = sum((Decimal(r[3] or 0) for r in rows), Decimal(0))
+    repeat = [r for r in rows if r[2] > 1]
+    new_since = datetime.now(UTC) - timedelta(days=30)
+    return {
+        "currency": merchant.settlement_currency, "days": days,
+        "summary": {
+            "customers": len(rows), "repeatCustomers": len(repeat),
+            "repeatRate": round(100 * len(repeat) / len(rows)) if rows else 0,
+            "newLast30Days": sum(1 for r in rows if r[4] and r[4] >= new_since),
+            "averageSpend": _money(total / len(rows)) if rows else "0.00",
+            "topShare": round(100 * float(sum((Decimal(r[3] or 0) for r in rows[:10]), Decimal(0)) / total)) if total else 0,
+        },
+        "customers": [{
+            "name": r[1] or "Guest", "bukkapay": bool(r[6]), "payments": r[2],
+            "total": _money(r[3]), "average": _money(Decimal(r[3] or 0) / r[2]) if r[2] else "0.00",
+            "firstAt": r[4].isoformat() if r[4] else None, "lastAt": r[5].isoformat() if r[5] else None,
+        } for r in rows[:limit]],
+    }
+
+
 
 
 @router.get("/merchants/{merchant_id}/dashboard")
@@ -384,6 +433,8 @@ async def create_qr(merchant_id: str, body: QrIn, user_id=Depends(get_current_us
     merchant_service.require_can_transact(merchant)
     if body.kind not in ("static", "dynamic"):
         raise ApiError("kind must be static or dynamic")
+    if body.kind == "static":  # printed codes count against the plan; one-off sale codes don't
+        await _plan_limit(db, merchant, "qr_codes")
     amount = None
     expires = None
     if body.kind == "dynamic":
@@ -545,6 +596,9 @@ def _link(link: PaymentLink) -> dict:
 async def create_checkout_link(merchant_id: str, body: CheckoutLinkIn, user_id=Depends(get_current_user_id),
                                db: AsyncSession = Depends(get_db)):
     merchant, _ = await merchant_access(db, merchant_id, user_id, "collect")
+    # Dashboard links count against the plan; links a website creates per
+    # order through the API are checkout sessions and never limited.
+    await _plan_limit(db, merchant, "checkout_links")
     return _link(await _create_checkout_link(db, merchant, body))
 
 
@@ -584,6 +638,9 @@ class ApiKeyIn(CamelModel):
 async def create_api_key(merchant_id: str, body: ApiKeyIn, user_id=Depends(get_current_user_id),
                          db: AsyncSession = Depends(get_db)):
     merchant, _ = await merchant_access(db, merchant_id, user_id, "developer")
+    from app.plans import service as plans
+
+    await plans.enforce_feature(db, merchant, "api_access")
     prefix = secrets.token_hex(6)
     secret = secrets.token_urlsafe(32)
     db.add(MerchantApiKey(merchant_id=merchant.id, prefix=prefix,
@@ -623,6 +680,9 @@ class WebhookIn(CamelModel):
 async def create_webhook(merchant_id: str, body: WebhookIn, user_id=Depends(get_current_user_id),
                          db: AsyncSession = Depends(get_db)):
     merchant, _ = await merchant_access(db, merchant_id, user_id, "developer")
+    from app.plans import service as plans
+
+    await plans.enforce_feature(db, merchant, "api_access")
     if not body.url.startswith("https://"):
         raise ApiError("Webhook URLs must use https")
     unknown = set(body.events) - set(webhooks_out.EVENTS)

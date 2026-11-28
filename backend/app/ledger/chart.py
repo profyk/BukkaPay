@@ -50,6 +50,8 @@ SYSTEM_ACCOUNTS: tuple[SystemAccount, ...] = (
                   purpose="Interchange earned on virtual card spend"),
     SystemAccount("SYS_REVENUE_ACCOUNT_FEES", "revenue:account_fees:{ccy}", "Monthly account fee revenue", "revenue",
                   purpose="The monthly BukkaPay account fee"),
+    SystemAccount("SYS_REVENUE_SUBSCRIPTIONS", "revenue:subscriptions:{ccy}", "Merchant plan revenue", "revenue",
+                  purpose="Monthly and yearly merchant plan fees, paid from the business balance"),
     SystemAccount("SYS_AGENT_CASHOUT_HOLD", "agent:cashout_hold:{ccy}", "Agent cash-out holds", "liability",
                   purpose="Customer money held against an issued cash-out code until an agent pays it out"),
     SystemAccount("SYS_EXPENSE_AGENT_COMMISSION", "expense:agent_commission:{ccy}", "Agent commissions", "expense",

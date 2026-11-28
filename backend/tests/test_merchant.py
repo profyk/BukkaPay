@@ -63,7 +63,8 @@ async def test_merchant_withdraw_uses_real_auth(client: AsyncClient, business_us
     assert paid.status_code == 201, paid.text
 
     r = await client.patch(f"/api/merchants/{merchant_id}/banking", json={
-        "bankId": "fnb", "accountHolder": "Owner", "accountNumber": "12345", "accountType": "savings",
+        "bankId": "fnb", "accountHolder": "Owner", "accountNumber": "62012345678", "accountType": "savings",
+        "pin": TEST_PIN,
     }, headers=owner["headers"])
     assert r.status_code == 200, r.text
 

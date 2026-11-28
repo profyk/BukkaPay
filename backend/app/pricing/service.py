@@ -255,7 +255,7 @@ STREAMS = {
     "merchant_payment": "Merchant fees", "qr_payment": "Merchant fees", "payment_link_payment": "Payment link fees",
     "payout_settlement": "Payout fees & FX", "cross_border_debit": "Cross-border fees", "swap": "FX margin",
     "withdrawal": "Withdrawal fees", "agent_cash_out": "Cash-out fees", "trade_payment": "Trade escrow fees",
-    "agent_cash_in": "Agent commissions (cost)",
+    "agent_cash_in": "Agent commissions (cost)", "merchant_plan": "Merchant plans",
 }
 
 

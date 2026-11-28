@@ -327,6 +327,20 @@ async def charge_account_fees(ctx: dict) -> dict:
     return counts
 
 
+async def renew_merchant_plans(ctx: dict) -> dict:
+    """Merchant plan renewals and scheduled changes, paid from the business
+    balance; unpaid ones retry daily for a week, then fall back to the free
+    default plan. Never overdraws."""
+    from app.plans import service as plans
+
+    async with get_session_factory()() as db:
+        counts = await plans.renew_due(db)
+        await db.commit()
+    if any(counts.values()):
+        log.info("renew_merchant_plans", **counts)
+    return counts
+
+
 async def expire_agent_cash_out_codes(ctx: dict) -> int:
     """Unused cash-out codes past their expiry: the held money goes back to
     the customer's wallet."""

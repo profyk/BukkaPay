@@ -105,10 +105,21 @@ async def update_banking(
     merchant_id: str, body: UpdateMerchantBankingRequest, user_id=Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> MerchantResponse:
+    from app.models.enums import NotificationType
+    from app.services import notification_service, pin_service
+
     merchant = await _owned_merchant(db, merchant_id, user_id)
+    # Payout-account changes are the classic takeover target: PIN first.
+    await pin_service.verify_pin(db, user_id, body.pin)
     updated = await merchant_service.update_banking_details(
         db, merchant, bank_id=body.bank_id, account_holder=body.account_holder,
         account_number=body.account_number, account_type=body.account_type,
+    )
+    await notification_service.create_notification(
+        db, merchant.user_id, NotificationType.INFO, "Payout bank account changed",
+        f"Payouts for {merchant.business_name} now go to {updated.bank_name} account ending "
+        f"{(updated.account_number or '')[-4:]}. If this wasn't you, contact BukkaPay support immediately.",
+        related_id=str(merchant.id), related_type="merchant_banking",
     )
     return MerchantResponse.model_validate(updated)
 
@@ -158,6 +169,10 @@ async def invite_staff(
     merchant_id: str, body: InviteStaffRequest, user_id=Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
 ) -> InviteStaffResponse:
     merchant = await _accessible_merchant(db, merchant_id, user_id, require_manager=True)
+    from app.plans import service as plans
+
+    if await plans.limits_for(db, merchant):
+        await plans.enforce_limit(db, merchant, "staff_seats", (await plans.usage(db, merchant))["staff_seats"])
     staff = await merchant_service.invite_staff(db, merchant.id, name=body.name, role=body.role)
     invite_link = f"{get_settings().app_url}/staff-invite/{staff.invite_code}"
     return InviteStaffResponse.model_validate({"staff": staff, "inviteLink": invite_link})
@@ -219,10 +234,18 @@ async def subscribe(
     user_id=Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> MerchantSubscribeResponse:
+    """Older clients. Goes through the plan catalogue: published plans only,
+    paid from the business balance (it used to switch plans for free)."""
+    from app.plans import service as plans
+
     merchant = await _owned_merchant(db, merchant_id, user_id)
-    expires_at = await merchant_service.subscribe(db, merchant, body.plan)
+    plan = await plans.get_plan(db, (body.plan or "").strip().lower())
+    if plan is None or plan.status != "published":
+        raise ApiError("Invalid plan")
+    result = await plans.choose(db, merchant, plan.code, "monthly", user_id=user_id)
+    sub = result["subscription"] or {}
     return MerchantSubscribeResponse.model_validate(
-        {"success": True, "plan": body.plan, "expiresAt": expires_at}
+        {"success": True, "plan": plan.code, "expiresAt": sub.get("periodEnd")}
     )
 
 
