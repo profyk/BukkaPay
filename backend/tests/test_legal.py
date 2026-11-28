@@ -15,7 +15,8 @@ async def test_public_serves_every_standard_document_as_a_marked_draft(client: A
     doc = (await client.get("/api/public/legal/privacy-policy")).json()
     assert doc["reviewStatus"] == "template" and doc["isLatest"] is True
     assert "{{" not in doc["body"]  # every placeholder filled or shown as [label]
-    assert "[Company legal name]" in doc["body"]  # gaps stay visible until details are entered
+    # Details not entered yet read as plain, truthful wording (catalog.fill), not [brackets].
+    assert "in the process of registration" in doc["body"] and "[Company legal name]" not in doc["body"]
     assert (await client.get("/api/public/legal/nope")).status_code == 404
 
 
