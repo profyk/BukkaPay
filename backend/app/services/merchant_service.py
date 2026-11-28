@@ -71,8 +71,16 @@ async def get_merchant_by_payment_link(db: AsyncSession, payment_link: str) -> M
 
 
 async def create_merchant(db: AsyncSession, user_id: uuid.UUID, **fields) -> Merchant:
-    if not fields.get("business_name"):
+    # The plan is billed and the active flag is BukkaPay's to set: never taken
+    # from the sign-up form (a new business always starts on Starter).
+    fields.pop("subscription_plan", None)
+    fields.pop("is_active", None)
+    name = " ".join(str(fields.get("business_name") or "").split())
+    if not name:
         raise ApiError("Business name is required")
+    if not 2 <= len(name) <= 120:
+        raise ApiError("Business name must be 2 to 120 characters")
+    fields["business_name"] = name
     if not fields.get("business_type"):
         raise ApiError("Business type is required")
     from app.core import brand_guard
@@ -88,8 +96,8 @@ async def create_merchant(db: AsyncSession, user_id: uuid.UUID, **fields) -> Mer
         user_id=user_id,
         qr_code=qr_code,
         payment_link=payment_link,
-        subscription_plan=fields.get("subscription_plan") or "starter",
-        **{k: v for k, v in fields.items() if k != "subscription_plan" and v is not None},
+        subscription_plan="starter",
+        **{k: v for k, v in fields.items() if v is not None},
     )
     db.add(merchant)
     await db.flush()

@@ -8,7 +8,12 @@ import { useData, type Membership } from "@/lib/hooks"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge, Button, Card, Empty, Field, Input, Modal, Notice, PageHeader, Select } from "@/components/ui"
 
-const TYPES = ["retail", "restaurant", "services", "sme", "tuckshop", "street_vendor", "logistics", "online", "school", "utility", "other"]
+const TYPES: [string, string][] = [
+  ["retail", "Shop / retail"], ["restaurant", "Restaurant, café or takeaway"], ["tuckshop", "Spaza or tuck shop"],
+  ["street_vendor", "Street vendor or market stall"], ["services", "Services (salon, repairs, cleaning…)"],
+  ["online", "Online store"], ["logistics", "Transport & logistics"], ["school", "School or crèche"],
+  ["utility", "Utility or levies"], ["sme", "Other small business"], ["other", "Something else"],
+]
 
 export default function BusinessesPage() {
   const router = useRouter()
@@ -19,12 +24,16 @@ export default function BusinessesPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [staffCode, setStaffCode] = useState("")
 
+  const [busy, setBusy] = useState(false)
+  const trimmed = name.replace(/\s+/g, " ").trim()
+  const nameError = name && (trimmed.length < 2 || trimmed.length > 120) ? "Use 2 to 120 characters." : undefined
   const create = async () => {
-    setFormError(null)
+    if (busy || !trimmed || nameError) return
+    setFormError(null); setBusy(true)
     try {
-      const m = await api<{ id: string }>("/merchants", { method: "POST", json: { businessName: name, businessType: type } })
+      const m = await api<{ id: string }>("/merchants", { method: "POST", json: { businessName: trimmed, businessType: type } })
       router.push(`/m/${m.id}/verification`)
-    } catch (e: any) { setFormError(e.message) }
+    } catch (e: any) { setFormError(e.message); setBusy(false) }
   }
   const joinAsStaff = async () => {
     setFormError(null)
@@ -79,17 +88,20 @@ export default function BusinessesPage() {
         </div>
       </Card>
       {formError && <div className="mt-4"><Notice tone="error">{formError}</Notice></div>}
-      <Modal open={creating} title="Register a business" onClose={() => setCreating(false)}>
-        <div className="space-y-4">
-          <Field label="Business name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          <Field label="Business type">
+      <Modal open={creating} title="Register a business" onClose={() => { setCreating(false); setFormError(null) }}>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void create() }}>
+          <Field label="Business name" hint="The name customers see when they pay you." error={nameError}>
+            <Input autoFocus maxLength={120} placeholder="e.g. Mama's Kota" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="What kind of business is it?">
             <Select value={type} onChange={(e) => setType(e.target.value)}>
-              {TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+              {TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
             </Select>
           </Field>
-          <Notice>Next, you'll verify the business (registration, address, owners and documents). Payments stay switched off until BukkaPay approves it.</Notice>
-          <Button className="w-full" disabled={!name.trim()} onClick={create}>Continue</Button>
-        </div>
+          {formError && <Notice tone="error">{formError}</Notice>}
+          <Notice>Next, you'll verify the business (registration, address, owners and documents), or verify as an individual seller if it isn't registered. Payments stay switched off until it's verified. You can choose a plan any time after that.</Notice>
+          <Button type="submit" className="w-full" disabled={!trimmed || !!nameError || busy}>{busy ? "Creating…" : "Continue"}</Button>
+        </form>
       </Modal>
     </main>
   )

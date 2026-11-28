@@ -20,12 +20,14 @@ export function Button({ variant = "primary", className = "", ...props }: Button
   )
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-semibold text-ink dark:text-white">{label}</span>
       {children}
-      {hint && <span className="block text-xs text-ink-muted">{hint}</span>}
+      {error
+        ? <span role="alert" className="block text-xs font-medium text-red-600 dark:text-red-400">{error}</span>
+        : hint && <span className="block text-xs text-ink-muted">{hint}</span>}
     </label>
   )
 }

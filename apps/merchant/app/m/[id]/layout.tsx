@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { getToken, signOut } from "@/lib/api"
 import { can, useData, type Membership } from "@/lib/hooks"
 import { Badge, Notice } from "@/components/ui"
-import { MerchantContext } from "@/components/merchant-context"
+import { MerchantContext, MerchantReloadContext } from "@/components/merchant-context"
 import { PaymentAlert } from "@/components/payment-alert"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -32,7 +32,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [ready, setReady] = useState(false)
-  const { data, error } = useData<Membership[]>(ready ? "/merchant-memberships" : null)
+  const { data, error, reload } = useData<Membership[]>(ready ? "/merchant-memberships" : null)
 
   useEffect(() => {
     if (!getToken()) router.replace("/login")
@@ -44,6 +44,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
 
   return (
     <MerchantContext.Provider value={merchant}>
+    <MerchantReloadContext.Provider value={reload}>
       <div className="min-h-screen lg:flex">
         <aside className="no-print lg:w-60 lg:min-h-screen border-b lg:border-b-0 lg:border-r border-line bg-white dark:bg-white/[0.02] dark:border-white/10">
           <div className="p-4 lg:p-5">
@@ -84,6 +85,7 @@ export default function MerchantLayout({ children }: { children: ReactNode }) {
         </main>
         {merchant && <PaymentAlert merchantId={merchant.id} currency={(merchant as any).currency ?? (merchant as any).settlementCurrency} />}
       </div>
+    </MerchantReloadContext.Provider>
     </MerchantContext.Provider>
   )
 }

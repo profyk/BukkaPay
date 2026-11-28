@@ -10,6 +10,7 @@ Roles: the owner is merchants.user_id. Staff roles: admin (legacy
 import csv
 import hashlib
 import io
+import re
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -78,6 +79,11 @@ def _money(v) -> str:
 # ─── KYB ────────────────────────────────────────────────────────────────────
 
 
+DIRECTOR_ROLES = {"director", "owner", "shareholder", "member", "partner", "trustee"}
+KYB_DOC_TYPES = {"registration_certificate", "proof_of_address", "director_id", "bank_letter"}
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
+
+
 class Director(CamelModel):
     full_name: str
     id_number: str
@@ -106,6 +112,7 @@ async def submit_kyb(merchant_id: str, body: KybSubmission, user_id=Depends(get_
     from app.network import countries
 
     merchant, _ = await merchant_access(db, merchant_id, user_id, "owner")
+    body = clean_kyb(body)
     upgrading = merchant.verification_tier == "individual" and merchant.kyb_status == "approved"
     if merchant.kyb_status in ("pending", "approved") and not upgrading:
         raise ApiError(f"Verification is already {merchant.kyb_status}", status_code=409)
@@ -132,6 +139,59 @@ async def submit_kyb(merchant_id: str, body: KybSubmission, user_id=Depends(get_
     merchant.kyb_rejection_reason = None
     await db.flush()
     return {"kybStatus": merchant.kyb_status, "submittedAt": merchant.kyb_submitted_at.isoformat()}
+
+
+def _text(value: str | None) -> str:
+    return " ".join(str(value or "").split())
+
+
+def clean_kyb(body: KybSubmission) -> KybSubmission:
+    """Trim every field and refuse incomplete or malformed submissions with a
+    message that names the field, before anything is stored for review."""
+    reg, address, category = _text(body.registration_number), _text(body.business_address), _text(body.business_category)
+    email, phone = _text(body.contact_email).lower(), _text(body.contact_phone)
+    if not 2 <= len(reg) <= 60:
+        raise ApiError("Enter the company registration number (2 to 60 characters)")
+    if not 5 <= len(address) <= 300:
+        raise ApiError("Enter the full registered address")
+    if not 2 <= len(category) <= 80:
+        raise ApiError("Enter what the business does (its category)")
+    if not EMAIL_RE.match(email) or len(email) > 254:
+        raise ApiError("Enter a valid contact email")
+    digits = re.sub(r"\D", "", phone)
+    if not 6 <= len(digits) <= 15:
+        raise ApiError("Enter a valid contact phone number")
+    directors = []
+    for d in body.directors:
+        name, id_number = _text(d.full_name), _text(d.id_number)
+        if not name and not id_number:
+            continue  # an empty row the form left behind
+        if not 2 <= len(name) <= 120:
+            raise ApiError("Every owner or director needs their full name")
+        if not 4 <= len(id_number) <= 40:
+            raise ApiError(f"Enter the ID or passport number for {name}")
+        role = (d.role or "director").strip().lower()
+        if role not in DIRECTOR_ROLES:
+            raise ApiError(f"Unknown role for {name}: {d.role}")
+        directors.append(Director(full_name=name, id_number=id_number, role=role))
+    if not directors:
+        raise ApiError("At least one owner/director is required")
+    if len(directors) > 20:
+        raise ApiError("Add at most 20 owners and directors")
+    if len({d.id_number.upper() for d in directors}) != len(directors):
+        raise ApiError("The same ID number is listed twice")
+    documents: dict[str, KybDocument] = {}
+    for doc in body.documents:
+        if doc.type not in KYB_DOC_TYPES:
+            raise ApiError(f"Unknown document type: {doc.type}")
+        if not doc.url.startswith(("storage://", "https://", "data:")):
+            raise ApiError("Upload each document again")
+        documents[doc.type] = doc  # one of each: the latest upload wins
+    return KybSubmission(
+        registration_number=reg, business_address=address, country_code=_text(body.country_code).upper(),
+        business_category=category, contact_email=email, contact_phone=phone,
+        directors=directors, documents=list(documents.values()),
+    )
 
 
 @router.post("/merchants/{merchant_id}/kyb/individual")
